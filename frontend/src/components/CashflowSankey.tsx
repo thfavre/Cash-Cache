@@ -36,18 +36,19 @@ const fmt = (n: number) => new Intl.NumberFormat('fr-CH', { style: 'currency', c
 
 export default function CashflowSankey({ data, onSelectCategory }: Props) {
   const [viewMode, setViewMode] = useState<'finary' | '2col' | '3col'>('finary')
+  const [sizeMode, setSizeMode] = useState<'auto' | 'confort' | 'xxl'>('auto')
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
   const [hoveredLinkId, setHoveredLinkId] = useState<string | null>(null)
 
-  const width = 1100
-  const height = 660
-  const padY = 32
-  const padX = 180
-  const nodeWidth = 14
-
-  const { nodes, links } = useMemo(() => {
+  const { nodes, links, width, height, nodeWidth } = useMemo(() => {
     const { summary, inflows, outflows } = data
     const maxVal = Math.max(summary.income, summary.expenses, 1)
+
+    const width = 1380
+    let height = 800
+    const padY = 40
+    const padX = 220
+    const nodeWidth = 14
 
     const nodeList: Node[] = []
     const linkList: Link[] = []
@@ -130,15 +131,23 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
       }
 
       const colCols = [col0Nodes, col1Nodes, col2Nodes]
-      const colX = [padX, 540, width - padX - nodeWidth]
+      const maxNodes = Math.max(col0Nodes.length, col1Nodes.length, col2Nodes.length)
+      if (sizeMode === 'auto') {
+        height = Math.max(860, maxNodes * 38 + 140)
+      } else if (sizeMode === 'confort') {
+        height = 1150
+      } else if (sizeMode === 'xxl') {
+        height = 1800
+      }
+      const colX = [padX, 640, width - padX - nodeWidth]
 
       colCols.forEach((items, cIdx) => {
         const totalColVal = items.reduce((sum, item) => sum + item.amount, 0) || 1
         const n = items.length
-        const gap = Math.min(14, Math.max(3, (height - 2 * padY - n * 16) / Math.max(1, n - 1)))
+        const gap = Math.min(24, Math.max(8, (height - 2 * padY - n * 18) / Math.max(1, n - 1)))
         const availH = height - 2 * padY - (n - 1) * gap
 
-        const rawH = items.map(item => Math.max(14, (item.amount / totalColVal) * availH))
+        const rawH = items.map(item => Math.max(18, (item.amount / totalColVal) * availH))
         const sumRaw = rawH.reduce((a, b) => a + b, 0)
         const scale = sumRaw > availH ? availH / sumRaw : 1
 
@@ -254,15 +263,23 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
       }
 
       const colCols = [col0Nodes, col1Nodes]
+      const maxNodes = Math.max(col0Nodes.length, col1Nodes.length)
+      if (sizeMode === 'auto') {
+        height = Math.max(720, maxNodes * 45 + 100)
+      } else if (sizeMode === 'confort') {
+        height = 1000
+      } else if (sizeMode === 'xxl') {
+        height = 1500
+      }
       const colX = [padX, width - padX - nodeWidth]
 
       colCols.forEach((items, cIdx) => {
         const totalColVal = items.reduce((sum, item) => sum + item.amount, 0) || 1
         const n = items.length
-        const gap = Math.min(16, Math.max(4, (height - 2 * padY - n * 18) / Math.max(1, n - 1)))
+        const gap = Math.min(24, Math.max(8, (height - 2 * padY - n * 18) / Math.max(1, n - 1)))
         const availH = height - 2 * padY - (n - 1) * gap
 
-        const rawH = items.map(item => Math.max(16, (item.amount / totalColVal) * availH))
+        const rawH = items.map(item => Math.max(18, (item.amount / totalColVal) * availH))
         const sumRaw = rawH.reduce((a, b) => a + b, 0)
         const scale = sumRaw > availH ? availH / sumRaw : 1
 
@@ -372,15 +389,23 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
       }
 
       const colCols = [col0Nodes, col1Nodes, col2Nodes]
+      const maxNodes = Math.max(col0Nodes.length, col1Nodes.length, col2Nodes.length)
+      if (sizeMode === 'auto') {
+        height = Math.max(720, maxNodes * 45 + 100)
+      } else if (sizeMode === 'confort') {
+        height = 1000
+      } else if (sizeMode === 'xxl') {
+        height = 1500
+      }
       const colX = [padX, width / 2 - nodeWidth / 2, width - padX - nodeWidth]
 
       colCols.forEach((items, cIdx) => {
         const totalColVal = items.reduce((sum, item) => sum + item.amount, 0) || 1
         const n = items.length
-        const gap = Math.min(16, Math.max(4, (height - 2 * padY - n * 18) / Math.max(1, n - 1)))
+        const gap = Math.min(24, Math.max(8, (height - 2 * padY - n * 18) / Math.max(1, n - 1)))
         const availH = height - 2 * padY - (n - 1) * gap
 
-        const rawH = items.map(item => Math.max(16, (item.amount / totalColVal) * availH))
+        const rawH = items.map(item => Math.max(18, (item.amount / totalColVal) * availH))
         const sumRaw = rawH.reduce((a, b) => a + b, 0)
         const scale = sumRaw > availH ? availH / sumRaw : 1
 
@@ -455,8 +480,8 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
       `
     })
 
-    return { nodes: nodeList, links: linkList }
-  }, [data, viewMode, width, height])
+    return { nodes: nodeList, links: linkList, width, height, nodeWidth }
+  }, [data, viewMode, sizeMode])
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col">
@@ -470,43 +495,79 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
           </p>
         </div>
 
-        <div className="flex items-center bg-gray-100 p-1 rounded-xl text-xs font-medium overflow-x-auto">
-          <button
-            onClick={() => setViewMode('finary')}
-            className={`px-3.5 py-1.5 rounded-lg whitespace-nowrap transition-all ${
-              viewMode === 'finary'
-                ? 'bg-white text-blue-700 shadow-sm font-bold'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            ✨ Détail Marchands (3 Niveaux)
-          </button>
-          <button
-            onClick={() => setViewMode('2col')}
-            className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-all ${
-              viewMode === '2col'
-                ? 'bg-white text-gray-900 shadow-sm font-semibold'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Vue Directe (Entrées ➔ Sorties)
-          </button>
-          <button
-            onClick={() => setViewMode('3col')}
-            className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-all ${
-              viewMode === '3col'
-                ? 'bg-white text-gray-900 shadow-sm font-semibold'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Hub Trésorerie
-          </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center bg-gray-100 p-1 rounded-xl text-xs font-medium overflow-x-auto">
+            <button
+              onClick={() => setViewMode('finary')}
+              className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-all ${
+                viewMode === 'finary'
+                  ? 'bg-white text-blue-700 shadow-sm font-bold'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              ✨ Détail Marchands (3 Niveaux)
+            </button>
+            <button
+              onClick={() => setViewMode('2col')}
+              className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-all ${
+                viewMode === '2col'
+                  ? 'bg-white text-gray-900 shadow-sm font-semibold'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Vue Directe (Entrées ➔ Sorties)
+            </button>
+            <button
+              onClick={() => setViewMode('3col')}
+              className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-all ${
+                viewMode === '3col'
+                  ? 'bg-white text-gray-900 shadow-sm font-semibold'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Hub Trésorerie
+            </button>
+          </div>
+
+          <div className="flex items-center bg-gray-100 p-1 rounded-xl text-xs font-medium">
+            <button
+              onClick={() => setSizeMode('auto')}
+              className={`px-2.5 py-1.5 rounded-lg whitespace-nowrap transition-all ${
+                sizeMode === 'auto'
+                  ? 'bg-white text-emerald-700 font-bold shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+              title="Hauteur ajustée automatiquement au nombre de détails"
+            >
+              🎯 Dynamique
+            </button>
+            <button
+              onClick={() => setSizeMode('confort')}
+              className={`px-2.5 py-1.5 rounded-lg whitespace-nowrap transition-all ${
+                sizeMode === 'confort'
+                  ? 'bg-white text-gray-900 font-bold shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              🖥️ Confort
+            </button>
+            <button
+              onClick={() => setSizeMode('xxl')}
+              className={`px-2.5 py-1.5 rounded-lg whitespace-nowrap transition-all ${
+                sizeMode === 'xxl'
+                  ? 'bg-white text-gray-900 font-bold shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              🌊 XXL
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Sankey SVG Container */}
       <div className="relative w-full overflow-x-auto">
-        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto min-w-[850px] select-none">
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto min-w-[1250px] select-none">
           <defs>
             {links.map(link => (
               <linearGradient key={link.id} id={`grad-${link.id.replace(/[^a-zA-Z0-9]/g, '_')}`} x1="0%" y1="0%" x2="100%" y2="0%">
