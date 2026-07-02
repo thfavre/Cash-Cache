@@ -46,7 +46,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
     const width = 1380
     let height = 800
     const padY = 40
-    const padX = 220
+    const padX = 40
     const nodeWidth = 14
 
     const nodeList: Node[] = []
@@ -87,7 +87,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
     // Column 1: Intermediate Hub Layer (All money in goes here!)
     const totalIn = Math.max(summary.income, summary.expenses, 1)
     const col1Nodes = [
-      { id: 'hub_budget', name: 'Budget / Trésorerie', amount: totalIn, color: '#3B82F6', icon: '🌊' }
+      { id: 'hub_budget', name: 'Budget', amount: totalIn, color: '#F97316', icon: '' }
     ]
 
     // Column 2: Expense Categories & Savings
@@ -166,7 +166,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
     } else if (sizeMode === 'xxl') {
       height = 1800
     }
-    const colX = [padX, 510, 800, width - padX - nodeWidth]
+    const colX = [padX, 400, 820, width - padX - nodeWidth]
 
     colCols.forEach((items, cIdx) => {
       const totalColVal = items.reduce((sum, item) => sum + item.amount, 0) || 1
@@ -410,75 +410,57 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                   className="transition-all duration-200 drop-shadow-sm"
                 />
 
-                {/* Col 0 Labels (to left of bar) */}
+                {/* Col 0 Labels (to right of bar, inside the first ribbon, exactly like Finary) */}
                 {isCol0 && (
+                  <text
+                    x={node.x + nodeWidth + 12}
+                    y={node.y + node.h / 2}
+                    textAnchor="start"
+                    dominantBaseline="middle"
+                    className={`text-xs transition-opacity duration-200 ${isDimmed ? 'opacity-30 text-gray-400' : 'text-gray-800 font-semibold text-[13px]'}`}
+                  >
+                    {node.icon ? `${node.icon} ` : ''}{node.name}: {fmt(node.amount)}
+                  </text>
+                )}
+
+                {/* Col 1 Label (Intermediate Budget - to left of bar, inside the ribbon, exactly like Finary) */}
+                {isCol1 && (
                   <text
                     x={node.x - 12}
                     y={node.y + node.h / 2}
                     textAnchor="end"
                     dominantBaseline="middle"
-                    className={`text-xs transition-opacity duration-200 font-medium ${isDimmed ? 'opacity-30 text-gray-400' : 'text-gray-900 font-bold'}`}
+                    className={`text-xs transition-opacity duration-200 ${isDimmed ? 'opacity-30 text-gray-400' : 'text-gray-800 font-semibold text-[13px]'}`}
                   >
-                    <tspan>{node.icon} {node.name}</tspan>
-                    <tspan x={node.x - 12} dy="15" className="fill-blue-600 font-extrabold text-xs">
-                      {fmt(node.amount)}
-                    </tspan>
-                  </text>
-                )}
-
-                {/* Col 1 Label (Intermediate Central Hub - right above the bar) */}
-                {isCol1 && (
-                  <text
-                    x={node.x + nodeWidth / 2}
-                    y={Math.max(20, node.y - 12)}
-                    textAnchor="middle"
-                    className={`text-xs transition-opacity duration-200 ${isDimmed ? 'opacity-30 text-gray-400' : 'text-blue-700 font-extrabold text-[13px]'}`}
-                  >
-                    {node.icon} {node.name} ({fmt(node.amount)})
+                    {node.name}: {fmt(node.amount)}
                   </text>
                 )}
 
                 {/* Col 2 Labels (Categories - to left of vertical bar) */}
+                {/* Col 2 Labels (Categories - to left of bar, exactly like Finary) */}
                 {isCol2 && (
                   <text
                     x={node.x - 10}
                     y={node.y + node.h / 2}
                     textAnchor="end"
                     dominantBaseline="middle"
-                    className={`text-xs transition-opacity duration-200 font-medium ${isDimmed ? 'opacity-30 text-gray-400' : 'text-gray-800 font-semibold'}`}
+                    className={`text-xs transition-opacity duration-200 ${isDimmed ? 'opacity-30 text-gray-400' : 'text-gray-800 font-semibold text-[13px]'}`}
                   >
-                    <tspan>{node.icon} {node.name}</tspan>
-                    <tspan x={node.x - 10} dy="14" className="fill-gray-500 font-normal text-[11px]">
-                      {fmt(node.amount)} ({node.percentage}%)
-                    </tspan>
+                    {node.name}: {fmt(node.amount)}
                   </text>
                 )}
 
-                {/* Last Column Labels (Details - to right of vertical bar) */}
+                {/* Last Column Labels (Details - to left of bar, exactly like Finary) */}
                 {isLastCol && (
-                  <g>
-                    <rect
-                      x={node.x + nodeWidth + 6}
-                      y={node.y + node.h / 2 - 4}
-                      width={6}
-                      height={8}
-                      rx={3}
-                      fill={node.color}
-                      opacity={isDimmed ? 0.25 : 0.8}
-                    />
-                    <text
-                      x={node.x + nodeWidth + 18}
-                      y={node.y + node.h / 2}
-                      textAnchor="start"
-                      dominantBaseline="middle"
-                      className={`text-xs transition-opacity duration-200 font-medium ${isDimmed ? 'opacity-30 text-gray-400' : 'text-gray-800 font-semibold'}`}
-                    >
-                      <tspan>{node.name}</tspan>
-                      <tspan x={node.x + nodeWidth + 18} dy="14" className="fill-gray-500 font-normal text-[11px]">
-                        {fmt(node.amount)} ({node.percentage}%)
-                      </tspan>
-                    </text>
-                  </g>
+                  <text
+                    x={node.x - 10}
+                    y={node.y + node.h / 2}
+                    textAnchor="end"
+                    dominantBaseline="middle"
+                    className={`text-xs transition-opacity duration-200 ${isDimmed ? 'opacity-30 text-gray-400' : 'text-gray-800 font-medium text-[12px]'}`}
+                  >
+                    {node.name}: {fmt(node.amount)}
+                  </text>
                 )}
               </g>
             )
