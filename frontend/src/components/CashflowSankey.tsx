@@ -376,9 +376,11 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
 
           {/* Nodes */}
           {nodes.map(node => {
-            const isHovered = hoveredNodeId === node.id || links.some(l => (l.source.id === node.id || l.target.id === node.id) && hoveredLinkId === l.id)
+            const isDirectOrLinkHovered = hoveredNodeId === node.id || links.some(l => (l.source.id === node.id || l.target.id === node.id) && hoveredLinkId === l.id)
+            const isConnectedHovered = hoveredNodeId !== null && links.some(l => (l.source.id === hoveredNodeId && l.target.id === node.id) || (l.target.id === hoveredNodeId && l.source.id === node.id))
+            const isHighlighted = isDirectOrLinkHovered || isConnectedHovered
             const anyHovered = hoveredNodeId !== null || hoveredLinkId !== null
-            const isDimmed = anyHovered && !isHovered && !links.some(l => (l.source.id === node.id || l.target.id === node.id) && (hoveredLinkId === l.id || hoveredNodeId === l.source.id || hoveredNodeId === l.target.id))
+            const isDimmed = anyHovered && !isHighlighted
 
             const isCol0 = node.col === 0
             const isCol1 = node.col === 1
@@ -406,7 +408,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                   height={Math.max(6, node.h)}
                   rx={5}
                   fill={node.color}
-                  opacity={isDimmed ? 0.25 : 1}
+                  opacity={isDimmed ? 0.2 : 1}
                   className="transition-all duration-200 drop-shadow-sm"
                 />
 
@@ -417,7 +419,13 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                     y={node.y + node.h / 2}
                     textAnchor="start"
                     dominantBaseline="middle"
-                    className={`text-xs transition-opacity duration-200 ${isDimmed ? 'opacity-30 text-gray-400' : 'text-gray-800 font-semibold text-[13px]'}`}
+                    className={`transition-all duration-200 ${
+                      isHighlighted
+                        ? 'text-[16px] font-black fill-blue-700 drop-shadow-sm'
+                        : isDimmed
+                        ? 'text-[13px] opacity-30 fill-gray-400 font-semibold'
+                        : 'text-[13px] fill-gray-800 font-semibold'
+                    }`}
                   >
                     {node.icon ? `${node.icon} ` : ''}{node.name}: {fmt(node.amount)}
                   </text>
@@ -430,13 +438,18 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                     y={node.y + node.h / 2}
                     textAnchor="end"
                     dominantBaseline="middle"
-                    className={`text-xs transition-opacity duration-200 ${isDimmed ? 'opacity-30 text-gray-400' : 'text-gray-800 font-semibold text-[13px]'}`}
+                    className={`transition-all duration-200 ${
+                      isHighlighted
+                        ? 'text-[16px] font-black fill-blue-700 drop-shadow-sm'
+                        : isDimmed
+                        ? 'text-[13px] opacity-30 fill-gray-400 font-semibold'
+                        : 'text-[13px] fill-gray-800 font-semibold'
+                    }`}
                   >
                     {node.name}: {fmt(node.amount)}
                   </text>
                 )}
 
-                {/* Col 2 Labels (Categories - to left of vertical bar) */}
                 {/* Col 2 Labels (Categories - to left of bar, exactly like Finary) */}
                 {isCol2 && (
                   <text
@@ -444,7 +457,13 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                     y={node.y + node.h / 2}
                     textAnchor="end"
                     dominantBaseline="middle"
-                    className={`text-xs transition-opacity duration-200 ${isDimmed ? 'opacity-30 text-gray-400' : 'text-gray-800 font-semibold text-[13px]'}`}
+                    className={`transition-all duration-200 ${
+                      isHighlighted
+                        ? 'text-[16px] font-black fill-blue-700 drop-shadow-sm'
+                        : isDimmed
+                        ? 'text-[13px] opacity-30 fill-gray-400 font-semibold'
+                        : 'text-[13px] fill-gray-800 font-semibold'
+                    }`}
                   >
                     {node.name}: {fmt(node.amount)}
                   </text>
@@ -457,7 +476,13 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                     y={node.y + node.h / 2}
                     textAnchor="end"
                     dominantBaseline="middle"
-                    className={`text-xs transition-opacity duration-200 ${isDimmed ? 'opacity-30 text-gray-400' : 'text-gray-800 font-medium text-[12px]'}`}
+                    className={`transition-all duration-200 ${
+                      isHighlighted
+                        ? 'text-[15px] font-black fill-blue-700 drop-shadow-sm'
+                        : isDimmed
+                        ? 'text-[12px] opacity-30 fill-gray-400 font-medium'
+                        : 'text-[12px] fill-gray-800 font-medium'
+                    }`}
                   >
                     {node.name}: {fmt(node.amount)}
                   </text>
