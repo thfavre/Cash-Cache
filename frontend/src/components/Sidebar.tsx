@@ -22,13 +22,8 @@ export default function Sidebar() {
   const [uncatCount, setUncatCount] = useState<number | null>(null)
 
   useEffect(() => {
-    api.transactions({ per_page: 1, is_internal: false, is_credit: false })
-      .then(r => {
-        // We can't easily get uncategorized count from here, just show total
-        // We'll fetch it via a filtered call
-      })
-    api.transactions({ per_page: 200, is_internal: false, is_credit: false })
-      .then(r => setUncatCount(r.items.filter(t => !t.category_id).length))
+    api.transactions({ per_page: 1, is_internal: false, is_credit: false, uncategorized_only: true })
+      .then(r => setUncatCount(r.total))
   }, [])
 
   async function handleImport() {

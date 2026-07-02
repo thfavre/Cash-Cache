@@ -48,20 +48,30 @@ class CategoryUpdate(BaseModel):
 def list_transactions(
     account_id: Optional[int] = None,
     category_id: Optional[int] = None,
+    uncategorized_only: bool = False,
     year: Optional[int] = None,
     month: Optional[int] = None,
     search: Optional[str] = None,
     is_credit: Optional[bool] = None,
     is_internal: Optional[bool] = None,
     page: int = Query(1, ge=1),
-    per_page: int = Query(50, ge=1, le=200),
+    per_page: int = Query(50, ge=1, le=2000),
     db: Session = Depends(get_db),
 ):
     q = db.query(Transaction)
 
     if account_id is not None:
         q = q.filter(Transaction.account_id == account_id)
-    if category_id is not None:
+    if uncategorized_only:
+        # "Non catégorisé" is the fallback category assigned at import
+        uncat = db.query(Category).filter(Category.name == "Non catégorisé").first()
+        if uncat:
+            q = q.filter(
+                or_(Transaction.category_id == None, Transaction.category_id == uncat.id)
+            )
+        else:
+            q = q.filter(Transaction.category_id == None)
+    elif category_id is not None:
         q = q.filter(Transaction.category_id == category_id)
     if year is not None:
         from sqlalchemy import extract

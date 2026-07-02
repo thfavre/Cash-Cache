@@ -66,16 +66,13 @@ export default function Categorize() {
   // ── Data loading ──────────────────────────────────────────────────────
   const loadTxs = useCallback(async () => {
     setLoading(true)
-    const cat = showAll ? undefined : undefined  // all non-internal expenses
     const result = await api.transactions({
-      per_page: 200,
+      per_page: 2000,
       is_internal: false,
       is_credit: showAll ? undefined : false,
-      ...(showAll ? {} : { category_id: undefined }),
+      uncategorized_only: showAll ? undefined : true,
     })
-    // When showAll=false, filter client-side to only uncategorized
-    const items = showAll ? result.items : result.items.filter(t => !t.category_id)
-    setTxs(items)
+    setTxs(result.items)
     setTotal(result.total)
     setLoading(false)
   }, [showAll])
