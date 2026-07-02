@@ -63,6 +63,7 @@ export default function Categorize() {
   const [catForm, setCatForm] = useState<CatForm>(EMPTY_FORM)
   const [ruleTag, setRuleTag] = useState('')
   const [catSearch, setCatSearch] = useState('')
+  const [txSearch, setTxSearch] = useState('')
 
   // ── Data loading ──────────────────────────────────────────────────────
   const loadTxs = useCallback(async () => {
@@ -171,6 +172,15 @@ export default function Categorize() {
 
   const uncatCount = txs.length
 
+  const filteredTxs = (() => {
+    const q = txSearch.trim().toLowerCase()
+    if (!q) return txs
+    return txs.filter(tx =>
+      (tx.description ?? '').toLowerCase().includes(q) ||
+      (tx.counterparty ?? '').toLowerCase().includes(q)
+    )
+  })()
+
   const filteredCategories = (() => {
     const q = catSearch.trim().toLowerCase()
     if (!q) return categories
@@ -210,27 +220,50 @@ export default function Categorize() {
       <div className="flex flex-1 overflow-hidden">
 
         {/* Left: Transaction list */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
-          {loading ? (
-            <div className="text-center py-20 text-gray-400">Chargement...</div>
-          ) : txs.length === 0 ? (
-            <div className="text-center py-20">
-              <p className="text-4xl mb-3">🎉</p>
-              <p className="text-gray-600 font-medium">Toutes les transactions sont catégorisées !</p>
-            </div>
-          ) : (
-            txs.map(tx => (
-              <TxCard
-                key={tx.id}
-                tx={tx}
-                selected={selectedId === tx.id}
-                dragging={draggingId === tx.id}
-                onClick={() => setSelectedId(id => id === tx.id ? null : tx.id)}
-                onDragStart={() => setDraggingId(tx.id)}
-                onDragEnd={() => setDraggingId(null)}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="px-4 pt-4 pb-2 shrink-0">
+            <div className="relative">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                value={txSearch}
+                onChange={e => setTxSearch(e.target.value)}
+                placeholder="Rechercher une transaction (description, tiers)..."
+                className="w-full text-sm border border-gray-200 rounded-lg pl-8 pr-7 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-            ))
-          )}
+              {txSearch && (
+                <button
+                  onClick={() => setTxSearch('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-2">
+            {loading ? (
+              <div className="text-center py-20 text-gray-400">Chargement...</div>
+            ) : txs.length === 0 ? (
+              <div className="text-center py-20">
+                <p className="text-4xl mb-3">🎉</p>
+                <p className="text-gray-600 font-medium">Toutes les transactions sont catégorisées !</p>
+              </div>
+            ) : filteredTxs.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-20">Aucune transaction ne correspond à "{txSearch}"</p>
+            ) : (
+              filteredTxs.map(tx => (
+                <TxCard
+                  key={tx.id}
+                  tx={tx}
+                  selected={selectedId === tx.id}
+                  dragging={draggingId === tx.id}
+                  onClick={() => setSelectedId(id => id === tx.id ? null : tx.id)}
+                  onDragStart={() => setDraggingId(tx.id)}
+                  onDragEnd={() => setDraggingId(null)}
+                />
+              ))
+            )}
+          </div>
         </div>
 
         {/* Right: Categories panel */}
