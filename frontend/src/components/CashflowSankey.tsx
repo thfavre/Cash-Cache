@@ -316,7 +316,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
         <div>
           <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-            <span>🌊 Diagramme de Flux Détaillé (Style Finary)</span>
+            <span>🌊 Diagramme de Flux Détaillé</span>
           </h2>
           <p className="text-xs text-gray-500 mt-0.5">
             Survolez ou cliquez sur les sources, catégories ou marchands pour explorer le parcours complet de vos revenus
@@ -446,7 +446,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                   )}
                 </rect>
 
-                {/* Col 0 Labels (to right of bar, inside the first ribbon, exactly like Finary) */}
+                {/* Col 0 Labels (to right of bar, inside the first ribbon) */}
                 {isCol0 && (
                   <text
                     x={node.x + nodeWidth + 12}
@@ -465,7 +465,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                   </text>
                 )}
 
-                {/* Col 1 Label (Intermediate Budget - to left of bar, inside the ribbon, exactly like Finary) */}
+                {/* Col 1 Label (Intermediate Budget - to left of bar, inside the ribbon) */}
                 {isCol1 && (
                   <text
                     x={node.x - 12}
@@ -484,7 +484,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                   </text>
                 )}
 
-                {/* Col 2 Labels (Categories - to left of bar, exactly like Finary) */}
+                {/* Col 2 Labels (Categories - to left of bar) */}
                 {isCol2 && (
                   <text
                     x={node.x - 10}
@@ -527,9 +527,8 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
         </svg>
       </div>
 
-      <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100 text-[11px] text-gray-400">
+      <div className="flex items-center mt-4 pt-3 border-t border-gray-100 text-[11px] text-gray-400">
         <span>💡 Astuce : Survolez un flux pour isoler son parcours ou cliquez sur une catégorie pour voir ses transactions.</span>
-        <span className="font-semibold text-gray-500">Inspiré par Finary &amp; Monarch</span>
       </div>
     </div>
   )
