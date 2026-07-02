@@ -267,10 +267,16 @@ def get_cashflow(
                     "amount": 0.0,
                     "color": cat_color,
                     "icon": cat_icon,
-                    "tx_count": 0
+                    "tx_count": 0,
+                    "_subitems": {}
                 }
             outflows[cat_name]["amount"] += amt
             outflows[cat_name]["tx_count"] += 1
+            sub_name = (t.counterparty or t.description or "Divers").strip()
+            if len(sub_name) > 28:
+                sub_name = sub_name[:28] + "..."
+            sub_map = outflows[cat_name]["_subitems"]
+            sub_map[sub_name] = sub_map.get(sub_name, 0.0) + amt
 
     inflows_list = sorted(inflows.values(), key=lambda x: x["amount"], reverse=True)
     outflows_list = sorted(outflows.values(), key=lambda x: x["amount"], reverse=True)
@@ -285,6 +291,19 @@ def get_cashflow(
         item["percentage_of_expenses"] = round((item["amount"] / total_expenses * 100) if total_expenses > 0 else 0.0, 1)
         item["percentage_of_income"] = round((item["amount"] / total_income * 100) if total_income > 0 else 0.0, 1)
         item["avg_ticket"] = round(item["amount"] / item["tx_count"], 2) if item["tx_count"] > 0 else 0.0
+
+        sub_dict = item.pop("_subitems", {})
+        sorted_subs = sorted(sub_dict.items(), key=lambda x: x[1], reverse=True)
+        top_subs = []
+        other_amt = 0.0
+        for i, (s_name, s_amt) in enumerate(sorted_subs):
+            if i < 4 and s_amt > 1.0 and (len(sorted_subs) <= 5 or i < 4):
+                top_subs.append({"name": s_name, "amount": round(s_amt, 2)})
+            else:
+                other_amt += s_amt
+        if other_amt > 1.0:
+            top_subs.append({"name": f"Autres {item['name']}", "amount": round(other_amt, 2)})
+        item["subitems"] = top_subs
 
     for m in monthly_trend:
         m["income"] = round(m["income"], 2)

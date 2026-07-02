@@ -149,6 +149,7 @@ export interface CashflowOutflow {
   percentage_of_expenses: number
   percentage_of_income: number
   avg_ticket: number
+  subitems?: { name: string; amount: number }[]
 }
 
 export interface CashflowData {
