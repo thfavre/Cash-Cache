@@ -143,6 +143,8 @@ export default function Categorize() {
     if (!catForm.name.trim()) return
     if (editingCat) {
       await api.updateCategory(editingCat.id, catForm)
+      await api.recategorize(editingCat.id)
+      loadTxs()
     } else {
       await api.createCategory(catForm as any)
     }
