@@ -1,5 +1,7 @@
+from datetime import datetime, timezone
+
 from sqlalchemy import (
-    Column, Integer, String, Float, Boolean, Date, ForeignKey, JSON, UniqueConstraint
+    Column, Integer, String, Float, Boolean, Date, DateTime, ForeignKey, JSON, UniqueConstraint
 )
 from sqlalchemy.orm import relationship
 from .database import Base
@@ -53,6 +55,22 @@ class Transaction(Base):
 
     account = relationship("Account", back_populates="transactions")
     category = relationship("Category", back_populates="transactions")
+
+
+class HistoryEntry(Base):
+    """
+    Log of categorization actions (rule edits, single/bulk assignments) that
+    can be reverted. `payload` holds whatever the revert logic for `action`
+    needs — see backend/history.py.
+    """
+    __tablename__ = "history_entries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    action = Column(String, nullable=False)   # "edit_rules" | "assign" | "recategorize"
+    summary = Column(String, nullable=False)
+    payload = Column(JSON, nullable=False)
+    reverted = Column(Boolean, default=False)
 
 
 class Budget(Base):

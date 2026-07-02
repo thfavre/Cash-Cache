@@ -130,6 +130,14 @@ export interface Merchant {
   count: number
 }
 
+export interface HistoryEntry {
+  id: number
+  created_at: string
+  action: string
+  summary: string
+  reverted: boolean
+}
+
 // ---- API functions ----
 
 export const api = {
@@ -148,6 +156,11 @@ export const api = {
     req(`/transactions/${txId}/category`, {
       method: 'PUT',
       body: JSON.stringify({ category_id: categoryId }),
+    }),
+  updateTransactionsCategory: (txIds: number[], categoryId: number | null): Promise<{ updated: number }> =>
+    req(`/transactions/bulk-category`, {
+      method: 'PUT',
+      body: JSON.stringify({ tx_ids: txIds, category_id: categoryId }),
     }),
 
   // Categories
@@ -222,4 +235,9 @@ export const api = {
   // Import
   reimport: (): Promise<{ files: number; accounts: number; transactions: number }> =>
     req('/import', { method: 'POST' }),
+
+  // History
+  history: (): Promise<HistoryEntry[]> => req('/history'),
+  revertHistory: (id: number): Promise<HistoryEntry> =>
+    req(`/history/${id}/revert`, { method: 'POST' }),
 }

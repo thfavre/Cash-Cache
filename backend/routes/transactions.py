@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from typing import Optional
 from ..database import get_db
 from ..models import Transaction, Account, Category
+from ..history import log_history
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
@@ -41,6 +42,11 @@ class PaginatedTransactions(BaseModel):
 
 
 class CategoryUpdate(BaseModel):
+    category_id: Optional[int]
+
+
+class BulkCategoryUpdate(BaseModel):
+    tx_ids: list[int]
     category_id: Optional[int]
 
 
@@ -137,3 +143,36 @@ def update_category(tx_id: int, body: CategoryUpdate, db: Session = Depends(get_
     tx.category_id = body.category_id
     db.commit()
     return {"ok": True}
+
+
+@router.put("/bulk-category")
+def bulk_update_category(body: BulkCategoryUpdate, db: Session = Depends(get_db)):
+    """
+    Assign one or more transactions to a category in a single action, logged
+    as one revertible history entry (used for click-to-assign and drag/drop,
+    including grouped "most frequent" assignments).
+    """
+    cat = db.query(Category).filter(Category.id == body.category_id).first() if body.category_id else None
+
+    changes = []
+    for tx_id in body.tx_ids:
+        tx = db.query(Transaction).filter(Transaction.id == tx_id).first()
+        if not tx or tx.category_id == body.category_id:
+            continue
+        changes.append({"tx_id": tx.id, "previous_category_id": tx.category_id})
+        tx.category_id = body.category_id
+
+    db.commit()
+
+    if changes:
+        cat_name = cat.name if cat else "Non catégorisé"
+        summary = (
+            f"1 transaction assignée à {cat_name}" if len(changes) == 1
+            else f"{len(changes)} transactions assignées à {cat_name}"
+        )
+        log_history(
+            db, action="assign", summary=summary,
+            payload={"category_id": body.category_id, "changes": changes},
+        )
+
+    return {"updated": len(changes)}

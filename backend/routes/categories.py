@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from typing import Optional
 from ..database import get_db
 from ..models import Category
+from ..history import log_history
 
 router = APIRouter(prefix="/categories", tags=["categories"])
 
@@ -52,10 +53,25 @@ def update_category(cat_id: int, body: CategoryUpdate, db: Session = Depends(get
     cat = db.query(Category).filter(Category.id == cat_id).first()
     if not cat:
         raise HTTPException(status_code=404, detail="Category not found")
+    previous_rules = list(cat.rules or [])
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(cat, field, value)
     db.commit()
     db.refresh(cat)
+
+    if body.rules is not None and list(body.rules) != previous_rules:
+        added = [r for r in body.rules if r not in previous_rules]
+        removed = [r for r in previous_rules if r not in body.rules]
+        bits = []
+        if added:
+            bits.append(f"+{', '.join(added)}")
+        if removed:
+            bits.append(f"-{', '.join(removed)}")
+        log_history(
+            db, action="edit_rules",
+            summary=f"Mots-clés modifiés pour {cat.name} ({' '.join(bits)})",
+            payload={"category_id": cat.id, "previous_rules": previous_rules},
+        )
     return cat
 
 
@@ -89,7 +105,7 @@ def recategorize(cat_id: int, db: Session = Depends(get_db)):
         Transaction.is_internal == False,
     ).all()
 
-    updated = 0
+    changes = []
     for tx in txs:
         search = " | ".join(filter(None, [
             tx.description or "", tx.counterparty or "", tx.remittance_info or ""
@@ -97,9 +113,17 @@ def recategorize(cat_id: int, db: Session = Depends(get_db)):
         for rule in cat.rules:
             if rule.upper() in search:
                 if tx.category_id != cat_id:
+                    changes.append({"tx_id": tx.id, "previous_category_id": tx.category_id})
                     tx.category_id = cat_id
-                    updated += 1
                 break
 
     db.commit()
-    return {"updated": updated}
+
+    if changes:
+        log_history(
+            db, action="recategorize",
+            summary=f"{len(changes)} transaction(s) recatégorisée(s) vers {cat.name}",
+            payload={"category_id": cat.id, "changes": changes},
+        )
+
+    return {"updated": len(changes)}
