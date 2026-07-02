@@ -35,7 +35,6 @@ interface Link {
 const fmt = (n: number) => new Intl.NumberFormat('fr-CH', { style: 'currency', currency: 'CHF' }).format(n)
 
 export default function CashflowSankey({ data, onSelectCategory }: Props) {
-  const [viewMode, setViewMode] = useState<'finary' | '2col' | '3col'>('finary')
   const [sizeMode, setSizeMode] = useState<'auto' | 'confort' | 'xxl'>('auto')
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
   const [hoveredLinkId, setHoveredLinkId] = useState<string | null>(null)
@@ -53,403 +52,203 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
     const nodeList: Node[] = []
     const linkList: Link[] = []
 
-    if (viewMode === 'finary') {
-      // Finary 3-Level Hierarchy: Income -> Categories -> Subitems/Merchants
-      const col0Nodes: { id: string; name: string; amount: number; color: string; icon: string }[] = []
-      const totalIn = Math.max(summary.income, summary.expenses, 1)
-      col0Nodes.push({
-        id: 'in_budget',
-        name: 'Revenus / Budget',
-        amount: totalIn,
-        color: '#3B82F6',
-        icon: '💰'
-      })
-
-      const col1Nodes: { id: string; rawId?: number; name: string; amount: number; color: string; icon: string; txCount?: number }[] = []
-      for (const out of outflows) {
-        if (out.amount > 0) {
-          col1Nodes.push({
-            id: `cat_${out.id}_${out.name}`,
-            rawId: out.id,
-            name: out.name,
-            amount: out.amount,
-            color: out.color || '#64748B',
-            icon: out.icon || '📦',
-            txCount: out.tx_count
-          })
-        }
-      }
-      if (summary.net_savings > 0.01) {
-        col1Nodes.push({
-          id: 'cat_savings',
-          name: 'Épargne & Restant',
-          amount: summary.net_savings,
-          color: '#10B981',
-          icon: '🏦'
+    // Column 0: Sources of Income / Inflows
+    const col0Nodes: { id: string; name: string; amount: number; color: string; icon: string }[] = []
+    inflows.forEach((inf, i) => {
+      if (inf.amount > 0) {
+        col0Nodes.push({
+          id: `in_${i}`,
+          name: inf.name,
+          amount: inf.amount,
+          color: inf.color || '#10B981',
+          icon: inf.icon || '💰'
         })
       }
-      if (col1Nodes.length === 0) {
-        col1Nodes.push({ id: 'cat_empty', name: 'Dépenses', amount: 1, color: '#94A3B8', icon: '❓' })
-      }
+    })
+    if (summary.expenses > summary.income && summary.expenses - summary.income > 0.01) {
+      col0Nodes.push({
+        id: 'in_deficit',
+        name: 'Puisage sur réserves',
+        amount: summary.expenses - summary.income,
+        color: '#EF4444',
+        icon: '📉'
+      })
+    }
+    if (col0Nodes.length === 0) {
+      col0Nodes.push({
+        id: 'in_budget',
+        name: 'Revenus perçus',
+        amount: Math.max(summary.income, summary.expenses, 1),
+        color: '#10B981',
+        icon: '💰'
+      })
+    }
 
-      const col2Nodes: { id: string; rawId?: number; name: string; amount: number; color: string; icon: string }[] = []
-      for (const out of outflows) {
-        if (out.amount > 0 && out.subitems && out.subitems.length > 0) {
-          for (let i = 0; i < out.subitems.length; i++) {
-            const sub = out.subitems[i]
-            col2Nodes.push({
-              id: `sub_${out.id}_${i}`,
-              rawId: out.id,
-              name: sub.name,
-              amount: sub.amount,
-              color: out.color || '#64748B',
-              icon: out.icon || '📌'
-            })
-          }
-        } else if (out.amount > 0) {
+    // Column 1: Expense Categories & Savings
+    const col1Nodes: { id: string; rawId?: number; name: string; amount: number; color: string; icon: string; txCount?: number }[] = []
+    for (const out of outflows) {
+      if (out.amount > 0) {
+        col1Nodes.push({
+          id: `cat_${out.id}_${out.name}`,
+          rawId: out.id,
+          name: out.name,
+          amount: out.amount,
+          color: out.color || '#64748B',
+          icon: out.icon || '📦',
+          txCount: out.tx_count
+        })
+      }
+    }
+    if (summary.net_savings > 0.01) {
+      col1Nodes.push({
+        id: 'cat_savings',
+        name: 'Épargne constituée',
+        amount: summary.net_savings,
+        color: '#10B981',
+        icon: '🏦'
+      })
+    }
+    if (col1Nodes.length === 0) {
+      col1Nodes.push({ id: 'cat_empty', name: 'Dépenses', amount: 1, color: '#94A3B8', icon: '❓' })
+    }
+
+    // Column 2: Subitems / Merchants
+    const col2Nodes: { id: string; rawId?: number; name: string; amount: number; color: string; icon: string }[] = []
+    for (const out of outflows) {
+      if (out.amount > 0 && out.subitems && out.subitems.length > 0) {
+        for (let i = 0; i < out.subitems.length; i++) {
+          const sub = out.subitems[i]
           col2Nodes.push({
-            id: `sub_${out.id}_single`,
+            id: `sub_${out.id}_${i}`,
             rawId: out.id,
-            name: out.name,
-            amount: out.amount,
+            name: sub.name,
+            amount: sub.amount,
             color: out.color || '#64748B',
             icon: out.icon || '📌'
           })
         }
-      }
-      if (summary.net_savings > 0.01) {
+      } else if (out.amount > 0) {
         col2Nodes.push({
-          id: 'sub_savings_acc',
-          name: 'Accumulation Nette',
-          amount: summary.net_savings,
-          color: '#10B981',
-          icon: '✨'
+          id: `sub_${out.id}_single`,
+          rawId: out.id,
+          name: out.name,
+          amount: out.amount,
+          color: out.color || '#64748B',
+          icon: out.icon || '📌'
         })
       }
-      if (col2Nodes.length === 0) {
-        col2Nodes.push({ id: 'sub_empty', name: 'Détail', amount: 1, color: '#94A3B8', icon: '▪' })
-      }
-
-      const colCols = [col0Nodes, col1Nodes, col2Nodes]
-      const maxNodes = Math.max(col0Nodes.length, col1Nodes.length, col2Nodes.length)
-      if (sizeMode === 'auto') {
-        height = Math.max(860, maxNodes * 38 + 140)
-      } else if (sizeMode === 'confort') {
-        height = 1150
-      } else if (sizeMode === 'xxl') {
-        height = 1800
-      }
-      const colX = [padX, 640, width - padX - nodeWidth]
-
-      colCols.forEach((items, cIdx) => {
-        const totalColVal = items.reduce((sum, item) => sum + item.amount, 0) || 1
-        const n = items.length
-        const gap = Math.min(24, Math.max(8, (height - 2 * padY - n * 18) / Math.max(1, n - 1)))
-        const availH = height - 2 * padY - (n - 1) * gap
-
-        const rawH = items.map(item => Math.max(18, (item.amount / totalColVal) * availH))
-        const sumRaw = rawH.reduce((a, b) => a + b, 0)
-        const scale = sumRaw > availH ? availH / sumRaw : 1
-
-        let currY = padY
-        items.forEach((item, i) => {
-          const h = rawH[i] * scale
-          nodeList.push({
-            ...item,
-            col: cIdx,
-            x: colX[cIdx],
-            y: currY,
-            h,
-            currSourceY: currY,
-            currTargetY: currY,
-            percentage: Math.round((item.amount / maxVal) * 1000) / 10
-          })
-          currY += h + gap
-        })
+    }
+    if (summary.net_savings > 0.01) {
+      col2Nodes.push({
+        id: 'sub_savings_acc',
+        name: 'Accumulation Nette',
+        amount: summary.net_savings,
+        color: '#10B981',
+        icon: '✨'
       })
+    }
+    if (col2Nodes.length === 0) {
+      col2Nodes.push({ id: 'sub_empty', name: 'Détail', amount: 1, color: '#94A3B8', icon: '▪' })
+    }
 
-      // Links Col 0 -> Col 1
-      const rootNode = nodeList.find(n => n.col === 0)!
-      const catNodes = nodeList.filter(n => n.col === 1)
+    const colCols = [col0Nodes, col1Nodes, col2Nodes]
+    const maxNodes = Math.max(col0Nodes.length, col1Nodes.length, col2Nodes.length)
+    if (sizeMode === 'auto') {
+      height = Math.max(860, maxNodes * 38 + 140)
+    } else if (sizeMode === 'confort') {
+      height = 1150
+    } else if (sizeMode === 'xxl') {
+      height = 1800
+    }
+    const colX = [padX, 640, width - padX - nodeWidth]
+
+    colCols.forEach((items, cIdx) => {
+      const totalColVal = items.reduce((sum, item) => sum + item.amount, 0) || 1
+      const n = items.length
+      const gap = Math.min(24, Math.max(8, (height - 2 * padY - n * 18) / Math.max(1, n - 1)))
+      const availH = height - 2 * padY - (n - 1) * gap
+
+      const rawH = items.map(item => Math.max(18, (item.amount / totalColVal) * availH))
+      const sumRaw = rawH.reduce((a, b) => a + b, 0)
+      const scale = sumRaw > availH ? availH / sumRaw : 1
+
+      let currY = padY
+      items.forEach((item, i) => {
+        const h = rawH[i] * scale
+        nodeList.push({
+          ...item,
+          col: cIdx,
+          x: colX[cIdx],
+          y: currY,
+          h,
+          currSourceY: currY,
+          currTargetY: currY,
+          percentage: Math.round((item.amount / maxVal) * 1000) / 10
+        })
+        currY += h + gap
+      })
+    })
+
+    // Links Col 0 -> Col 1
+    const leftNodes = nodeList.filter(n => n.col === 0)
+    const catNodes = nodeList.filter(n => n.col === 1)
+    const totalCol0Val = leftNodes.reduce((sum, n) => sum + n.amount, 0) || 1
+
+    if (leftNodes.length === 1) {
+      const left = leftNodes[0]
       catNodes.forEach(cat => {
         linkList.push({
-          id: `in_budget->${cat.id}`,
-          source: rootNode,
+          id: `${left.id}->${cat.id}`,
+          source: left,
           target: cat,
           value: cat.amount,
           color: cat.color
         })
       })
-
-      // Links Col 1 -> Col 2
-      const subNodes = nodeList.filter(n => n.col === 2)
-      catNodes.forEach(cat => {
-        if (cat.id === 'cat_savings') {
-          const savTarget = subNodes.find(s => s.id === 'sub_savings_acc')
-          if (savTarget) {
+    } else {
+      leftNodes.forEach(left => {
+        catNodes.forEach(cat => {
+          const val = (left.amount / totalCol0Val) * cat.amount
+          if (val > 0.01) {
             linkList.push({
-              id: `${cat.id}->${savTarget.id}`,
-              source: cat,
-              target: savTarget,
-              value: cat.amount,
+              id: `${left.id}->${cat.id}`,
+              source: left,
+              target: cat,
+              value: val,
               color: cat.color
             })
           }
-        } else if (cat.rawId !== undefined) {
-          const matchingSubs = subNodes.filter(s => s.rawId === cat.rawId)
-          matchingSubs.forEach(sub => {
-            linkList.push({
-              id: `${cat.id}->${sub.id}`,
-              source: cat,
-              target: sub,
-              value: sub.amount,
-              color: cat.color
-            })
-          })
-        }
-      })
-
-    } else if (viewMode === '2col') {
-      // Column 0: Inflows / Income
-      const col0Nodes: { id: string; name: string; amount: number; color: string; icon: string }[] = []
-      if (summary.income > 0) {
-        col0Nodes.push({
-          id: 'in_total',
-          name: 'Revenus perçus',
-          amount: summary.income,
-          color: '#10B981',
-          icon: '💰'
-        })
-      }
-      if (summary.expenses > summary.income) {
-        col0Nodes.push({
-          id: 'in_deficit',
-          name: 'Puisage sur réserves',
-          amount: summary.expenses - summary.income,
-          color: '#EF4444',
-          icon: '📉'
-        })
-      }
-      if (col0Nodes.length === 0) {
-        col0Nodes.push({ id: 'in_empty', name: 'Aucune entrée', amount: 1, color: '#94A3B8', icon: '❓' })
-      }
-
-      // Column 1: Outflows + Savings
-      const col1Nodes: { id: string; rawId?: number; name: string; amount: number; color: string; icon: string; txCount?: number }[] = []
-      for (const out of outflows) {
-        if (out.amount > 0) {
-          col1Nodes.push({
-            id: `out_${out.id}_${out.name}`,
-            rawId: out.id,
-            name: out.name,
-            amount: out.amount,
-            color: out.color || '#64748B',
-            icon: out.icon || '📦',
-            txCount: out.tx_count
-          })
-        }
-      }
-      if (summary.net_savings > 0.01) {
-        col1Nodes.push({
-          id: 'out_savings',
-          name: 'Épargne constituée',
-          amount: summary.net_savings,
-          color: '#059669',
-          icon: '🏦'
-        })
-      }
-      if (col1Nodes.length === 0) {
-        col1Nodes.push({ id: 'out_empty', name: 'Aucune sortie', amount: 1, color: '#94A3B8', icon: '❓' })
-      }
-
-      const colCols = [col0Nodes, col1Nodes]
-      const maxNodes = Math.max(col0Nodes.length, col1Nodes.length)
-      if (sizeMode === 'auto') {
-        height = Math.max(720, maxNodes * 45 + 100)
-      } else if (sizeMode === 'confort') {
-        height = 1000
-      } else if (sizeMode === 'xxl') {
-        height = 1500
-      }
-      const colX = [padX, width - padX - nodeWidth]
-
-      colCols.forEach((items, cIdx) => {
-        const totalColVal = items.reduce((sum, item) => sum + item.amount, 0) || 1
-        const n = items.length
-        const gap = Math.min(24, Math.max(8, (height - 2 * padY - n * 18) / Math.max(1, n - 1)))
-        const availH = height - 2 * padY - (n - 1) * gap
-
-        const rawH = items.map(item => Math.max(18, (item.amount / totalColVal) * availH))
-        const sumRaw = rawH.reduce((a, b) => a + b, 0)
-        const scale = sumRaw > availH ? availH / sumRaw : 1
-
-        let currY = padY
-        items.forEach((item, i) => {
-          const h = rawH[i] * scale
-          nodeList.push({
-            ...item,
-            col: cIdx,
-            x: colX[cIdx],
-            y: currY,
-            h,
-            currSourceY: currY,
-            currTargetY: currY,
-            percentage: Math.round((item.amount / maxVal) * 1000) / 10
-          })
-          currY += h + gap
-        })
-      })
-
-      const leftNodes = nodeList.filter(n => n.col === 0)
-      const rightNodes = nodeList.filter(n => n.col === 1)
-
-      if (leftNodes.length === 1) {
-        const left = leftNodes[0]
-        rightNodes.forEach(right => {
-          linkList.push({
-            id: `${left.id}->${right.id}`,
-            source: left,
-            target: right,
-            value: right.amount,
-            color: right.color
-          })
-        })
-      } else {
-        leftNodes.forEach(left => {
-          rightNodes.forEach(right => {
-            const val = (left.amount / (left.amount + (leftNodes[1]?.amount || 0))) * right.amount
-            if (val > 0.01) {
-              linkList.push({
-                id: `${left.id}->${right.id}`,
-                source: left,
-                target: right,
-                value: val,
-                color: right.color
-              })
-            }
-          })
-        })
-      }
-    } else {
-      // 3 Column Mode: Inflows -> Total -> Outflows
-      const col0Nodes: { id: string; name: string; amount: number; color: string; icon: string }[] = []
-      inflows.forEach((inf, i) => {
-        if (inf.amount > 0) {
-          col0Nodes.push({
-            id: `in_${i}`,
-            name: inf.name,
-            amount: inf.amount,
-            color: inf.color || '#10B981',
-            icon: inf.icon || '💰'
-          })
-        }
-      })
-      if (summary.expenses > summary.income) {
-        col0Nodes.push({
-          id: 'in_deficit',
-          name: 'Puisage réserves',
-          amount: summary.expenses - summary.income,
-          color: '#EF4444',
-          icon: '📉'
-        })
-      }
-      if (col0Nodes.length === 0) {
-        col0Nodes.push({ id: 'in_empty', name: 'Revenus', amount: 1, color: '#10B981', icon: '💰' })
-      }
-
-      const col1Nodes = [
-        { id: 'hub', name: 'Flux Trésorerie', amount: maxVal, color: '#3B82F6', icon: '🌊' }
-      ]
-
-      const col2Nodes: { id: string; rawId?: number; name: string; amount: number; color: string; icon: string; txCount?: number }[] = []
-      outflows.forEach(out => {
-        if (out.amount > 0) {
-          col2Nodes.push({
-            id: `out_${out.id}_${out.name}`,
-            rawId: out.id,
-            name: out.name,
-            amount: out.amount,
-            color: out.color || '#64748B',
-            icon: out.icon || '📦',
-            txCount: out.tx_count
-          })
-        }
-      })
-      if (summary.net_savings > 0.01) {
-        col2Nodes.push({
-          id: 'out_savings',
-          name: 'Épargne constituée',
-          amount: summary.net_savings,
-          color: '#059669',
-          icon: '🏦'
-        })
-      }
-      if (col2Nodes.length === 0) {
-        col2Nodes.push({ id: 'out_empty', name: 'Dépenses', amount: 1, color: '#64748B', icon: '📦' })
-      }
-
-      const colCols = [col0Nodes, col1Nodes, col2Nodes]
-      const maxNodes = Math.max(col0Nodes.length, col1Nodes.length, col2Nodes.length)
-      if (sizeMode === 'auto') {
-        height = Math.max(720, maxNodes * 45 + 100)
-      } else if (sizeMode === 'confort') {
-        height = 1000
-      } else if (sizeMode === 'xxl') {
-        height = 1500
-      }
-      const colX = [padX, width / 2 - nodeWidth / 2, width - padX - nodeWidth]
-
-      colCols.forEach((items, cIdx) => {
-        const totalColVal = items.reduce((sum, item) => sum + item.amount, 0) || 1
-        const n = items.length
-        const gap = Math.min(24, Math.max(8, (height - 2 * padY - n * 18) / Math.max(1, n - 1)))
-        const availH = height - 2 * padY - (n - 1) * gap
-
-        const rawH = items.map(item => Math.max(18, (item.amount / totalColVal) * availH))
-        const sumRaw = rawH.reduce((a, b) => a + b, 0)
-        const scale = sumRaw > availH ? availH / sumRaw : 1
-
-        let currY = padY
-        items.forEach((item, i) => {
-          const h = rawH[i] * scale
-          nodeList.push({
-            ...item,
-            col: cIdx,
-            x: colX[cIdx],
-            y: currY,
-            h,
-            currSourceY: currY,
-            currTargetY: currY,
-            percentage: Math.round((item.amount / maxVal) * 1000) / 10
-          })
-          currY += h + gap
-        })
-      })
-
-      const leftNodes = nodeList.filter(n => n.col === 0)
-      const hubNode = nodeList.find(n => n.col === 1)!
-      const rightNodes = nodeList.filter(n => n.col === 2)
-
-      leftNodes.forEach(left => {
-        linkList.push({
-          id: `${left.id}->hub`,
-          source: left,
-          target: hubNode,
-          value: left.amount,
-          color: left.color
-        })
-      })
-
-      rightNodes.forEach(right => {
-        linkList.push({
-          id: `hub->${right.id}`,
-          source: hubNode,
-          target: right,
-          value: right.amount,
-          color: right.color
         })
       })
     }
+
+    // Links Col 1 -> Col 2
+    const subNodes = nodeList.filter(n => n.col === 2)
+    catNodes.forEach(cat => {
+      if (cat.id === 'cat_savings') {
+        const savTarget = subNodes.find(s => s.id === 'sub_savings_acc')
+        if (savTarget) {
+          linkList.push({
+            id: `${cat.id}->${savTarget.id}`,
+            source: cat,
+            target: savTarget,
+            value: cat.amount,
+            color: cat.color
+          })
+        }
+      } else if (cat.rawId !== undefined) {
+        const matchingSubs = subNodes.filter(s => s.rawId === cat.rawId)
+        matchingSubs.forEach(sub => {
+          linkList.push({
+            id: `${cat.id}->${sub.id}`,
+            source: cat,
+            target: sub,
+            value: sub.amount,
+            color: cat.color
+          })
+        })
+      }
+    })
 
     // Precalculate all path SVG coordinates inside useMemo so re-renders never mutate coordinates!
     linkList.forEach(link => {
@@ -481,7 +280,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
     })
 
     return { nodes: nodeList, links: linkList, width, height, nodeWidth }
-  }, [data, viewMode, sizeMode])
+  }, [data, sizeMode])
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col">
@@ -491,43 +290,11 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
             <span>🌊 Diagramme de Flux Détaillé (Style Finary)</span>
           </h2>
           <p className="text-xs text-gray-500 mt-0.5">
-            Survolez ou cliquez sur les flux et catégories pour explorer en profondeur la destination de vos revenus
+            Survolez ou cliquez sur les sources, catégories ou marchands pour explorer le parcours complet de vos revenus
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center bg-gray-100 p-1 rounded-xl text-xs font-medium overflow-x-auto">
-            <button
-              onClick={() => setViewMode('finary')}
-              className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-all ${
-                viewMode === 'finary'
-                  ? 'bg-white text-blue-700 shadow-sm font-bold'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              ✨ Détail Marchands (3 Niveaux)
-            </button>
-            <button
-              onClick={() => setViewMode('2col')}
-              className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-all ${
-                viewMode === '2col'
-                  ? 'bg-white text-gray-900 shadow-sm font-semibold'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Vue Directe (Entrées ➔ Sorties)
-            </button>
-            <button
-              onClick={() => setViewMode('3col')}
-              className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-all ${
-                viewMode === '3col'
-                  ? 'bg-white text-gray-900 shadow-sm font-semibold'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Hub Trésorerie
-            </button>
-          </div>
 
           <div className="flex items-center bg-gray-100 p-1 rounded-xl text-xs font-medium">
             <button
@@ -615,7 +382,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
             const isDimmed = anyHovered && !isHovered && !links.some(l => (l.source.id === node.id || l.target.id === node.id) && (hoveredLinkId === l.id || hoveredNodeId === l.source.id || hoveredNodeId === l.target.id))
 
             const isCol0 = node.col === 0
-            const maxCol = viewMode === 'finary' || viewMode === '3col' ? 2 : 1
+            const maxCol = 2
             const isLastCol = node.col === maxCol
 
             return (
