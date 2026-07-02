@@ -84,11 +84,17 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
       })
     }
 
-    // Column 1: Expense Categories & Savings
-    const col1Nodes: { id: string; rawId?: number; name: string; amount: number; color: string; icon: string; txCount?: number }[] = []
+    // Column 1: Intermediate Hub Layer (All money in goes here!)
+    const totalIn = Math.max(summary.income, summary.expenses, 1)
+    const col1Nodes = [
+      { id: 'hub_budget', name: 'Budget / Trésorerie', amount: totalIn, color: '#3B82F6', icon: '🌊' }
+    ]
+
+    // Column 2: Expense Categories & Savings
+    const col2Nodes: { id: string; rawId?: number; name: string; amount: number; color: string; icon: string; txCount?: number }[] = []
     for (const out of outflows) {
       if (out.amount > 0) {
-        col1Nodes.push({
+        col2Nodes.push({
           id: `cat_${out.id}_${out.name}`,
           rawId: out.id,
           name: out.name,
@@ -100,7 +106,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
       }
     }
     if (summary.net_savings > 0.01) {
-      col1Nodes.push({
+      col2Nodes.push({
         id: 'cat_savings',
         name: 'Épargne constituée',
         amount: summary.net_savings,
@@ -108,17 +114,17 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
         icon: '🏦'
       })
     }
-    if (col1Nodes.length === 0) {
-      col1Nodes.push({ id: 'cat_empty', name: 'Dépenses', amount: 1, color: '#94A3B8', icon: '❓' })
+    if (col2Nodes.length === 0) {
+      col2Nodes.push({ id: 'cat_empty', name: 'Dépenses', amount: 1, color: '#94A3B8', icon: '❓' })
     }
 
-    // Column 2: Subitems / Merchants
-    const col2Nodes: { id: string; rawId?: number; name: string; amount: number; color: string; icon: string }[] = []
+    // Column 3: Subitems / Merchants
+    const col3Nodes: { id: string; rawId?: number; name: string; amount: number; color: string; icon: string }[] = []
     for (const out of outflows) {
       if (out.amount > 0 && out.subitems && out.subitems.length > 0) {
         for (let i = 0; i < out.subitems.length; i++) {
           const sub = out.subitems[i]
-          col2Nodes.push({
+          col3Nodes.push({
             id: `sub_${out.id}_${i}`,
             rawId: out.id,
             name: sub.name,
@@ -128,7 +134,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
           })
         }
       } else if (out.amount > 0) {
-        col2Nodes.push({
+        col3Nodes.push({
           id: `sub_${out.id}_single`,
           rawId: out.id,
           name: out.name,
@@ -139,7 +145,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
       }
     }
     if (summary.net_savings > 0.01) {
-      col2Nodes.push({
+      col3Nodes.push({
         id: 'sub_savings_acc',
         name: 'Accumulation Nette',
         amount: summary.net_savings,
@@ -147,12 +153,12 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
         icon: '✨'
       })
     }
-    if (col2Nodes.length === 0) {
-      col2Nodes.push({ id: 'sub_empty', name: 'Détail', amount: 1, color: '#94A3B8', icon: '▪' })
+    if (col3Nodes.length === 0) {
+      col3Nodes.push({ id: 'sub_empty', name: 'Détail', amount: 1, color: '#94A3B8', icon: '▪' })
     }
 
-    const colCols = [col0Nodes, col1Nodes, col2Nodes]
-    const maxNodes = Math.max(col0Nodes.length, col1Nodes.length, col2Nodes.length)
+    const colCols = [col0Nodes, col1Nodes, col2Nodes, col3Nodes]
+    const maxNodes = Math.max(col0Nodes.length, col1Nodes.length, col2Nodes.length, col3Nodes.length)
     if (sizeMode === 'auto') {
       height = Math.max(860, maxNodes * 38 + 140)
     } else if (sizeMode === 'confort') {
@@ -160,7 +166,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
     } else if (sizeMode === 'xxl') {
       height = 1800
     }
-    const colX = [padX, 640, width - padX - nodeWidth]
+    const colX = [padX, 510, 800, width - padX - nodeWidth]
 
     colCols.forEach((items, cIdx) => {
       const totalColVal = items.reduce((sum, item) => sum + item.amount, 0) || 1
@@ -189,41 +195,34 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
       })
     })
 
-    // Links Col 0 -> Col 1
     const leftNodes = nodeList.filter(n => n.col === 0)
-    const catNodes = nodeList.filter(n => n.col === 1)
-    const totalCol0Val = leftNodes.reduce((sum, n) => sum + n.amount, 0) || 1
+    const hubNode = nodeList.find(n => n.col === 1)!
+    const catNodes = nodeList.filter(n => n.col === 2)
+    const subNodes = nodeList.filter(n => n.col === 3)
 
-    if (leftNodes.length === 1) {
-      const left = leftNodes[0]
-      catNodes.forEach(cat => {
-        linkList.push({
-          id: `${left.id}->${cat.id}`,
-          source: left,
-          target: cat,
-          value: cat.amount,
-          color: cat.color
-        })
+    // Links Col 0 -> Col 1 (Inflows into Intermediate Hub)
+    leftNodes.forEach(left => {
+      linkList.push({
+        id: `${left.id}->hub_budget`,
+        source: left,
+        target: hubNode,
+        value: left.amount,
+        color: left.color
       })
-    } else {
-      leftNodes.forEach(left => {
-        catNodes.forEach(cat => {
-          const val = (left.amount / totalCol0Val) * cat.amount
-          if (val > 0.01) {
-            linkList.push({
-              id: `${left.id}->${cat.id}`,
-              source: left,
-              target: cat,
-              value: val,
-              color: cat.color
-            })
-          }
-        })
-      })
-    }
+    })
 
-    // Links Col 1 -> Col 2
-    const subNodes = nodeList.filter(n => n.col === 2)
+    // Links Col 1 -> Col 2 (Hub into Categories)
+    catNodes.forEach(cat => {
+      linkList.push({
+        id: `hub_budget->${cat.id}`,
+        source: hubNode,
+        target: cat,
+        value: cat.amount,
+        color: cat.color
+      })
+    })
+
+    // Links Col 2 -> Col 3 (Categories into Subitems)
     catNodes.forEach(cat => {
       if (cat.id === 'cat_savings') {
         const savTarget = subNodes.find(s => s.id === 'sub_savings_acc')
@@ -382,7 +381,9 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
             const isDimmed = anyHovered && !isHovered && !links.some(l => (l.source.id === node.id || l.target.id === node.id) && (hoveredLinkId === l.id || hoveredNodeId === l.source.id || hoveredNodeId === l.target.id))
 
             const isCol0 = node.col === 0
-            const maxCol = 2
+            const isCol1 = node.col === 1
+            const isCol2 = node.col === 2
+            const maxCol = 3
             const isLastCol = node.col === maxCol
 
             return (
@@ -425,8 +426,20 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                   </text>
                 )}
 
-                {/* Col 1 Labels (Middle categories in Finary view -> to left of vertical bar) */}
-                {!isCol0 && !isLastCol && (
+                {/* Col 1 Label (Intermediate Central Hub - right above the bar) */}
+                {isCol1 && (
+                  <text
+                    x={node.x + nodeWidth / 2}
+                    y={Math.max(20, node.y - 12)}
+                    textAnchor="middle"
+                    className={`text-xs transition-opacity duration-200 ${isDimmed ? 'opacity-30 text-gray-400' : 'text-blue-700 font-extrabold text-[13px]'}`}
+                  >
+                    {node.icon} {node.name} ({fmt(node.amount)})
+                  </text>
+                )}
+
+                {/* Col 2 Labels (Categories - to left of vertical bar) */}
+                {isCol2 && (
                   <text
                     x={node.x - 10}
                     y={node.y + node.h / 2}
@@ -441,7 +454,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                   </text>
                 )}
 
-                {/* Last Column Labels (to right of vertical bar) */}
+                {/* Last Column Labels (Details - to right of vertical bar) */}
                 {isLastCol && (
                   <g>
                     <rect
