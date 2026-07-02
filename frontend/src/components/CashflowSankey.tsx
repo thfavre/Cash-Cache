@@ -5,6 +5,7 @@ interface DrillDownFilter {
   merchant?: string
   merchants?: string[]
   label?: string
+  isCredit?: boolean
 }
 
 interface Props {
@@ -61,11 +62,12 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
     const linkList: Link[] = []
 
     // Column 0: Sources of Income / Inflows
-    const col0Nodes: { id: string; name: string; amount: number; color: string; icon: string }[] = []
+    const col0Nodes: { id: string; rawId?: number; name: string; amount: number; color: string; icon: string }[] = []
     inflows.forEach((inf, i) => {
       if (inf.amount > 0) {
         col0Nodes.push({
           id: `in_${i}`,
+          rawId: inf.id ?? undefined,
           name: inf.name,
           amount: inf.amount,
           color: inf.color || '#10B981',
@@ -294,6 +296,10 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
 
   const handleNodeClick = (node: Node) => {
     if (node.rawId === undefined || !onSelectCategory) return
+    if (node.col === 0) {
+      onSelectCategory(node.name, node.rawId, { isCredit: true })
+      return
+    }
     const catNode = nodes.find(n => n.col === 2 && n.rawId === node.rawId)
     const catName = catNode ? catNode.name : node.name
     if (node.col !== 3) {
@@ -392,7 +398,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                 className="transition-opacity duration-200 cursor-pointer"
                 onMouseEnter={() => setHoveredLinkId(link.id)}
                 onMouseLeave={() => setHoveredLinkId(null)}
-                onClick={() => handleNodeClick(tNode)}
+                onClick={() => handleNodeClick(tNode.col === 1 ? sNode : tNode)}
               >
                 <title>{`${sNode.name} ➔ ${tNode.name} : ${fmt(link.value)}`}</title>
               </path>

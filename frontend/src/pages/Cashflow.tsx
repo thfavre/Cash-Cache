@@ -80,7 +80,7 @@ export default function Cashflow() {
       .finally(() => setLoading(false))
   }, [period, accountId])
 
-  async function handleOpenCategory(catName: string, catId?: number, filter?: { merchant?: string; merchants?: string[]; label?: string }) {
+  async function handleOpenCategory(catName: string, catId?: number, filter?: { merchant?: string; merchants?: string[]; label?: string; isCredit?: boolean }) {
     const label = filter?.label || filter?.merchant
     setSelectedCategory({ name: label ? `${catName} · ${label}` : catName, id: catId })
     setTxLoading(true)
@@ -90,7 +90,7 @@ export default function Cashflow() {
         category_id: catId,
         merchant: filter?.merchant,
         merchants: filter?.merchants,
-        is_credit: false,
+        is_credit: filter?.isCredit ?? false,
         is_internal: false,
         per_page: 50
       })

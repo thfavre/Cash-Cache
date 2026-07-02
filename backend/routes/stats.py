@@ -295,13 +295,14 @@ def get_cashflow(
         if t.is_credit:
             total_income += amt
             monthly_map[m_key]["income"] += amt
+            cat_id = t.category_id
             cat_name = t.category.name if t.category else "Revenus divers"
             cat_color = t.category.color if t.category else "#10B981"
             cat_icon = t.category.icon if t.category else "💰"
             if cat_name == "Non catégorisé":
                 cat_name = "Virements & Divers"
             if cat_name not in inflows:
-                inflows[cat_name] = {"name": cat_name, "amount": 0.0, "color": cat_color, "icon": cat_icon, "tx_count": 0}
+                inflows[cat_name] = {"id": cat_id, "name": cat_name, "amount": 0.0, "color": cat_color, "icon": cat_icon, "tx_count": 0}
             inflows[cat_name]["amount"] += amt
             inflows[cat_name]["tx_count"] += 1
         else:

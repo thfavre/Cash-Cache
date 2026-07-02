@@ -131,6 +131,7 @@ export interface Merchant {
 }
 
 export interface CashflowInflow {
+  id?: number | null
   name: string
   amount: number
   color: string
