@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { api, Transaction, Category } from '../api'
-import { Plus, Pencil, Trash2, X, Check, Tag, Search } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Check, Tag, Search, ArrowUpDown } from 'lucide-react'
 import clsx from 'clsx'
 
 const fmt = (n: number) =>
@@ -41,6 +41,13 @@ interface CatForm { name: string; color: string; icon: string; rules: string[] }
 
 const EMPTY_FORM: CatForm = { name: '', color: '#3B82F6', icon: '❓', rules: [] }
 
+type CatSort = 'name' | 'tags'
+type TxSort = 'date' | 'amount' | 'frequency'
+
+function txFreqKey(tx: Transaction): string {
+  return (tx.counterparty || tx.description || '').trim().toLowerCase()
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 export default function Categorize() {
   const [txs, setTxs] = useState<Transaction[]>([])
@@ -64,6 +71,8 @@ export default function Categorize() {
   const [ruleTag, setRuleTag] = useState('')
   const [catSearch, setCatSearch] = useState('')
   const [txSearch, setTxSearch] = useState('')
+  const [catSort, setCatSort] = useState<CatSort>('name')
+  const [txSort, setTxSort] = useState<TxSort>('date')
 
   // ── Data loading ──────────────────────────────────────────────────────
   const loadTxs = useCallback(async () => {
@@ -172,22 +181,45 @@ export default function Categorize() {
 
   const uncatCount = txs.length
 
+  const txFrequency = (() => {
+    const map = new Map<string, number>()
+    for (const tx of txs) {
+      const key = txFreqKey(tx)
+      map.set(key, (map.get(key) ?? 0) + 1)
+    }
+    return map
+  })()
+
   const filteredTxs = (() => {
     const q = txSearch.trim().toLowerCase()
-    if (!q) return txs
-    return txs.filter(tx =>
+    const base = !q ? txs : txs.filter(tx =>
       (tx.description ?? '').toLowerCase().includes(q) ||
       (tx.counterparty ?? '').toLowerCase().includes(q)
     )
+    const sorted = [...base]
+    if (txSort === 'amount') {
+      sorted.sort((a, b) => b.amount - a.amount)
+    } else if (txSort === 'frequency') {
+      sorted.sort((a, b) => (txFrequency.get(txFreqKey(b)) ?? 0) - (txFrequency.get(txFreqKey(a)) ?? 0))
+    } else {
+      sorted.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    }
+    return sorted
   })()
 
   const filteredCategories = (() => {
     const q = catSearch.trim().toLowerCase()
-    if (!q) return categories
-    return categories.filter(cat =>
+    const base = !q ? categories : categories.filter(cat =>
       cat.name.toLowerCase().includes(q) ||
       cat.rules.some(r => r.toLowerCase().includes(q))
     )
+    const sorted = [...base]
+    if (catSort === 'tags') {
+      sorted.sort((a, b) => b.rules.length - a.rules.length)
+    } else {
+      sorted.sort((a, b) => a.name.localeCompare(b.name, 'fr'))
+    }
+    return sorted
   })()
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -221,8 +253,8 @@ export default function Categorize() {
 
         {/* Left: Transaction list */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="px-4 pt-4 pb-2 shrink-0">
-            <div className="relative">
+          <div className="px-4 pt-4 pb-2 shrink-0 flex gap-2">
+            <div className="relative flex-1">
               <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 value={txSearch}
@@ -238,6 +270,18 @@ export default function Categorize() {
                   <X size={14} />
                 </button>
               )}
+            </div>
+            <div className="relative shrink-0">
+              <ArrowUpDown size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <select
+                value={txSort}
+                onChange={e => setTxSort(e.target.value as TxSort)}
+                className="text-sm border border-gray-200 rounded-lg pl-7 pr-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-700 appearance-none"
+              >
+                <option value="date">Plus récent</option>
+                <option value="amount">Plus cher</option>
+                <option value="frequency">Plus fréquent</option>
+              </select>
             </div>
           </div>
           <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-2">
@@ -257,6 +301,7 @@ export default function Categorize() {
                   tx={tx}
                   selected={selectedId === tx.id}
                   dragging={draggingId === tx.id}
+                  frequency={txSort === 'frequency' ? txFrequency.get(txFreqKey(tx)) ?? 1 : undefined}
                   onClick={() => setSelectedId(id => id === tx.id ? null : tx.id)}
                   onDragStart={() => setDraggingId(tx.id)}
                   onDragEnd={() => setDraggingId(null)}
@@ -281,23 +326,36 @@ export default function Categorize() {
             </p>
           )}
 
-          {/* Search */}
-          <div className="relative">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              value={catSearch}
-              onChange={e => setCatSearch(e.target.value)}
-              placeholder="Rechercher une catégorie ou un mot-clé..."
-              className="w-full text-sm border border-gray-200 rounded-lg pl-8 pr-7 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            {catSearch && (
-              <button
-                onClick={() => setCatSearch('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+          {/* Search + sort */}
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                value={catSearch}
+                onChange={e => setCatSearch(e.target.value)}
+                placeholder="Rechercher une catégorie ou un mot-clé..."
+                className="w-full text-sm border border-gray-200 rounded-lg pl-8 pr-7 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              {catSearch && (
+                <button
+                  onClick={() => setCatSearch('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            <div className="relative shrink-0">
+              <ArrowUpDown size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <select
+                value={catSort}
+                onChange={e => setCatSort(e.target.value as CatSort)}
+                className="text-sm border border-gray-200 rounded-lg pl-7 pr-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-700 appearance-none"
               >
-                <X size={14} />
-              </button>
-            )}
+                <option value="name">A-Z</option>
+                <option value="tags">Nb de mots-clés</option>
+              </select>
+            </div>
           </div>
 
           {/* New category button */}
@@ -396,12 +454,13 @@ export default function Categorize() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function TxCard({
-  tx, selected, dragging,
+  tx, selected, dragging, frequency,
   onClick, onDragStart, onDragEnd,
 }: {
   tx: Transaction
   selected: boolean
   dragging: boolean
+  frequency?: number
   onClick: () => void
   onDragStart: () => void
   onDragEnd: () => void
@@ -432,6 +491,11 @@ function TxCard({
           <p className={clsx('text-sm font-bold', tx.is_credit ? 'text-green-600' : 'text-gray-800')}>
             {tx.is_credit ? '+' : '-'}{fmt(tx.amount)}
           </p>
+          {frequency !== undefined && frequency > 1 && (
+            <span className="inline-block text-xs px-1.5 py-0.5 rounded-full mt-1 bg-blue-50 text-blue-600">
+              ×{frequency}
+            </span>
+          )}
           {tx.category_name && (
             <span
               className="inline-block text-xs px-1.5 py-0.5 rounded-full mt-1"
