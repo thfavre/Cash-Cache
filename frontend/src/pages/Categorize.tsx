@@ -222,7 +222,7 @@ export default function Categorize() {
         </div>
 
         {/* Right: Categories panel */}
-        <div className="w-72 shrink-0 border-l border-gray-100 bg-gray-50 overflow-y-auto p-4 space-y-3">
+        <div className="w-96 shrink-0 border-l border-gray-100 bg-gray-50 overflow-y-auto p-4 space-y-3">
 
           {/* Hint */}
           {selectedId !== null && (
@@ -260,20 +260,22 @@ export default function Categorize() {
           )}
 
           {/* Category drop-zone cards */}
-          {categories.map(cat => (
-            <CategoryDropCard
-              key={cat.id}
-              cat={cat}
-              isHovered={hoveredCat === cat.id}
-              isSelectionMode={selectedId !== null}
-              onClick={() => handleCatClick(cat.id)}
-              onDragOver={(e) => { e.preventDefault(); setHoveredCat(cat.id) }}
-              onDragLeave={() => setHoveredCat(null)}
-              onDrop={(e) => onDrop(e, cat.id)}
-              onEdit={() => openEditForm(cat)}
-              onDelete={() => deleteCategory(cat)}
-            />
-          ))}
+          <div className="grid grid-cols-2 gap-2">
+            {categories.map(cat => (
+              <CategoryDropCard
+                key={cat.id}
+                cat={cat}
+                isHovered={hoveredCat === cat.id}
+                isSelectionMode={selectedId !== null}
+                onClick={() => handleCatClick(cat.id)}
+                onDragOver={(e) => { e.preventDefault(); setHoveredCat(cat.id) }}
+                onDragLeave={() => setHoveredCat(null)}
+                onDrop={(e) => onDrop(e, cat.id)}
+                onEdit={() => openEditForm(cat)}
+                onDelete={() => deleteCategory(cat)}
+              />
+            ))}
+          </div>
         </div>
       </div>
 
@@ -397,54 +399,46 @@ function CategoryDropCard({
       onDragLeave={onDragLeave}
       onDrop={onDrop}
       onClick={onClick}
+      title={cat.rules.length > 0 ? cat.rules.join(', ') : undefined}
       className={clsx(
-        'rounded-xl border-2 p-3 transition-all',
+        'group relative rounded-xl border-2 px-2.5 py-2 transition-all',
         isHovered
-          ? 'border-opacity-100 shadow-lg scale-[1.02]'
+          ? 'shadow-lg scale-[1.03] z-10'
           : isSelectionMode
-          ? 'border-dashed cursor-pointer hover:scale-[1.01]'
-          : 'border-transparent cursor-default',
+          ? 'border-dashed cursor-pointer hover:scale-[1.02] hover:shadow-md'
+          : 'border-transparent cursor-default hover:bg-gray-100',
       )}
       style={{
         borderColor: isHovered ? cat.color : isSelectionMode ? cat.color + '88' : 'transparent',
         background: isHovered ? cat.color + '18' : 'white',
       }}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 min-w-0">
         <span
-          className="w-8 h-8 rounded-lg flex items-center justify-center text-lg shrink-0"
+          className="w-7 h-7 rounded-lg flex items-center justify-center text-base shrink-0"
           style={{ background: cat.color + '22' }}
         >
           {cat.icon}
         </span>
-        <span className="flex-1 text-sm font-medium text-gray-800 truncate">{cat.name}</span>
-        <div className="flex gap-1 shrink-0">
-          <button
-            onClick={(e) => { e.stopPropagation(); onEdit() }}
-            className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
-          >
-            <Pencil size={12} />
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onDelete() }}
-            className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
-          >
-            <Trash2 size={12} />
-          </button>
-        </div>
+        <span className="flex-1 text-xs font-medium text-gray-800 truncate leading-tight">{cat.name}</span>
+        {cat.rules.length > 0 && (
+          <span className="text-[10px] text-gray-400 shrink-0">{cat.rules.length}</span>
+        )}
       </div>
-      {cat.rules.length > 0 && (
-        <div className="flex flex-wrap gap-1 mt-2 ml-10">
-          {cat.rules.slice(0, 3).map(r => (
-            <span key={r} className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded">
-              {r}
-            </span>
-          ))}
-          {cat.rules.length > 3 && (
-            <span className="text-xs text-gray-400">+{cat.rules.length - 3}</span>
-          )}
-        </div>
-      )}
+      <div className="absolute -top-1.5 -right-1.5 hidden group-hover:flex gap-0.5 bg-white rounded-lg shadow border border-gray-200 p-0.5">
+        <button
+          onClick={(e) => { e.stopPropagation(); onEdit() }}
+          className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+        >
+          <Pencil size={11} />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete() }}
+          className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+        >
+          <Trash2 size={11} />
+        </button>
+      </div>
     </div>
   )
 }
