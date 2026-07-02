@@ -345,13 +345,20 @@ def get_cashflow(
         sorted_subs = sorted(sub_dict.items(), key=lambda x: x[1], reverse=True)
         top_subs = []
         other_amt = 0.0
+        other_detail = []
         for i, (s_name, s_amt) in enumerate(sorted_subs):
             if i < 4 and s_amt > 1.0 and (len(sorted_subs) <= 5 or i < 4):
                 top_subs.append({"name": s_name, "amount": round(s_amt, 2)})
             else:
                 other_amt += s_amt
+                other_detail.append({"name": s_name, "amount": round(s_amt, 2)})
         if other_amt > 1.0:
-            top_subs.append({"name": f"Autres {item['name']}", "amount": round(other_amt, 2)})
+            other_detail.sort(key=lambda x: x["amount"], reverse=True)
+            top_subs.append({
+                "name": f"Autres {item['name']}",
+                "amount": round(other_amt, 2),
+                "detail": other_detail,
+            })
         item["subitems"] = top_subs
 
     for m in monthly_trend:

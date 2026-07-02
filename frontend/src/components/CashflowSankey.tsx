@@ -15,6 +15,7 @@ interface Node {
   icon: string
   txCount?: number
   merchant?: string
+  detail?: { name: string; amount: number }[]
   col: number
   percentage: number
   x: number
@@ -120,7 +121,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
     }
 
     // Column 3: Subitems / Merchants
-    const col3Nodes: { id: string; rawId?: number; name: string; amount: number; color: string; icon: string; merchant?: string }[] = []
+    const col3Nodes: { id: string; rawId?: number; name: string; amount: number; color: string; icon: string; merchant?: string; detail?: { name: string; amount: number }[] }[] = []
     for (const out of outflows) {
       if (out.amount > 0 && out.subitems && out.subitems.length > 0) {
         for (let i = 0; i < out.subitems.length; i++) {
@@ -133,7 +134,8 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
             amount: sub.amount,
             color: out.color || '#64748B',
             icon: out.icon || '📌',
-            merchant: isAggregate ? undefined : sub.name
+            merchant: isAggregate ? undefined : sub.name,
+            detail: sub.detail
           })
         }
       } else if (out.amount > 0) {
@@ -415,7 +417,14 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                   fill={node.color}
                   opacity={isDimmed ? 0.2 : 1}
                   className="transition-all duration-200 drop-shadow-sm"
-                />
+                >
+                  {node.detail && node.detail.length > 0 && (
+                    <title>
+                      {`${node.name} : ${fmt(node.amount)}\n` +
+                        node.detail.map(d => `• ${d.name} : ${fmt(d.amount)}`).join('\n')}
+                    </title>
+                  )}
+                </rect>
 
                 {/* Col 0 Labels (to right of bar, inside the first ribbon, exactly like Finary) */}
                 {isCol0 && (
