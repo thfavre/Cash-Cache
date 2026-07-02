@@ -158,6 +158,8 @@ export const api = {
     req(`/categories/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteCategory: (id: number): Promise<{ ok: boolean }> =>
     req(`/categories/${id}`, { method: 'DELETE' }),
+  recategorize: (catId: number): Promise<{ updated: number }> =>
+    req(`/categories/${catId}/recategorize`, { method: 'POST' }),
 
   // Stats
   overview: (params?: { account_id?: number; year?: number; month?: number }): Promise<Overview> => {

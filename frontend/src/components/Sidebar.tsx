@@ -1,9 +1,9 @@
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, ArrowLeftRight, BarChart2,
-  PiggyBank, TrendingUp, RefreshCw
+  PiggyBank, TrendingUp, RefreshCw, Tags
 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { api } from '../api'
 import clsx from 'clsx'
 
@@ -13,11 +13,23 @@ const NAV = [
   { to: '/analytics', icon: BarChart2, label: 'Analytiques' },
   { to: '/budgets', icon: PiggyBank, label: 'Budgets' },
   { to: '/predictions', icon: TrendingUp, label: 'Prévisions' },
+  { to: '/categorize', icon: Tags, label: 'Catégoriser', badge: true },
 ]
 
 export default function Sidebar() {
   const [importing, setImporting] = useState(false)
   const [msg, setMsg] = useState('')
+  const [uncatCount, setUncatCount] = useState<number | null>(null)
+
+  useEffect(() => {
+    api.transactions({ per_page: 1, is_internal: false, is_credit: false })
+      .then(r => {
+        // We can't easily get uncategorized count from here, just show total
+        // We'll fetch it via a filtered call
+      })
+    api.transactions({ per_page: 200, is_internal: false, is_credit: false })
+      .then(r => setUncatCount(r.items.filter(t => !t.category_id).length))
+  }, [])
 
   async function handleImport() {
     setImporting(true)
@@ -41,7 +53,7 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 space-y-1 px-3">
-        {NAV.map(({ to, icon: Icon, label }) => (
+        {NAV.map(({ to, icon: Icon, label, badge }) => (
           <NavLink
             key={to}
             to={to}
@@ -55,7 +67,12 @@ export default function Sidebar() {
             }
           >
             <Icon size={18} />
-            {label}
+            <span className="flex-1">{label}</span>
+            {badge && uncatCount !== null && uncatCount > 0 && (
+              <span className="bg-orange-100 text-orange-600 text-xs font-semibold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+                {uncatCount}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>
