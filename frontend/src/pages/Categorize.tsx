@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { api, Transaction, Category } from '../api'
-import { Plus, Pencil, Trash2, X, Check, Tag } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Check, Tag, Search } from 'lucide-react'
 import clsx from 'clsx'
 
 const fmt = (n: number) =>
@@ -62,6 +62,7 @@ export default function Categorize() {
   const [editingCat, setEditingCat] = useState<Category | null>(null)
   const [catForm, setCatForm] = useState<CatForm>(EMPTY_FORM)
   const [ruleTag, setRuleTag] = useState('')
+  const [catSearch, setCatSearch] = useState('')
 
   // ── Data loading ──────────────────────────────────────────────────────
   const loadTxs = useCallback(async () => {
@@ -170,6 +171,15 @@ export default function Categorize() {
 
   const uncatCount = txs.length
 
+  const filteredCategories = (() => {
+    const q = catSearch.trim().toLowerCase()
+    if (!q) return categories
+    return categories.filter(cat =>
+      cat.name.toLowerCase().includes(q) ||
+      cat.rules.some(r => r.toLowerCase().includes(q))
+    )
+  })()
+
   // ═══════════════════════════════════════════════════════════════════════
   return (
     <div className="flex flex-col h-full">
@@ -238,6 +248,25 @@ export default function Categorize() {
             </p>
           )}
 
+          {/* Search */}
+          <div className="relative">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              value={catSearch}
+              onChange={e => setCatSearch(e.target.value)}
+              placeholder="Rechercher une catégorie ou un mot-clé..."
+              className="w-full text-sm border border-gray-200 rounded-lg pl-8 pr-7 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            {catSearch && (
+              <button
+                onClick={() => setCatSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
           {/* New category button */}
           <button
             onClick={openNewForm}
@@ -262,22 +291,26 @@ export default function Categorize() {
           )}
 
           {/* Category drop-zone cards */}
-          <div className="grid grid-cols-2 gap-2">
-            {categories.map(cat => (
-              <CategoryDropCard
-                key={cat.id}
-                cat={cat}
-                isHovered={hoveredCat === cat.id}
-                isSelectionMode={selectedId !== null}
-                onClick={() => handleCatClick(cat.id)}
-                onDragOver={(e) => { e.preventDefault(); setHoveredCat(cat.id) }}
-                onDragLeave={() => setHoveredCat(null)}
-                onDrop={(e) => onDrop(e, cat.id)}
-                onEdit={() => openEditForm(cat)}
-                onDelete={() => deleteCategory(cat)}
-              />
-            ))}
-          </div>
+          {filteredCategories.length === 0 ? (
+            <p className="text-xs text-gray-400 text-center py-4">Aucune catégorie ne correspond à "{catSearch}"</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              {filteredCategories.map(cat => (
+                <CategoryDropCard
+                  key={cat.id}
+                  cat={cat}
+                  isHovered={hoveredCat === cat.id}
+                  isSelectionMode={selectedId !== null}
+                  onClick={() => handleCatClick(cat.id)}
+                  onDragOver={(e) => { e.preventDefault(); setHoveredCat(cat.id) }}
+                  onDragLeave={() => setHoveredCat(null)}
+                  onDrop={(e) => onDrop(e, cat.id)}
+                  onEdit={() => openEditForm(cat)}
+                  onDelete={() => deleteCategory(cat)}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
