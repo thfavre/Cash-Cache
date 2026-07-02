@@ -6,6 +6,7 @@ from typing import Optional
 from ..database import get_db
 from ..models import Transaction, Account, Category
 from ..history import log_history
+from .stats import clean_merchant_name
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
@@ -58,6 +59,7 @@ def list_transactions(
     year: Optional[int] = None,
     month: Optional[int] = None,
     search: Optional[str] = None,
+    merchant: Optional[str] = None,
     is_credit: Optional[bool] = None,
     is_internal: Optional[bool] = None,
     page: int = Query(1, ge=1),
@@ -99,13 +101,24 @@ def list_transactions(
             )
         )
 
-    total = q.count()
-    txs = (
-        q.order_by(Transaction.date.desc(), Transaction.id.desc())
-        .offset((page - 1) * per_page)
-        .limit(per_page)
-        .all()
-    )
+    q = q.order_by(Transaction.date.desc(), Transaction.id.desc())
+
+    if merchant:
+        # Merchant names are derived client-side via clean_merchant_name, which isn't
+        # a SQL-expressible transform, so filter in Python instead of the DB.
+        all_txs = q.all()
+        matched = [
+            tx for tx in all_txs
+            if clean_merchant_name(
+                tx.counterparty or tx.description or "Divers",
+                tx.category.name if tx.category else "Non catégorisé",
+            ) == merchant
+        ]
+        total = len(matched)
+        txs = matched[(page - 1) * per_page: (page - 1) * per_page + per_page]
+    else:
+        total = q.count()
+        txs = q.offset((page - 1) * per_page).limit(per_page).all()
 
     items = []
     for tx in txs:

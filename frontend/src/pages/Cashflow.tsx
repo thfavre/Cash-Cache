@@ -80,13 +80,14 @@ export default function Cashflow() {
       .finally(() => setLoading(false))
   }, [period, accountId])
 
-  async function handleOpenCategory(catName: string, catId?: number) {
-    setSelectedCategory({ name: catName, id: catId })
+  async function handleOpenCategory(catName: string, catId?: number, merchant?: string) {
+    setSelectedCategory({ name: merchant ? `${catName} · ${merchant}` : catName, id: catId })
     setTxLoading(true)
     try {
       const res = await api.transactions({
         account_id: accountId,
         category_id: catId,
+        merchant,
         is_credit: false,
         is_internal: false,
         per_page: 50
@@ -312,7 +313,7 @@ export default function Cashflow() {
 
       {/* Main Content Area */}
       {mainTab === 'sankey' && (
-        <CashflowSankey data={data} onSelectCategory={(name, id) => handleOpenCategory(name, id)} />
+        <CashflowSankey data={data} onSelectCategory={(name, id, merchant) => handleOpenCategory(name, id, merchant)} />
       )}
 
       {mainTab === 'trends' && (

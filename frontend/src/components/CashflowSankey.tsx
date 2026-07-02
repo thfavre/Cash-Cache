@@ -3,7 +3,7 @@ import { CashflowData } from '../api'
 
 interface Props {
   data: CashflowData
-  onSelectCategory?: (categoryName: string, categoryId?: number) => void
+  onSelectCategory?: (categoryName: string, categoryId?: number, merchant?: string) => void
 }
 
 interface Node {
@@ -14,6 +14,7 @@ interface Node {
   color: string
   icon: string
   txCount?: number
+  merchant?: string
   col: number
   percentage: number
   x: number
@@ -119,18 +120,20 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
     }
 
     // Column 3: Subitems / Merchants
-    const col3Nodes: { id: string; rawId?: number; name: string; amount: number; color: string; icon: string }[] = []
+    const col3Nodes: { id: string; rawId?: number; name: string; amount: number; color: string; icon: string; merchant?: string }[] = []
     for (const out of outflows) {
       if (out.amount > 0 && out.subitems && out.subitems.length > 0) {
         for (let i = 0; i < out.subitems.length; i++) {
           const sub = out.subitems[i]
+          const isAggregate = sub.name.startsWith('Autres ')
           col3Nodes.push({
             id: `sub_${out.id}_${i}`,
             rawId: out.id,
             name: sub.name,
             amount: sub.amount,
             color: out.color || '#64748B',
-            icon: out.icon || '📌'
+            icon: out.icon || '📌',
+            merchant: isAggregate ? undefined : sub.name
           })
         }
       } else if (out.amount > 0) {
@@ -396,7 +399,9 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                 onMouseLeave={() => setHoveredNodeId(null)}
                 onClick={() => {
                   if (node.rawId !== undefined && onSelectCategory) {
-                    onSelectCategory(node.name, node.rawId)
+                    const catNode = nodes.find(n => n.col === 2 && n.rawId === node.rawId)
+                    const catName = catNode ? catNode.name : node.name
+                    onSelectCategory(catName, node.rawId, node.col === 3 ? node.merchant : undefined)
                   }
                 }}
               >
