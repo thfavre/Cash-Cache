@@ -3,10 +3,61 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, extract, case
 from typing import Optional
 import datetime
+import re
 from ..database import get_db
 from ..models import Transaction, Account, Category
 
 router = APIRouter(prefix="/stats", tags=["stats"])
+
+
+def clean_merchant_name(raw_desc: str, cat_name: str) -> str:
+    if not raw_desc:
+        return cat_name
+    lines = [l.strip() for l in raw_desc.split("\n") if l.strip()]
+    s = lines[0] if lines else raw_desc.strip()
+
+    s = re.sub(r'^(?:Achat|Transfert|Paiement)?\s*(?:TWINT|online|par carte|POS|card)?\s*[,:-]?\s*', '', s, flags=re.IGNORECASE).strip()
+    s = re.sub(r'^[àa]\s+', '', s, flags=re.IGNORECASE).strip()
+    s = re.sub(r'\s*\d{2}\.\d{2}\.\d{4}.*$', '', s).strip()
+
+    s_upper = s.upper()
+
+    if any(k in s_upper for k in ["SBB", "CFF", "FFS", "PERSONENVERKEHR"]):
+        return "Trains CFF / SBB"
+    if any(k in s_upper for k in ["COOP"]):
+        return "Coop"
+    if any(k in s_upper for k in ["MIGROS"]):
+        return "Migros"
+    if any(k in s_upper for k in ["LIDL"]):
+        return "Lidl"
+    if any(k in s_upper for k in ["MANOR"]):
+        return "Manor"
+    if any(k in s_upper for k in ["DIGITEC", "GALAXUS"]):
+        return "Digitec Galaxus"
+    if any(k in s_upper for k in ["BOOKING"]):
+        return "Booking.com"
+    if any(k in s_upper for k in ["SALT"]):
+        return "Salt Mobile"
+    if any(k in s_upper for k in ["INFOMANIAK"]):
+        return "Infomaniak"
+    if any(k in s_upper for k in ["ASSURA"]):
+        return "Assura Assurance"
+    if any(k in s_upper for k in ["AXA"]):
+        return "AXA Assurance"
+    if any(k in s_upper for k in ["INTERACTIVE BROKERS", "IBKR"]):
+        return "Interactive Brokers"
+    if any(k in s_upper for k in ["UBER"]):
+        return "Uber / VTC"
+    if any(k in s_upper for k in ["MCDONALD"]):
+        return "McDonald's"
+    if any(k in s_upper for k in ["PHARMACIE", "SUN STORE", "AMAVITA"]):
+        return "Pharmacie"
+    if any(k in s_upper for k in ["FAVRE THOMAS", "THOMAS FAVRE"]):
+        return "Virements internes / CB"
+
+    if len(s) > 24:
+        s = s[:24] + "..."
+    return s if not s.isupper() else s.title()
 
 
 def _expense_filter(q, account_id, year, month, exclude_internal=True):
@@ -272,9 +323,7 @@ def get_cashflow(
                 }
             outflows[cat_name]["amount"] += amt
             outflows[cat_name]["tx_count"] += 1
-            sub_name = (t.counterparty or t.description or "Divers").strip()
-            if len(sub_name) > 28:
-                sub_name = sub_name[:28] + "..."
+            sub_name = clean_merchant_name(t.counterparty or t.description or "Divers", cat_name)
             sub_map = outflows[cat_name]["_subitems"]
             sub_map[sub_name] = sub_map.get(sub_name, 0.0) + amt
 

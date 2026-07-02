@@ -102,7 +102,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
               name: sub.name,
               amount: sub.amount,
               color: out.color || '#64748B',
-              icon: '▪'
+              icon: out.icon || '📌'
             })
           }
         } else if (out.amount > 0) {
@@ -112,7 +112,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
             name: out.name,
             amount: out.amount,
             color: out.color || '#64748B',
-            icon: '▪'
+            icon: out.icon || '📌'
           })
         }
       }
