@@ -29,6 +29,7 @@ interface Link {
   target: Node
   value: number
   color: string
+  pathD?: string
 }
 
 const fmt = (n: number) => new Intl.NumberFormat('fr-CH', { style: 'currency', currency: 'CHF' }).format(n)
@@ -281,6 +282,35 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
       })
     }
 
+    // Precalculate all path SVG coordinates inside useMemo so re-renders never mutate coordinates!
+    linkList.forEach(link => {
+      const sNode = link.source
+      const tNode = link.target
+
+      const sThickness = Math.max(2, (link.value / sNode.amount) * sNode.h)
+      const tThickness = Math.max(2, (link.value / tNode.amount) * tNode.h)
+
+      const yS1 = sNode.currSourceY
+      const yS2 = yS1 + sThickness
+      sNode.currSourceY = yS2
+
+      const yT1 = tNode.currTargetY
+      const yT2 = yT1 + tThickness
+      tNode.currTargetY = yT2
+
+      const x1 = sNode.x + nodeWidth
+      const x2 = tNode.x
+      const mx = (x1 + x2) / 2
+
+      link.pathD = `
+        M ${x1} ${yS1}
+        C ${mx} ${yS1}, ${mx} ${yT1}, ${x2} ${yT1}
+        L ${x2} ${yT2}
+        C ${mx} ${yT2}, ${mx} ${yS2}, ${x1} ${yS2}
+        Z
+      `
+    })
+
     return { nodes: nodeList, links: linkList }
   }, [data, viewMode, width, height])
 
@@ -336,29 +366,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
           {links.map(link => {
             const sNode = link.source
             const tNode = link.target
-
-            const sThickness = Math.max(2, (link.value / sNode.amount) * sNode.h)
-            const tThickness = Math.max(2, (link.value / tNode.amount) * tNode.h)
-
-            const yS1 = sNode.currSourceY
-            const yS2 = yS1 + sThickness
-            sNode.currSourceY = yS2
-
-            const yT1 = tNode.currTargetY
-            const yT2 = yT1 + tThickness
-            tNode.currTargetY = yT2
-
-            const x1 = sNode.x + nodeWidth
-            const x2 = tNode.x
-            const mx = (x1 + x2) / 2
-
-            const pathD = `
-              M ${x1} ${yS1}
-              C ${mx} ${yS1}, ${mx} ${yT1}, ${x2} ${yT1}
-              L ${x2} ${yT2}
-              C ${mx} ${yT2}, ${mx} ${yS2}, ${x1} ${yS2}
-              Z
-            `
+            const pathD = link.pathD
 
             const isHovered =
               hoveredLinkId === link.id ||
