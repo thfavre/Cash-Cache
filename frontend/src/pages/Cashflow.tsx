@@ -22,10 +22,13 @@ const PERIODS = [
   { id: 'all', label: 'Tout l’historique' },
 ]
 
+const MEMORY_CACHE: Record<string, CashflowData> = {}
+
 export default function Cashflow() {
   const [data, setData] = useState<CashflowData | null>(null)
   const [accounts, setAccounts] = useState<Account[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const [period, setPeriod] = useState<string>('last_6_months')
   const [accountId, setAccountId] = useState<number | undefined>(undefined)
@@ -37,13 +40,43 @@ export default function Cashflow() {
   const [txLoading, setTxLoading] = useState(false)
 
   useEffect(() => {
-    api.accounts().then(setAccounts)
+    api.accounts().then(setAccounts).catch(() => {})
   }, [])
 
   useEffect(() => {
+    const cacheKey = `${period}_${accountId ?? 'all'}`
+    // Check in-memory or sessionStorage cache first for instant 0ms load!
+    if (MEMORY_CACHE[cacheKey]) {
+      setData(MEMORY_CACHE[cacheKey])
+      setLoading(false)
+      setError(null)
+      return
+    }
+
+    try {
+      const saved = sessionStorage.getItem(`cashflow_${cacheKey}`)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        MEMORY_CACHE[cacheKey] = parsed
+        setData(parsed)
+        setLoading(false)
+        setError(null)
+        return
+      }
+    } catch (e) {}
+
     setLoading(true)
+    setError(null)
     api.cashflow({ account_id: accountId, period })
-      .then(setData)
+      .then(res => {
+        MEMORY_CACHE[cacheKey] = res
+        try { sessionStorage.setItem(`cashflow_${cacheKey}`, JSON.stringify(res)) } catch (e) {}
+        setData(res)
+        setError(null)
+      })
+      .catch(err => {
+        setError(err.message || 'Erreur inconnue')
+      })
       .finally(() => setLoading(false))
   }, [period, accountId])
 
@@ -66,10 +99,37 @@ export default function Cashflow() {
     }
   }
 
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center p-6 space-y-4">
+        <div className="w-12 h-12 rounded-full bg-red-50 text-red-600 flex items-center justify-center text-xl font-bold shadow-sm">
+          ⚠️
+        </div>
+        <h3 className="text-base font-bold text-gray-900">Impossible de charger les données du flux</h3>
+        <p className="text-xs text-gray-600 max-w-md leading-relaxed">
+          Le serveur backend a renvoyé une erreur (<span className="font-semibold text-red-600">{error}</span>).
+          <br /><br />
+          Si vous venez d'ouvrir cette nouvelle vue, assurez-vous que le serveur backend a bien été redémarré dans le dossier du worktree afin de prendre en compte la nouvelle route <code className="bg-gray-100 px-1.5 py-0.5 rounded font-mono text-gray-800">/api/stats/cashflow</code> :
+        </p>
+        <div className="bg-gray-900 text-gray-100 font-mono text-[11px] px-4 py-2.5 rounded-xl text-left w-full max-w-xs shadow-md">
+          cd worktree-cashflow-sankey<br />
+          .\start.ps1
+        </div>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-xl shadow-sm hover:bg-blue-700 transition-colors mt-2"
+        >
+          🔄 Réessayer
+        </button>
+      </div>
+    )
+  }
+
   if (loading || !data) {
     return (
-      <div className="flex items-center justify-center h-full min-h-[400px] text-gray-400 font-medium">
-        Analyse des flux financiers en cours...
+      <div className="flex flex-col items-center justify-center h-full min-h-[400px] space-y-3 text-gray-400 font-medium">
+        <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-sm">Analyse des flux financiers en cours...</p>
       </div>
     )
   }
