@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from ..database import get_db
 from ..models import Transaction, Account, Category
 from ..history import log_history
@@ -60,6 +60,7 @@ def list_transactions(
     month: Optional[int] = None,
     search: Optional[str] = None,
     merchant: Optional[str] = None,
+    merchants: Optional[List[str]] = Query(None),
     is_credit: Optional[bool] = None,
     is_internal: Optional[bool] = None,
     page: int = Query(1, ge=1),
@@ -103,7 +104,8 @@ def list_transactions(
 
     q = q.order_by(Transaction.date.desc(), Transaction.id.desc())
 
-    if merchant:
+    target_merchants = set(merchants) if merchants else ({merchant} if merchant else None)
+    if target_merchants:
         # Merchant names are derived client-side via clean_merchant_name, which isn't
         # a SQL-expressible transform, so filter in Python instead of the DB.
         all_txs = q.all()
@@ -112,7 +114,7 @@ def list_transactions(
             if clean_merchant_name(
                 tx.counterparty or tx.description or "Divers",
                 tx.category.name if tx.category else "Non catégorisé",
-            ) == merchant
+            ) in target_merchants
         ]
         total = len(matched)
         txs = matched[(page - 1) * per_page: (page - 1) * per_page + per_page]

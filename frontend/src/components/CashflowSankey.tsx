@@ -1,9 +1,15 @@
 import React, { useMemo, useState } from 'react'
 import { CashflowData } from '../api'
 
+interface DrillDownFilter {
+  merchant?: string
+  merchants?: string[]
+  label?: string
+}
+
 interface Props {
   data: CashflowData
-  onSelectCategory?: (categoryName: string, categoryId?: number, merchant?: string) => void
+  onSelectCategory?: (categoryName: string, categoryId?: number, filter?: DrillDownFilter) => void
 }
 
 interface Node {
@@ -286,6 +292,19 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
     return { nodes: nodeList, links: linkList, width, height, nodeWidth }
   }, [data, sizeMode])
 
+  const handleNodeClick = (node: Node) => {
+    if (node.rawId === undefined || !onSelectCategory) return
+    const catNode = nodes.find(n => n.col === 2 && n.rawId === node.rawId)
+    const catName = catNode ? catNode.name : node.name
+    if (node.col !== 3) {
+      onSelectCategory(catName, node.rawId)
+    } else if (node.detail && node.detail.length > 0) {
+      onSelectCategory(catName, node.rawId, { merchants: node.detail.map(d => d.name), label: node.name })
+    } else {
+      onSelectCategory(catName, node.rawId, node.merchant ? { merchant: node.merchant } : undefined)
+    }
+  }
+
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
@@ -373,6 +392,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                 className="transition-opacity duration-200 cursor-pointer"
                 onMouseEnter={() => setHoveredLinkId(link.id)}
                 onMouseLeave={() => setHoveredLinkId(null)}
+                onClick={() => handleNodeClick(tNode)}
               >
                 <title>{`${sNode.name} ➔ ${tNode.name} : ${fmt(link.value)}`}</title>
               </path>
@@ -399,13 +419,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                 className="cursor-pointer transition-transform duration-200"
                 onMouseEnter={() => setHoveredNodeId(node.id)}
                 onMouseLeave={() => setHoveredNodeId(null)}
-                onClick={() => {
-                  if (node.rawId !== undefined && onSelectCategory) {
-                    const catNode = nodes.find(n => n.col === 2 && n.rawId === node.rawId)
-                    const catName = catNode ? catNode.name : node.name
-                    onSelectCategory(catName, node.rawId, node.col === 3 ? node.merchant : undefined)
-                  }
-                }}
+                onClick={() => handleNodeClick(node)}
               >
                 {/* Node Pill Bar */}
                 <rect

@@ -186,10 +186,15 @@ export const api = {
   accounts: (): Promise<Account[]> => req('/stats/accounts'),
 
   // Transactions
-  transactions: (params: Record<string, string | number | boolean | undefined>): Promise<PaginatedTransactions> => {
+  transactions: (params: Record<string, string | number | boolean | string[] | undefined>): Promise<PaginatedTransactions> => {
     const qs = new URLSearchParams()
     for (const [k, v] of Object.entries(params)) {
-      if (v !== undefined && v !== null && v !== '') qs.set(k, String(v))
+      if (v === undefined || v === null || v === '') continue
+      if (Array.isArray(v)) {
+        v.forEach(item => qs.append(k, item))
+      } else {
+        qs.set(k, String(v))
+      }
     }
     return req(`/transactions?${qs}`)
   },

@@ -80,14 +80,16 @@ export default function Cashflow() {
       .finally(() => setLoading(false))
   }, [period, accountId])
 
-  async function handleOpenCategory(catName: string, catId?: number, merchant?: string) {
-    setSelectedCategory({ name: merchant ? `${catName} · ${merchant}` : catName, id: catId })
+  async function handleOpenCategory(catName: string, catId?: number, filter?: { merchant?: string; merchants?: string[]; label?: string }) {
+    const label = filter?.label || filter?.merchant
+    setSelectedCategory({ name: label ? `${catName} · ${label}` : catName, id: catId })
     setTxLoading(true)
     try {
       const res = await api.transactions({
         account_id: accountId,
         category_id: catId,
-        merchant,
+        merchant: filter?.merchant,
+        merchants: filter?.merchants,
         is_credit: false,
         is_internal: false,
         per_page: 50
@@ -313,7 +315,7 @@ export default function Cashflow() {
 
       {/* Main Content Area */}
       {mainTab === 'sankey' && (
-        <CashflowSankey data={data} onSelectCategory={(name, id, merchant) => handleOpenCategory(name, id, merchant)} />
+        <CashflowSankey data={data} onSelectCategory={(name, id, filter) => handleOpenCategory(name, id, filter)} />
       )}
 
       {mainTab === 'trends' && (
