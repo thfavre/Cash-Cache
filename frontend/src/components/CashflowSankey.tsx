@@ -166,7 +166,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
     } else if (sizeMode === 'xxl') {
       height = 1800
     }
-    const colX = [padX, 400, 820, width - padX - nodeWidth]
+    const colX = [60, 400, 760, 1140]
 
     colCols.forEach((items, cIdx) => {
       const totalColVal = items.reduce((sum, item) => sum + item.amount, 0) || 1
@@ -469,12 +469,12 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                   </text>
                 )}
 
-                {/* Last Column Labels (Details - to left of bar, exactly like Finary) */}
+                {/* Last Column Labels (Details - placed cleanly to the right of the vertical bar) */}
                 {isLastCol && (
                   <text
-                    x={node.x - 10}
+                    x={node.x + nodeWidth + 10}
                     y={node.y + node.h / 2}
-                    textAnchor="end"
+                    textAnchor="start"
                     dominantBaseline="middle"
                     className={`transition-all duration-200 ${
                       isHighlighted
