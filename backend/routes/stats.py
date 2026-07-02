@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract, case
 from typing import Optional
+import datetime
 from ..database import get_db
 from ..models import Transaction, Account, Category
 
@@ -186,3 +187,123 @@ def rename_account(account_id: int, body: dict, db: Session = Depends(get_db)):
         acct.name = body["name"]
     db.commit()
     return {"id": acct.id, "name": acct.name}
+
+
+@router.get("/cashflow")
+def get_cashflow(
+    account_id: Optional[int] = None,
+    year: Optional[int] = None,
+    month: Optional[int] = None,
+    period: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    q = db.query(Transaction).filter(
+        Transaction.is_internal == False,
+        Transaction.is_reversal == False
+    )
+
+    if account_id is not None:
+        q = q.filter(Transaction.account_id == account_id)
+
+    # Date / Period filtering
+    today = datetime.date.today()
+    if period == "current_month":
+        q = q.filter(extract("year", Transaction.date) == today.year, extract("month", Transaction.date) == today.month)
+    elif period == "last_month":
+        lm_year = today.year if today.month > 1 else today.year - 1
+        lm_month = today.month - 1 if today.month > 1 else 12
+        q = q.filter(extract("year", Transaction.date) == lm_year, extract("month", Transaction.date) == lm_month)
+    elif period == "last_3_months":
+        q = q.filter(Transaction.date >= today - datetime.timedelta(days=90))
+    elif period == "last_6_months":
+        q = q.filter(Transaction.date >= today - datetime.timedelta(days=180))
+    elif period == "current_year":
+        q = q.filter(extract("year", Transaction.date) == today.year)
+    elif period == "last_year":
+        q = q.filter(extract("year", Transaction.date) == today.year - 1)
+    else:
+        if year is not None:
+            q = q.filter(extract("year", Transaction.date) == year)
+        if month is not None:
+            q = q.filter(extract("month", Transaction.date) == month)
+
+    txs = q.all()
+
+    inflows = {}
+    outflows = {}
+    total_income = 0.0
+    total_expenses = 0.0
+    monthly_map = {}
+
+    for t in txs:
+        amt = float(t.amount or 0.0)
+        m_key = f"{t.date.year:04d}-{t.date.month:02d}" if t.date else "Inconnu"
+        if m_key not in monthly_map:
+            monthly_map[m_key] = {"month": m_key, "income": 0.0, "expenses": 0.0}
+
+        if t.is_credit:
+            total_income += amt
+            monthly_map[m_key]["income"] += amt
+            cat_name = t.category.name if t.category else "Revenus divers"
+            cat_color = t.category.color if t.category else "#10B981"
+            cat_icon = t.category.icon if t.category else "💰"
+            if cat_name == "Non catégorisé":
+                cat_name = "Virements & Divers"
+            if cat_name not in inflows:
+                inflows[cat_name] = {"name": cat_name, "amount": 0.0, "color": cat_color, "icon": cat_icon, "tx_count": 0}
+            inflows[cat_name]["amount"] += amt
+            inflows[cat_name]["tx_count"] += 1
+        else:
+            total_expenses += amt
+            monthly_map[m_key]["expenses"] += amt
+            cat_id = t.category_id or 0
+            cat_name = t.category.name if t.category else "Non catégorisé"
+            cat_color = t.category.color if t.category else "#64748B"
+            cat_icon = t.category.icon if t.category else "📦"
+            if cat_name not in outflows:
+                outflows[cat_name] = {
+                    "id": cat_id,
+                    "name": cat_name,
+                    "amount": 0.0,
+                    "color": cat_color,
+                    "icon": cat_icon,
+                    "tx_count": 0
+                }
+            outflows[cat_name]["amount"] += amt
+            outflows[cat_name]["tx_count"] += 1
+
+    inflows_list = sorted(inflows.values(), key=lambda x: x["amount"], reverse=True)
+    outflows_list = sorted(outflows.values(), key=lambda x: x["amount"], reverse=True)
+    monthly_trend = sorted(monthly_map.values(), key=lambda x: x["month"])
+
+    for item in inflows_list:
+        item["amount"] = round(item["amount"], 2)
+        item["percentage"] = round((item["amount"] / total_income * 100) if total_income > 0 else 0.0, 1)
+
+    for item in outflows_list:
+        item["amount"] = round(item["amount"], 2)
+        item["percentage_of_expenses"] = round((item["amount"] / total_expenses * 100) if total_expenses > 0 else 0.0, 1)
+        item["percentage_of_income"] = round((item["amount"] / total_income * 100) if total_income > 0 else 0.0, 1)
+        item["avg_ticket"] = round(item["amount"] / item["tx_count"], 2) if item["tx_count"] > 0 else 0.0
+
+    for m in monthly_trend:
+        m["income"] = round(m["income"], 2)
+        m["expenses"] = round(m["expenses"], 2)
+        m["net"] = round(m["income"] - m["expenses"], 2)
+
+    net_savings = round(total_income - total_expenses, 2)
+    savings_rate = round((net_savings / total_income * 100) if total_income > 0 else 0.0, 1)
+
+    return {
+        "summary": {
+            "income": round(total_income, 2),
+            "expenses": round(total_expenses, 2),
+            "net_savings": net_savings,
+            "savings_rate": savings_rate,
+            "tx_count": len(txs)
+        },
+        "inflows": inflows_list,
+        "outflows": outflows_list,
+        "monthly_trend": monthly_trend
+    }
+

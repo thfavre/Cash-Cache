@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, ArrowLeftRight, BarChart2,
-  PiggyBank, TrendingUp, RefreshCw, Tags
+  PiggyBank, TrendingUp, RefreshCw, Tags, Workflow
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { api } from '../api'
@@ -11,6 +11,7 @@ const NAV = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Tableau de bord' },
   { to: '/transactions', icon: ArrowLeftRight, label: 'Transactions' },
   { to: '/analytics', icon: BarChart2, label: 'Analytiques' },
+  { to: '/cashflow', icon: Workflow, label: 'Flux & Cashflow' },
   { to: '/budgets', icon: PiggyBank, label: 'Budgets' },
   { to: '/predictions', icon: TrendingUp, label: 'Prévisions' },
   { to: '/categorize', icon: Tags, label: 'Catégoriser', badge: true },

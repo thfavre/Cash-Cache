@@ -130,7 +130,47 @@ export interface Merchant {
   count: number
 }
 
+export interface CashflowInflow {
+  name: string
+  amount: number
+  color: string
+  icon: string
+  tx_count: number
+  percentage: number
+}
+
+export interface CashflowOutflow {
+  id: number
+  name: string
+  amount: number
+  color: string
+  icon: string
+  tx_count: number
+  percentage_of_expenses: number
+  percentage_of_income: number
+  avg_ticket: number
+}
+
+export interface CashflowData {
+  summary: {
+    income: number
+    expenses: number
+    net_savings: number
+    savings_rate: number
+    tx_count: number
+  }
+  inflows: CashflowInflow[]
+  outflows: CashflowOutflow[]
+  monthly_trend: {
+    month: string
+    income: number
+    expenses: number
+    net: number
+  }[]
+}
+
 // ---- API functions ----
+
 
 export const api = {
   // Accounts
@@ -193,6 +233,14 @@ export const api = {
   balanceHistory: (accountId?: number): Promise<BalanceHistory[]> => {
     const qs = accountId ? `?account_id=${accountId}` : ''
     return req(`/stats/balance-history${qs}`)
+  },
+  cashflow: (params?: { account_id?: number; year?: number; month?: number; period?: string }): Promise<CashflowData> => {
+    const qs = new URLSearchParams()
+    if (params?.account_id) qs.set('account_id', String(params.account_id))
+    if (params?.year) qs.set('year', String(params.year))
+    if (params?.month) qs.set('month', String(params.month))
+    if (params?.period) qs.set('period', params.period)
+    return req(`/stats/cashflow?${qs}`)
   },
 
   // Budgets

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api, MonthlyStats, CategoryStats, BalanceHistory, Merchant } from '../api'
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip,
@@ -70,6 +71,25 @@ export default function Analytics() {
             {months.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
         </div>
+      </div>
+
+      {/* Cashflow Callout Banner */}
+      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-5 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-md">
+        <div>
+          <span className="bg-white/20 text-white text-[11px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">
+            Nouveau
+          </span>
+          <h2 className="text-lg font-bold mt-2">🌊 Diagramme de Flux &amp; Cashflow</h2>
+          <p className="text-xs text-blue-100 mt-0.5">
+            Découvrez dans quelle catégorie va chaque euro ou franc grâce au diagramme de flux interactif (style Sankey).
+          </p>
+        </div>
+        <Link
+          to="/cashflow"
+          className="bg-white text-blue-700 hover:bg-blue-50 text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-sm shrink-0 text-center"
+        >
+          Ouvrir le Cashflow ➔
+        </Link>
       </div>
 
       {/* Income vs Expenses */}
