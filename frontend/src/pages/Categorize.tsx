@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { api, Transaction, Category } from '../api'
-import { Plus, Pencil, Trash2, X, Check, Tag } from 'lucide-react'
+import { api, Transaction, Category, HistoryEntry } from '../api'
+import { Plus, Pencil, Trash2, X, Check, Tag, Search, ArrowUpDown, Layers, ChevronDown, ChevronUp, History, Undo2 } from 'lucide-react'
 import clsx from 'clsx'
 
 const fmt = (n: number) =>
@@ -41,6 +41,21 @@ interface CatForm { name: string; color: string; icon: string; rules: string[] }
 
 const EMPTY_FORM: CatForm = { name: '', color: '#3B82F6', icon: '❓', rules: [] }
 
+type CatSort = 'name' | 'tags'
+type TxSort = 'date' | 'amount' | 'frequency'
+
+function txFreqKey(tx: Transaction): string {
+  return (tx.counterparty || tx.description || '').trim().toLowerCase()
+}
+
+interface TxGroup {
+  key: string
+  label: string
+  items: Transaction[]
+  total: number
+  mostRecent: string
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 export default function Categorize() {
   const [txs, setTxs] = useState<Transaction[]>([])
@@ -48,10 +63,14 @@ export default function Categorize() {
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [showAll, setShowAll] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
+  const [history, setHistory] = useState<HistoryEntry[]>([])
 
   // interaction state
   const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null)
   const [draggingId, setDraggingId] = useState<number | null>(null)
+  const [draggingGroupKey, setDraggingGroupKey] = useState<string | null>(null)
   const [hoveredCat, setHoveredCat] = useState<number | null>(null)
   const [rulePrompt, setRulePrompt] = useState<RulePrompt | null>(null)
   const [ruleInput, setRuleInput] = useState('')
@@ -62,6 +81,10 @@ export default function Categorize() {
   const [editingCat, setEditingCat] = useState<Category | null>(null)
   const [catForm, setCatForm] = useState<CatForm>(EMPTY_FORM)
   const [ruleTag, setRuleTag] = useState('')
+  const [catSearch, setCatSearch] = useState('')
+  const [txSearch, setTxSearch] = useState('')
+  const [catSort, setCatSort] = useState<CatSort>('tags')
+  const [txSort, setTxSort] = useState<TxSort>('date')
 
   // ── Data loading ──────────────────────────────────────────────────────
   const loadTxs = useCallback(async () => {
@@ -79,34 +102,54 @@ export default function Categorize() {
 
   useEffect(() => { loadTxs(); api.categories().then(setCategories) }, [loadTxs])
 
-  // ── Assign a transaction to a category ───────────────────────────────
-  async function assign(txId: number, catId: number) {
-    await api.updateTransactionCategory(txId, catId)
-    const tx = txs.find(t => t.id === txId)
+  function loadHistory() {
+    api.history().then(setHistory)
+  }
+
+  async function handleRevert(id: number) {
+    await api.revertHistory(id)
+    loadHistory()
+    api.categories().then(setCategories)
+    loadTxs()
+  }
+
+  // ── Assign one or more transactions to a category ─────────────────────
+  async function assign(txIds: number[], catId: number) {
+    if (txIds.length === 0) return
+    await api.updateTransactionsCategory(txIds, catId)
+    const tx = txs.find(t => txIds.includes(t.id))
     const cat = categories.find(c => c.id === catId)
     if (tx && cat) {
       const suggestion = suggestRule(tx)
-      setRulePrompt({ txId, catId, catName: cat.name, catColor: cat.color, suggestion })
+      setRulePrompt({ txId: tx.id, catId, catName: cat.name, catColor: cat.color, suggestion })
       setRuleInput(suggestion)
       setRuleStatus(null)
     }
     setSelectedId(null)
+    setSelectedGroupKey(null)
     loadTxs()
   }
 
   // ── Drop handler ──────────────────────────────────────────────────────
   function onDrop(e: React.DragEvent, catId: number) {
     e.preventDefault()
-    const txId = +e.dataTransfer.getData('tx_id')
-    if (txId) assign(txId, catId)
+    const raw = e.dataTransfer.getData('tx_ids')
+    if (raw) {
+      const ids: number[] = JSON.parse(raw)
+      assign(ids, catId)
+    }
     setHoveredCat(null)
     setDraggingId(null)
+    setDraggingGroupKey(null)
   }
 
-  // ── Click-to-assign: click tx → select, click category → assign ───────
+  // ── Click-to-assign: click tx/group → select, click category → assign ─
   function handleCatClick(catId: number) {
     if (selectedId !== null) {
-      assign(selectedId, catId)
+      assign([selectedId], catId)
+    } else if (selectedGroupKey !== null) {
+      const group = txGroups.find(g => g.key === selectedGroupKey)
+      if (group) assign(group.items.map(t => t.id), catId)
     }
   }
 
@@ -141,13 +184,21 @@ export default function Categorize() {
 
   async function saveCategory() {
     if (!catForm.name.trim()) return
+    // Commit whatever keyword is still typed in the "add tag" box so
+    // pressing Enregistrer directly doesn't silently drop it.
+    const pending = ruleTag.trim()
+    const rules = pending && !catForm.rules.includes(pending) ? [...catForm.rules, pending] : catForm.rules
+    const formToSave = { ...catForm, rules }
     if (editingCat) {
-      await api.updateCategory(editingCat.id, catForm)
+      await api.updateCategory(editingCat.id, formToSave)
+      await api.recategorize(editingCat.id)
+      loadTxs()
     } else {
-      await api.createCategory(catForm as any)
+      await api.createCategory(formToSave as any)
     }
     setShowNewForm(false)
     setEditingCat(null)
+    setRuleTag('')
     api.categories().then(setCategories)
   }
 
@@ -168,6 +219,54 @@ export default function Categorize() {
 
   const uncatCount = txs.length
 
+  const filteredTxs = (() => {
+    const q = txSearch.trim().toLowerCase()
+    const base = !q ? txs : txs.filter(tx =>
+      (tx.description ?? '').toLowerCase().includes(q) ||
+      (tx.counterparty ?? '').toLowerCase().includes(q)
+    )
+    const sorted = [...base]
+    if (txSort === 'amount') {
+      sorted.sort((a, b) => b.amount - a.amount)
+    } else {
+      sorted.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    }
+    return sorted
+  })()
+
+  const txGroups: TxGroup[] = (() => {
+    const map = new Map<string, Transaction[]>()
+    for (const tx of filteredTxs) {
+      const key = txFreqKey(tx)
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(tx)
+    }
+    const groups = Array.from(map.entries()).map(([key, items]) => ({
+      key,
+      label: suggestRule(items[0]) || items[0].description || items[0].counterparty || '—',
+      items,
+      total: items.reduce((s, t) => s + t.amount, 0),
+      mostRecent: items.reduce((d, t) => (t.date > d ? t.date : d), items[0].date),
+    }))
+    groups.sort((a, b) => b.items.length - a.items.length || b.total - a.total)
+    return groups
+  })()
+
+  const filteredCategories = (() => {
+    const q = catSearch.trim().toLowerCase()
+    const base = !q ? categories : categories.filter(cat =>
+      cat.name.toLowerCase().includes(q) ||
+      cat.rules.some(r => r.toLowerCase().includes(q))
+    )
+    const sorted = [...base]
+    if (catSort === 'tags') {
+      sorted.sort((a, b) => b.rules.length - a.rules.length)
+    } else {
+      sorted.sort((a, b) => a.name.localeCompare(b.name, 'fr'))
+    }
+    return sorted
+  })()
+
   // ═══════════════════════════════════════════════════════════════════════
   return (
     <div className="flex flex-col h-full">
@@ -182,6 +281,12 @@ export default function Categorize() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => { setShowHistory(true); loadHistory() }}
+            className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors"
+          >
+            <History size={15} /> Historique
+          </button>
           <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
             <input
               type="checkbox"
@@ -198,31 +303,78 @@ export default function Categorize() {
       <div className="flex flex-1 overflow-hidden">
 
         {/* Left: Transaction list */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
-          {loading ? (
-            <div className="text-center py-20 text-gray-400">Chargement...</div>
-          ) : txs.length === 0 ? (
-            <div className="text-center py-20">
-              <p className="text-4xl mb-3">🎉</p>
-              <p className="text-gray-600 font-medium">Toutes les transactions sont catégorisées !</p>
-            </div>
-          ) : (
-            txs.map(tx => (
-              <TxCard
-                key={tx.id}
-                tx={tx}
-                selected={selectedId === tx.id}
-                dragging={draggingId === tx.id}
-                onClick={() => setSelectedId(id => id === tx.id ? null : tx.id)}
-                onDragStart={() => setDraggingId(tx.id)}
-                onDragEnd={() => setDraggingId(null)}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="px-4 pt-4 pb-2 shrink-0 flex gap-2">
+            <div className="relative flex-1">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                value={txSearch}
+                onChange={e => setTxSearch(e.target.value)}
+                placeholder="Rechercher une transaction (description, tiers)..."
+                className="w-full text-sm border border-gray-200 rounded-lg pl-8 pr-7 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-            ))
-          )}
+              {txSearch && (
+                <button
+                  onClick={() => setTxSearch('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            <div className="relative shrink-0">
+              <ArrowUpDown size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <select
+                value={txSort}
+                onChange={e => setTxSort(e.target.value as TxSort)}
+                className="text-sm border border-gray-200 rounded-lg pl-7 pr-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-700 appearance-none"
+              >
+                <option value="date">Plus récent</option>
+                <option value="amount">Plus cher</option>
+                <option value="frequency">Plus fréquent</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-2">
+            {loading ? (
+              <div className="text-center py-20 text-gray-400">Chargement...</div>
+            ) : txs.length === 0 ? (
+              <div className="text-center py-20">
+                <p className="text-4xl mb-3">🎉</p>
+                <p className="text-gray-600 font-medium">Toutes les transactions sont catégorisées !</p>
+              </div>
+            ) : filteredTxs.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-20">Aucune transaction ne correspond à "{txSearch}"</p>
+            ) : txSort === 'frequency' ? (
+              txGroups.map(group => (
+                <TxGroupCard
+                  key={group.key}
+                  group={group}
+                  selected={selectedGroupKey === group.key}
+                  dragging={draggingGroupKey === group.key}
+                  onClick={() => setSelectedGroupKey(k => k === group.key ? null : group.key)}
+                  onDragStart={() => setDraggingGroupKey(group.key)}
+                  onDragEnd={() => setDraggingGroupKey(null)}
+                />
+              ))
+            ) : (
+              filteredTxs.map(tx => (
+                <TxCard
+                  key={tx.id}
+                  tx={tx}
+                  selected={selectedId === tx.id}
+                  dragging={draggingId === tx.id}
+                  onClick={() => setSelectedId(id => id === tx.id ? null : tx.id)}
+                  onDragStart={() => setDraggingId(tx.id)}
+                  onDragEnd={() => setDraggingId(null)}
+                />
+              ))
+            )}
+          </div>
         </div>
 
         {/* Right: Categories panel */}
-        <div className="w-72 shrink-0 border-l border-gray-100 bg-gray-50 overflow-y-auto p-4 space-y-3">
+        <div className="w-96 shrink-0 border-l border-gray-100 bg-gray-50 overflow-y-auto p-4 space-y-3">
 
           {/* Hint */}
           {selectedId !== null && (
@@ -230,11 +382,48 @@ export default function Categorize() {
               Transaction sélectionnée — cliquez une catégorie pour l'assigner
             </div>
           )}
-          {selectedId === null && draggingId === null && (
+          {selectedGroupKey !== null && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-700 text-center">
+              Groupe sélectionné ({txGroups.find(g => g.key === selectedGroupKey)?.items.length ?? 0} transactions) — cliquez une catégorie pour les assigner
+            </div>
+          )}
+          {selectedId === null && selectedGroupKey === null && draggingId === null && draggingGroupKey === null && (
             <p className="text-xs text-gray-400 text-center pb-1">
               Glissez ou sélectionnez une transaction puis cliquez une catégorie
             </p>
           )}
+
+          {/* Search + sort */}
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                value={catSearch}
+                onChange={e => setCatSearch(e.target.value)}
+                placeholder="Rechercher une catégorie ou un mot-clé..."
+                className="w-full text-sm border border-gray-200 rounded-lg pl-8 pr-7 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              {catSearch && (
+                <button
+                  onClick={() => setCatSearch('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            <div className="relative shrink-0">
+              <ArrowUpDown size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <select
+                value={catSort}
+                onChange={e => setCatSort(e.target.value as CatSort)}
+                className="text-sm border border-gray-200 rounded-lg pl-7 pr-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-700 appearance-none"
+              >
+                <option value="name">A-Z</option>
+                <option value="tags">Nb de mots-clés</option>
+              </select>
+            </div>
+          </div>
 
           {/* New category button */}
           <button
@@ -260,63 +449,192 @@ export default function Categorize() {
           )}
 
           {/* Category drop-zone cards */}
-          {categories.map(cat => (
-            <CategoryDropCard
-              key={cat.id}
-              cat={cat}
-              isHovered={hoveredCat === cat.id}
-              isSelectionMode={selectedId !== null}
-              onClick={() => handleCatClick(cat.id)}
-              onDragOver={(e) => { e.preventDefault(); setHoveredCat(cat.id) }}
-              onDragLeave={() => setHoveredCat(null)}
-              onDrop={(e) => onDrop(e, cat.id)}
-              onEdit={() => openEditForm(cat)}
-              onDelete={() => deleteCategory(cat)}
-            />
-          ))}
+          {filteredCategories.length === 0 ? (
+            <p className="text-xs text-gray-400 text-center py-4">Aucune catégorie ne correspond à "{catSearch}"</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              {filteredCategories.map(cat => (
+                <CategoryDropCard
+                  key={cat.id}
+                  cat={cat}
+                  isHovered={hoveredCat === cat.id}
+                  isSelectionMode={selectedId !== null || selectedGroupKey !== null}
+                  onClick={() => handleCatClick(cat.id)}
+                  onDragOver={(e) => { e.preventDefault(); setHoveredCat(cat.id) }}
+                  onDragLeave={() => setHoveredCat(null)}
+                  onDrop={(e) => onDrop(e, cat.id)}
+                  onEdit={() => openEditForm(cat)}
+                  onDelete={() => deleteCategory(cat)}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* ── Rule prompt toast ────────────────────────────────────────── */}
+      {/* ── Rule prompt (floating, hard to miss) ────────────────────────── */}
       {rulePrompt && (
-        <div className="shrink-0 border-t border-gray-200 bg-white px-6 py-4">
-          {ruleStatus ? (
-            <p className="text-sm text-green-600 font-medium text-center">{ruleStatus}</p>
-          ) : (
-            <div className="flex items-center gap-3 flex-wrap">
-              <Tag size={16} className="text-gray-400 shrink-0" />
-              <p className="text-sm text-gray-700 shrink-0">
-                Ajouter une règle pour
+        <RulePromptToast
+          rulePrompt={rulePrompt}
+          ruleInput={ruleInput}
+          ruleStatus={ruleStatus}
+          onInputChange={setRuleInput}
+          onAdd={handleAddRule}
+          onDismiss={() => setRulePrompt(null)}
+        />
+      )}
+
+      {/* ── History panel ───────────────────────────────────────────────── */}
+      {showHistory && (
+        <HistoryPanel
+          entries={history}
+          onRevert={handleRevert}
+          onClose={() => setShowHistory(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+function RulePromptToast({
+  rulePrompt, ruleInput, ruleStatus, onInputChange, onAdd, onDismiss,
+}: {
+  rulePrompt: RulePrompt
+  ruleInput: string
+  ruleStatus: string | null
+  onInputChange: (v: string) => void
+  onAdd: () => void
+  onDismiss: () => void
+}) {
+  const [visible, setVisible] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(true), 10)
+    return () => clearTimeout(t)
+  }, [])
+
+  return (
+    <div
+      className={clsx(
+        'fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/30 transition-opacity duration-300 ease-out',
+        visible ? 'opacity-100' : 'opacity-0',
+      )}
+      onClick={onDismiss}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        className={clsx(
+          'w-full max-w-xl bg-white rounded-2xl shadow-2xl border-2 p-4 transition-all duration-300 ease-out',
+          visible ? 'opacity-100 scale-100' : 'opacity-0 scale-95',
+        )}
+        style={{ borderColor: rulePrompt.catColor }}
+      >
+        {ruleStatus ? (
+          <p className="text-sm text-green-600 font-semibold text-center py-1">{ruleStatus}</p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <span
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-base shrink-0"
+                style={{ background: rulePrompt.catColor + '22' }}
+              >
+                <Tag size={15} style={{ color: rulePrompt.catColor }} />
+              </span>
+              <p className="text-sm text-gray-700">
+                Assignée à
                 <span className="font-semibold" style={{ color: rulePrompt.catColor }}>
                   {' '}{rulePrompt.catName}
                 </span>
-                {' '}?
+                {' '}— ajouter une règle pour reconnaître ce genre de transaction automatiquement ?
               </p>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
               <input
                 className="flex-1 min-w-48 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={ruleInput}
-                onChange={e => setRuleInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleAddRule()}
+                onChange={e => onInputChange(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && onAdd()}
                 placeholder="Mot-clé à reconnaître..."
                 autoFocus
               />
               <button
-                onClick={handleAddRule}
+                onClick={onAdd}
                 disabled={!ruleInput.trim()}
                 className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors"
               >
                 Ajouter + recatégoriser
               </button>
               <button
-                onClick={() => setRulePrompt(null)}
+                onClick={onDismiss}
                 className="px-3 py-1.5 bg-gray-100 text-gray-600 text-sm rounded-lg hover:bg-gray-200 transition-colors"
               >
-                Ignorer
+                Non, juste cette fois
               </button>
             </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+
+function HistoryPanel({
+  entries, onRevert, onClose,
+}: {
+  entries: HistoryEntry[]
+  onRevert: (id: number) => void
+  onClose: () => void
+}) {
+  const fmtDate = (iso: string) =>
+    new Date(iso + 'Z').toLocaleString('fr-CH', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/30" onClick={onClose}>
+      <div
+        onClick={e => e.stopPropagation()}
+        className="w-full max-w-lg max-h-[70vh] bg-white rounded-2xl shadow-2xl flex flex-col"
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 shrink-0">
+          <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+            <History size={16} className="text-gray-400" /> Historique des catégorisations
+          </h2>
+          <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+          {entries.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-10">Aucune action enregistrée pour l'instant.</p>
+          ) : (
+            entries.map(entry => (
+              <div
+                key={entry.id}
+                className={clsx(
+                  'flex items-center justify-between gap-3 rounded-lg border px-3 py-2',
+                  entry.reverted ? 'border-gray-100 bg-gray-50' : 'border-gray-200',
+                )}
+              >
+                <div className="min-w-0">
+                  <p className={clsx('text-sm', entry.reverted ? 'text-gray-400 line-through' : 'text-gray-700')}>
+                    {entry.summary}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">{fmtDate(entry.created_at)}</p>
+                </div>
+                {entry.reverted ? (
+                  <span className="text-xs text-gray-400 shrink-0">Annulé</span>
+                ) : (
+                  <button
+                    onClick={() => onRevert(entry.id)}
+                    className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg text-blue-600 hover:bg-blue-50 shrink-0 transition-colors"
+                  >
+                    <Undo2 size={12} /> Annuler
+                  </button>
+                )}
+              </div>
+            ))
           )}
         </div>
-      )}
+      </div>
     </div>
   )
 }
@@ -339,7 +657,7 @@ function TxCard({
   return (
     <div
       draggable
-      onDragStart={(e) => { e.dataTransfer.setData('tx_id', String(tx.id)); onDragStart() }}
+      onDragStart={(e) => { e.dataTransfer.setData('tx_ids', JSON.stringify([tx.id])); onDragStart() }}
       onDragEnd={onDragEnd}
       onClick={onClick}
       className={clsx(
@@ -377,6 +695,81 @@ function TxCard({
 }
 
 
+function TxGroupCard({
+  group, selected, dragging,
+  onClick, onDragStart, onDragEnd,
+}: {
+  group: TxGroup
+  selected: boolean
+  dragging: boolean
+  onClick: () => void
+  onDragStart: () => void
+  onDragEnd: () => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const ids = group.items.map(t => t.id)
+  const allCredit = group.items.every(t => t.is_credit)
+  const sortedItems = [...group.items].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+  return (
+    <div
+      draggable
+      onDragStart={(e) => { e.dataTransfer.setData('tx_ids', JSON.stringify(ids)); onDragStart() }}
+      onDragEnd={onDragEnd}
+      className={clsx(
+        'bg-white rounded-xl border-2 select-none transition-all',
+        selected ? 'border-blue-400 shadow-md shadow-blue-100' : 'border-gray-100 hover:border-gray-300',
+        dragging && 'opacity-40',
+      )}
+    >
+      <div onClick={onClick} className="flex items-start gap-3 p-3 cursor-grab active:cursor-grabbing">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <Layers size={13} className="text-gray-400 shrink-0" />
+            <p className="text-sm font-medium text-gray-800 truncate leading-tight">
+              {group.label}
+            </p>
+          </div>
+          <p className="text-xs text-gray-400 mt-1">
+            {group.items.length} transactions · dernière le {group.mostRecent}
+          </p>
+        </div>
+        <div className="text-right shrink-0 flex items-start gap-2">
+          <div>
+            <p className={clsx('text-sm font-bold', allCredit ? 'text-green-600' : 'text-gray-800')}>
+              {allCredit ? '+' : ''}{fmt(group.total)}
+            </p>
+            <span className="inline-block text-xs px-1.5 py-0.5 rounded-full mt-1 bg-blue-50 text-blue-600">
+              ×{group.items.length}
+            </span>
+          </div>
+          <button
+            onClick={(e) => { e.stopPropagation(); setExpanded(v => !v) }}
+            title="Voir le détail des transactions"
+            className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+          >
+            {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+          </button>
+        </div>
+      </div>
+      {expanded && (
+        <div className="border-t border-gray-100 px-3 py-2 space-y-1.5 max-h-64 overflow-y-auto">
+          {sortedItems.map(tx => (
+            <div key={tx.id} className="flex items-center justify-between gap-2 text-xs">
+              <span className="text-gray-500 truncate">{tx.date}</span>
+              <span className="text-gray-700 truncate flex-1">{tx.description ?? tx.counterparty ?? '—'}</span>
+              <span className={clsx('font-medium shrink-0', tx.is_credit ? 'text-green-600' : 'text-gray-700')}>
+                {tx.is_credit ? '+' : '-'}{fmt(tx.amount)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+
 function CategoryDropCard({
   cat, isHovered, isSelectionMode,
   onClick, onDragOver, onDragLeave, onDrop, onEdit, onDelete,
@@ -397,54 +790,46 @@ function CategoryDropCard({
       onDragLeave={onDragLeave}
       onDrop={onDrop}
       onClick={onClick}
+      title={cat.rules.length > 0 ? cat.rules.join(', ') : undefined}
       className={clsx(
-        'rounded-xl border-2 p-3 transition-all',
+        'group relative rounded-xl border-2 px-2.5 py-2 transition-all',
         isHovered
-          ? 'border-opacity-100 shadow-lg scale-[1.02]'
+          ? 'shadow-lg scale-[1.03] z-10'
           : isSelectionMode
-          ? 'border-dashed cursor-pointer hover:scale-[1.01]'
-          : 'border-transparent cursor-default',
+          ? 'border-dashed cursor-pointer hover:scale-[1.02] hover:shadow-md'
+          : 'border-transparent cursor-default hover:bg-gray-100',
       )}
       style={{
         borderColor: isHovered ? cat.color : isSelectionMode ? cat.color + '88' : 'transparent',
         background: isHovered ? cat.color + '18' : 'white',
       }}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 min-w-0">
         <span
-          className="w-8 h-8 rounded-lg flex items-center justify-center text-lg shrink-0"
+          className="w-7 h-7 rounded-lg flex items-center justify-center text-base shrink-0"
           style={{ background: cat.color + '22' }}
         >
           {cat.icon}
         </span>
-        <span className="flex-1 text-sm font-medium text-gray-800 truncate">{cat.name}</span>
-        <div className="flex gap-1 shrink-0">
-          <button
-            onClick={(e) => { e.stopPropagation(); onEdit() }}
-            className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
-          >
-            <Pencil size={12} />
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onDelete() }}
-            className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
-          >
-            <Trash2 size={12} />
-          </button>
-        </div>
+        <span className="flex-1 text-xs font-medium text-gray-800 truncate leading-tight">{cat.name}</span>
+        {cat.rules.length > 0 && (
+          <span className="text-[10px] text-gray-400 shrink-0">{cat.rules.length}</span>
+        )}
       </div>
-      {cat.rules.length > 0 && (
-        <div className="flex flex-wrap gap-1 mt-2 ml-10">
-          {cat.rules.slice(0, 3).map(r => (
-            <span key={r} className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded">
-              {r}
-            </span>
-          ))}
-          {cat.rules.length > 3 && (
-            <span className="text-xs text-gray-400">+{cat.rules.length - 3}</span>
-          )}
-        </div>
-      )}
+      <div className="absolute -top-1.5 -right-1.5 hidden group-hover:flex gap-0.5 bg-white rounded-lg shadow border border-gray-200 p-0.5">
+        <button
+          onClick={(e) => { e.stopPropagation(); onEdit() }}
+          className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+        >
+          <Pencil size={11} />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete() }}
+          className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+        >
+          <Trash2 size={11} />
+        </button>
+      </div>
     </div>
   )
 }
