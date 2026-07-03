@@ -267,7 +267,7 @@ export default function Analytics() {
             {/* Proportional category blocks */}
             <div className="bg-white rounded-xl border border-gray-100 p-5">
               <h2 className="text-sm font-semibold text-gray-700 mb-4">Postes de dépense</h2>
-              <div className="grid grid-cols-2 gap-3 max-h-[260px] overflow-y-auto pr-1">
+              <div className="grid grid-cols-2 gap-3 max-h-[600px] overflow-y-auto pr-1">
                 {outflows.map(out => (
                   <div
                     key={out.id}
