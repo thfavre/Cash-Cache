@@ -15,6 +15,7 @@ class CategoryOut(BaseModel):
     color: str
     icon: str
     rules: list[str]
+    is_savings: bool
 
     class Config:
         from_attributes = True
@@ -25,6 +26,7 @@ class CategoryCreate(BaseModel):
     color: str = "#6B7280"
     icon: str = "❓"
     rules: list[str] = []
+    is_savings: bool = False
 
 
 class CategoryUpdate(BaseModel):
@@ -32,6 +34,7 @@ class CategoryUpdate(BaseModel):
     color: Optional[str] = None
     icon: Optional[str] = None
     rules: Optional[list[str]] = None
+    is_savings: Optional[bool] = None
 
 
 @router.get("", response_model=list[CategoryOut])

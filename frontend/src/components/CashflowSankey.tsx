@@ -51,6 +51,7 @@ const trunc = (str: string, n: number) => {
 
 export default function CashflowSankey({ data, onSelectCategory }: Props) {
   const [chartHeight, setChartHeight] = useState<number>(1000)
+  const [zoom, setZoom] = useState<number>(100)
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
   const [hoveredLinkId, setHoveredLinkId] = useState<string | null>(null)
 
@@ -324,6 +325,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
     return { nodes: nodeList, links: linkList, width, height, nodeWidth }
   }, [data, chartHeight])
 
+
   const handleNodeClick = (node: Node) => {
     if (node.rawId === undefined || !onSelectCategory) return
     if (node.col === 0) {
@@ -353,24 +355,51 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
           </p>
         </div>
 
-        <div className="flex items-center gap-3 bg-gray-50 border border-gray-150 px-4 py-2 rounded-xl text-xs font-medium shadow-sm">
-          <span className="text-gray-500 font-semibold">Hauteur :</span>
-          <input
-            type="range"
-            min="300"
-            max="2000"
-            step="50"
-            value={chartHeight}
-            onChange={(e) => setChartHeight(Number(e.target.value))}
-            className="w-32 accent-blue-600 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-          />
-          <span className="text-gray-900 font-extrabold w-12 text-right">{chartHeight}px</span>
+        <div className="flex flex-wrap items-center gap-4 bg-gray-50 border border-gray-150 px-4 py-2 rounded-xl text-xs font-medium shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="text-gray-500 font-semibold">Hauteur :</span>
+            <input
+              type="range"
+              min="300"
+              max="2000"
+              step="50"
+              value={chartHeight}
+              onChange={(e) => setChartHeight(Number(e.target.value))}
+              className="w-28 sm:w-32 accent-blue-600 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+            />
+            <span className="text-gray-900 font-extrabold w-12 text-right">{chartHeight}px</span>
+          </div>
+
+          <div className="h-4 w-px bg-gray-200 hidden sm:block"></div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-gray-500 font-semibold">Zoom :</span>
+            <input
+              type="range"
+              min="50"
+              max="150"
+              step="5"
+              value={zoom}
+              onChange={(e) => setZoom(Number(e.target.value))}
+              className="w-28 sm:w-32 accent-blue-600 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+            />
+            <span className="text-gray-900 font-extrabold w-10 text-right">{zoom}%</span>
+          </div>
         </div>
       </div>
 
       {/* Sankey SVG Container */}
-      <div className="relative w-full overflow-x-auto">
-        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto min-w-[1250px] select-none">
+      <div className="relative w-full overflow-x-auto flex justify-center">
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          style={{
+            width: `${zoom}%`,
+            minWidth: `${Math.round(1250 * (zoom / 100))}px`,
+            maxWidth: 'none',
+            height: 'auto'
+          }}
+          className="select-none"
+        >
           <defs>
             {links.map(link => (
               <linearGradient key={link.id} id={`grad-${link.id.replace(/[^a-zA-Z0-9]/g, '_')}`} x1="0%" y1="0%" x2="100%" y2="0%">

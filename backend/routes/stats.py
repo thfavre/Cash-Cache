@@ -87,8 +87,19 @@ def overview(
     base = _expense_filter(base, account_id, year, month)
 
     income = base.filter(Transaction.is_credit == True).with_entities(func.sum(Transaction.amount)).scalar() or 0.0
-    expenses = base.filter(Transaction.is_credit == False).with_entities(func.sum(Transaction.amount)).scalar() or 0.0
+    expenses_raw = base.filter(Transaction.is_credit == False).with_entities(func.sum(Transaction.amount)).scalar() or 0.0
 
+    # Exclude categories marked as savings from expenses so they count as savings
+    savings_cats = db.query(Category).filter(Category.is_savings == True).all()
+    savings_cat_ids = [c.id for c in savings_cats]
+    invest_amount = 0.0
+    if savings_cat_ids:
+        invest_amount = base.filter(
+            Transaction.is_credit == False,
+            Transaction.category_id.in_(savings_cat_ids)
+        ).with_entities(func.sum(Transaction.amount)).scalar() or 0.0
+
+    expenses = expenses_raw - invest_amount
     savings_rate = ((income - expenses) / income * 100) if income > 0 else 0.0
 
     return {
@@ -306,12 +317,17 @@ def get_cashflow(
             inflows[cat_name]["amount"] += amt
             inflows[cat_name]["tx_count"] += 1
         else:
-            total_expenses += amt
-            monthly_map[m_key]["expenses"] += amt
             cat_id = t.category_id or 0
             cat_name = t.category.name if t.category else "Non catégorisé"
             cat_color = t.category.color if t.category else "#64748B"
             cat_icon = t.category.icon if t.category else "📦"
+
+            # Exclude categories marked as savings from expenses so they count as savings
+            is_savings_cat = t.category.is_savings if t.category else False
+            if not is_savings_cat:
+                total_expenses += amt
+                monthly_map[m_key]["expenses"] += amt
+
             if cat_name not in outflows:
                 outflows[cat_name] = {
                     "id": cat_id,

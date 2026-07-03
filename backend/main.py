@@ -16,6 +16,16 @@ DATA_DIR = str(Path(__file__).parent.parent / "data")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Ensure database schema is migrated
+    from sqlalchemy import text
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE categories ADD COLUMN is_savings BOOLEAN DEFAULT 0 NOT NULL"))
+            print("Successfully migrated categories table: added is_savings column.")
+    except Exception as e:
+        # Column already exists or table doesn't exist yet
+        pass
+
     Base.metadata.create_all(bind=engine)
     db = next(get_db())
     try:
@@ -26,6 +36,13 @@ async def lifespan(app: FastAPI):
             print(f"Imported: {result}")
         else:
             print("Database already populated — skipping auto-import.")
+
+        # Seed existing category state
+        invest_cat = db.query(Category).filter(Category.name == "Investissements").first()
+        if invest_cat and not invest_cat.is_savings:
+            invest_cat.is_savings = True
+            db.commit()
+            print("Set is_savings=True for existing Investissements category.")
     finally:
         db.close()
     yield

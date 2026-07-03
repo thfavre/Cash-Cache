@@ -28,6 +28,7 @@ export interface Category {
   color: string
   icon: string
   rules: string[]
+  is_savings: boolean
 }
 
 export interface Transaction {

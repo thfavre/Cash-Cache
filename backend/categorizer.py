@@ -91,6 +91,7 @@ DEFAULT_CATEGORIES = [
         "color": "#10B981",
         "icon": "📈",
         "rules": ["INTERACTIVE BROKERS", "BROKER"],
+        "is_savings": True,
     },
     {
         "name": "Impôts",

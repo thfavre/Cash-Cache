@@ -28,6 +28,7 @@ class Category(Base):
     color = Column(String, default="#6B7280")
     icon = Column(String, default="❓")
     rules = Column(JSON, default=list)
+    is_savings = Column(Boolean, default=False, nullable=False)
 
     transactions = relationship("Transaction", back_populates="category")
     budgets = relationship("Budget", back_populates="category")

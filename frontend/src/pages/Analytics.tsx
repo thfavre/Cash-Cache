@@ -5,7 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, CartesianGrid, Area, AreaChart
 } from 'recharts'
-import { BarChart2, Activity, TrendingUp, Store, AlertTriangle, RefreshCw, Lightbulb } from 'lucide-react'
+import { BarChart2, Activity, TrendingUp, Store, AlertTriangle, RefreshCw } from 'lucide-react'
 
 const fmt = (n: number) => new Intl.NumberFormat('fr-CH', { style: 'currency', currency: 'CHF' }).format(n)
 const fmtMonth = (s: string) => {
@@ -249,45 +249,20 @@ export default function Analytics() {
             <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
               <div className="flex items-center justify-between text-gray-500 text-xs font-medium mb-2">
                 <span>Taux d'Épargne</span>
-                <span className="text-xs font-bold text-gray-700 bg-gray-100 px-2 py-0.5 rounded-full">Objectif &gt; 20%</span>
               </div>
-              <p className={`text-2xl font-extrabold ${summary.savings_rate >= 20 ? 'text-emerald-600' : summary.savings_rate >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+              <p className={`text-2xl font-extrabold ${summary.savings_rate >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                 {summary.savings_rate}%
               </p>
               <div className="w-full h-1.5 bg-gray-100 rounded-full mt-2 overflow-hidden">
                 <div
-                  className={`h-full rounded-full ${summary.savings_rate >= 20 ? 'bg-emerald-500' : summary.savings_rate >= 0 ? 'bg-blue-500' : 'bg-red-500'}`}
+                  className={`h-full rounded-full ${summary.savings_rate >= 0 ? 'bg-emerald-500' : 'bg-red-500'}`}
                   style={{ width: `${Math.min(100, Math.max(0, summary.savings_rate))}%` }}
                 />
               </div>
             </div>
           </div>
 
-          {/* AI Insights */}
-          <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-2xl border border-blue-100 p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-md">
-                <Lightbulb className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-gray-900">Analyse Intelligente des Flux</h3>
-                <p className="text-xs text-gray-600 mt-1 leading-relaxed max-w-3xl">
-                  {topCategory ? (
-                    <>
-                      Votre principal moteur de dépense est <span className="font-semibold text-gray-900">{topCategory.icon} {topCategory.name}</span> ({fmt(topCategory.amount)}, soit <span className="font-semibold text-blue-700">{topCategory.percentage_of_expenses}%</span> de vos sorties).{' '}
-                    </>
-                  ) : null}
-                  {summary.savings_rate >= 20 ? (
-                    <span className="text-emerald-700 font-medium">Félicitations, votre taux d'épargne est excellent et dépasse la barre recommandée des 20% !</span>
-                  ) : summary.savings_rate >= 0 ? (
-                    <span>Votre flux est équilibré. Optimiser vos 2 premiers postes de dépense permettrait d'atteindre 20% d'épargne.</span>
-                  ) : (
-                    <span className="text-red-600 font-medium">Attention : vos sorties dépassent vos revenus sur cette période. Vérifiez les dépenses exceptionnelles.</span>
-                  )}
-                </p>
-              </div>
-            </div>
-          </div>
+
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Category pie */}
