@@ -44,6 +44,11 @@ interface Link {
 
 const fmt = (n: number) => new Intl.NumberFormat('fr-CH', { style: 'currency', currency: 'CHF' }).format(n)
 
+const trunc = (str: string, n: number) => {
+  if (!str) return ''
+  return str.length > n ? str.slice(0, n - 1) + '…' : str
+}
+
 export default function CashflowSankey({ data, onSelectCategory }: Props) {
   const [chartHeight, setChartHeight] = useState<number>(1000)
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
@@ -53,7 +58,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
     const { summary, inflows, outflows } = data
     const maxVal = Math.max(summary.income, summary.expenses, 1)
 
-    const width = 1380
+    const width = 1450
     let height = 800
     const padY = 40
     const padX = 40
@@ -174,7 +179,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
     const colCols = [col0Nodes, col1Nodes, col2Nodes, col3Nodes]
     const maxNodes = Math.max(col0Nodes.length, col1Nodes.length, col2Nodes.length, col3Nodes.length)
     height = chartHeight
-    const colX = [60, 400, 760, 1140]
+    const colX = [60, 420, 780, 1100]
 
     colCols.forEach((items, cIdx) => {
       const totalColVal = items.reduce((sum, item) => sum + item.amount, 0) || 1
@@ -433,7 +438,8 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                         : 'text-[13px] fill-gray-800 font-semibold'
                     }`}
                   >
-                    {node.icon ? `${node.icon} ` : ''}{node.name}: {fmt(node.amount)}
+                    <title>{node.name}: {fmt(node.amount)}</title>
+                    {node.icon ? `${node.icon} ` : ''}{trunc(node.name, 22)}: {fmt(node.amount)}
                   </text>
                 )}
 
@@ -452,7 +458,8 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                         : 'text-[13px] fill-gray-800 font-semibold'
                     }`}
                   >
-                    {node.name}: {fmt(node.amount)}
+                    <title>{node.name}: {fmt(node.amount)}</title>
+                    {trunc(node.name, 22)}: {fmt(node.amount)}
                   </text>
                 )}
 
@@ -471,7 +478,8 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                         : 'text-[13px] fill-gray-800 font-semibold'
                     }`}
                   >
-                    {node.name}: {fmt(node.amount)}
+                    <title>{node.name}: {fmt(node.amount)}</title>
+                    {trunc(node.name, 22)}: {fmt(node.amount)}
                   </text>
                 )}
 
@@ -490,7 +498,8 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                         : 'text-[12px] fill-gray-800 font-medium'
                     }`}
                   >
-                    {node.name}: {fmt(node.amount)}
+                    <title>{node.name}: {fmt(node.amount)}</title>
+                    {trunc(node.name, 22)}: {fmt(node.amount)}
                   </text>
                 )}
               </g>
