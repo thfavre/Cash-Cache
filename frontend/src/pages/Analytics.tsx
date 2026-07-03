@@ -43,7 +43,8 @@ export default function Analytics() {
   const [period, setPeriod] = useState<string>('last_6_months')
   const [accountId, setAccountId] = useState<number | undefined>(undefined)
   const [tab, setTab] = useState<TabId>('overview')
-  const [avgUnit, setAvgUnit] = useState<'day' | 'month'>('month')
+  const [avgUnit, setAvgUnit] = useState<'minute' | 'day' | 'month' | 'year'>('month')
+  const [overviewMode, setOverviewMode] = useState<'total' | 'year' | 'month' | 'day' | 'minute'>('total')
 
   const [balanceHistory, setBalanceHistory] = useState<BalanceHistory[]>([])
   const [merchants, setMerchants] = useState<Merchant[]>([])
@@ -144,7 +145,14 @@ export default function Analytics() {
   const totalNetSum = monthly_trend.reduce((s, m) => s + m.net, 0)
   const monthCount = monthly_trend.length
   const dayCount = monthly_trend.reduce((s, m) => s + daysInMonth(m.month), 0)
-  const avgDivisor = avgUnit === 'day' ? dayCount : monthCount
+  const yearCount = dayCount / 365.25
+  const minuteCount = dayCount * 1440
+
+  const unitLabel = { minute: 'minute', day: 'jour', month: 'mois', year: 'an' }
+  const divisorForUnit = (unit: 'minute' | 'day' | 'month' | 'year') =>
+    (unit === 'day' ? dayCount : unit === 'month' ? monthCount : unit === 'year' ? yearCount : minuteCount) || 0
+
+  const avgDivisor = divisorForUnit(avgUnit)
   const avgIncome = avgDivisor ? totalIncomeSum / avgDivisor : 0
   const avgExpenses = avgDivisor ? totalExpensesSum / avgDivisor : 0
   const avgNet = avgDivisor ? totalNetSum / avgDivisor : 0
@@ -156,6 +164,13 @@ export default function Analytics() {
     const rollingAvg = window.reduce((s, w) => s + w.net, 0) / window.length
     return { ...m, rollingAvg }
   })
+
+  const overviewDivisor = overviewMode === 'total' ? 1 : divisorForUnit(overviewMode) || 1
+  const ovIncome = summary.income / overviewDivisor
+  const ovExpenses = summary.expenses / overviewDivisor
+  const ovNetSavings = summary.net_savings / overviewDivisor
+  const ovLeftoverCash = leftoverCash / overviewDivisor
+  const ovOutflows = outflows.map(out => ({ ...out, amount: out.amount / overviewDivisor }))
 
   return (
     <div className="p-6 space-y-6 w-full">
@@ -219,6 +234,22 @@ export default function Analytics() {
 
       {tab === 'overview' && (
         <div className="space-y-6">
+          <div className="flex items-center justify-end">
+            <div className="bg-gray-100 p-0.5 rounded-lg flex items-center text-[11px] font-medium">
+              {([['total', 'Total'], ['year', 'Par an'], ['month', 'Par mois'], ['day', 'Par jour'], ['minute', 'Par minute']] as const).map(([id, label]) => (
+                <button
+                  key={id}
+                  onClick={() => setOverviewMode(id)}
+                  className={`px-2.5 py-1 rounded-md transition-all ${
+                    overviewMode === id ? 'bg-white text-gray-900 shadow-sm font-semibold' : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
@@ -226,7 +257,7 @@ export default function Analytics() {
                 <span>Revenus</span>
                 <span className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">+</span>
               </div>
-              <p className="text-2xl font-extrabold text-gray-900">{fmt(summary.income)}</p>
+              <p className="text-2xl font-extrabold text-gray-900">{fmt(ovIncome)}</p>
             </div>
 
             <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
@@ -234,7 +265,7 @@ export default function Analytics() {
                 <span>Dépenses</span>
                 <span className="w-7 h-7 rounded-lg bg-red-50 text-red-600 flex items-center justify-center font-bold">-</span>
               </div>
-              <p className="text-2xl font-extrabold text-gray-900">{fmt(summary.expenses)}</p>
+              <p className="text-2xl font-extrabold text-gray-900">{fmt(ovExpenses)}</p>
             </div>
 
             <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
@@ -247,10 +278,10 @@ export default function Analytics() {
                 </span>
               </div>
               <p className={`text-2xl font-extrabold ${summary.net_savings >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                {summary.net_savings > 0 ? '+' : ''}{fmt(summary.net_savings)}
+                {ovNetSavings > 0 ? '+' : ''}{fmt(ovNetSavings)}
               </p>
               <p className="text-[10px] text-gray-400 mt-1.5 truncate">
-                dont Solde Liquide : <span className={leftoverCash >= 0 ? 'text-emerald-600 font-semibold' : 'text-red-600 font-semibold'}>{leftoverCash > 0 ? '+' : ''}{fmt(leftoverCash)}</span>
+                dont Solde Liquide : <span className={leftoverCash >= 0 ? 'text-emerald-600 font-semibold' : 'text-red-600 font-semibold'}>{ovLeftoverCash > 0 ? '+' : ''}{fmt(ovLeftoverCash)}</span>
               </p>
             </div>
 
@@ -276,13 +307,13 @@ export default function Analytics() {
             {/* Category pie */}
             <div className="bg-white rounded-xl border border-gray-100 p-5">
               <h2 className="text-sm font-semibold text-gray-700 mb-4">Dépenses par catégorie</h2>
-              {outflows.length === 0 ? (
+              {ovOutflows.length === 0 ? (
                 <p className="text-gray-400 text-sm text-center py-12">Aucune donnée</p>
               ) : (
                 <ResponsiveContainer width="100%" height={260}>
                   <PieChart>
-                    <Pie data={outflows} dataKey="amount" nameKey="name" cx="40%" cy="50%" outerRadius={100} innerRadius={55}>
-                      {outflows.map((c, i) => <Cell key={i} fill={c.color} />)}
+                    <Pie data={ovOutflows} dataKey="amount" nameKey="name" cx="40%" cy="50%" outerRadius={100} innerRadius={55}>
+                      {ovOutflows.map((c, i) => <Cell key={i} fill={c.color} />)}
                     </Pie>
                     <Tooltip formatter={(v: number) => fmt(v)} />
                     <Legend layout="vertical" align="right" verticalAlign="middle" iconType="circle" iconSize={8}
@@ -296,7 +327,7 @@ export default function Analytics() {
             <div className="bg-white rounded-xl border border-gray-100 p-5">
               <h2 className="text-sm font-semibold text-gray-700 mb-4">Postes de dépense</h2>
               <div className="grid grid-cols-2 gap-3 max-h-[600px] overflow-y-auto pr-1">
-                {outflows.map(out => (
+                {ovOutflows.map(out => (
                   <div
                     key={out.id}
                     onClick={() => handleOpenCategory(out.name, out.id)}
@@ -333,36 +364,31 @@ export default function Analytics() {
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-semibold text-gray-500">Moyennes sur la période</span>
               <div className="bg-gray-100 p-0.5 rounded-lg flex items-center text-[11px] font-medium">
-                <button
-                  onClick={() => setAvgUnit('day')}
-                  className={`px-2.5 py-1 rounded-md transition-all ${
-                    avgUnit === 'day' ? 'bg-white text-gray-900 shadow-sm font-semibold' : 'text-gray-500 hover:text-gray-900'
-                  }`}
-                >
-                  Par jour
-                </button>
-                <button
-                  onClick={() => setAvgUnit('month')}
-                  className={`px-2.5 py-1 rounded-md transition-all ${
-                    avgUnit === 'month' ? 'bg-white text-gray-900 shadow-sm font-semibold' : 'text-gray-500 hover:text-gray-900'
-                  }`}
-                >
-                  Par mois
-                </button>
+                {([['year', 'Par an'], ['month', 'Par mois'], ['day', 'Par jour'], ['minute', 'Par minute']] as const).map(([id, label]) => (
+                  <button
+                    key={id}
+                    onClick={() => setAvgUnit(id)}
+                    className={`px-2.5 py-1 rounded-md transition-all ${
+                      avgUnit === id ? 'bg-white text-gray-900 shadow-sm font-semibold' : 'text-gray-500 hover:text-gray-900'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
 
             <div className="grid grid-cols-3 gap-3 mb-6">
               <div className="rounded-xl bg-emerald-50/60 px-3 py-2.5">
-                <p className="text-[10px] font-medium text-emerald-700 uppercase tracking-wide">Revenus moyens / {avgUnit === 'day' ? 'jour' : 'mois'}</p>
+                <p className="text-[10px] font-medium text-emerald-700 uppercase tracking-wide">Revenus moyens / {unitLabel[avgUnit]}</p>
                 <p className="text-sm font-extrabold text-emerald-700 mt-0.5">{fmt(avgIncome)}</p>
               </div>
               <div className="rounded-xl bg-red-50/60 px-3 py-2.5">
-                <p className="text-[10px] font-medium text-red-700 uppercase tracking-wide">Dépenses moyennes / {avgUnit === 'day' ? 'jour' : 'mois'}</p>
+                <p className="text-[10px] font-medium text-red-700 uppercase tracking-wide">Dépenses moyennes / {unitLabel[avgUnit]}</p>
                 <p className="text-sm font-extrabold text-red-700 mt-0.5">{fmt(avgExpenses)}</p>
               </div>
               <div className="rounded-xl bg-blue-50/60 px-3 py-2.5">
-                <p className="text-[10px] font-medium text-blue-700 uppercase tracking-wide">Épargne nette moyenne / {avgUnit === 'day' ? 'jour' : 'mois'}</p>
+                <p className="text-[10px] font-medium text-blue-700 uppercase tracking-wide">Épargne nette moyenne / {unitLabel[avgUnit]}</p>
                 <p className="text-sm font-extrabold text-blue-700 mt-0.5">{fmt(avgNet)}</p>
               </div>
             </div>

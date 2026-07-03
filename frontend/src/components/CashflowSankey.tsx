@@ -59,15 +59,17 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
   const [zoom, setZoom] = useState<number>(100)
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
   const [hoveredLinkId, setHoveredLinkId] = useState<string | null>(null)
-  const [avgMode, setAvgMode] = useState<'total' | 'day' | 'month'>('total')
+  const [avgMode, setAvgMode] = useState<'total' | 'year' | 'month' | 'day' | 'minute'>('total')
 
   const divisor = useMemo(() => {
     if (avgMode === 'total') return 1
     const monthCount = data.monthly_trend.length
     if (monthCount === 0) return 1
     if (avgMode === 'month') return monthCount
-    const dayCount = data.monthly_trend.reduce((s, m) => s + daysInMonth(m.month), 0)
-    return dayCount || 1
+    const dayCount = data.monthly_trend.reduce((s, m) => s + daysInMonth(m.month), 0) || 1
+    if (avgMode === 'year') return dayCount / 365.25
+    if (avgMode === 'day') return dayCount
+    return dayCount * 1440 // minute
   }, [avgMode, data.monthly_trend])
 
   const fmtAmt = (n: number) => fmt(n / divisor)
@@ -385,7 +387,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
           <div className="flex items-center gap-2">
             <span className="text-gray-500 font-semibold">Valeurs :</span>
             <div className="bg-gray-200/70 p-0.5 rounded-lg flex items-center text-[11px]">
-              {([['total', 'Total'], ['month', 'Par mois'], ['day', 'Par jour']] as const).map(([id, label]) => (
+              {([['total', 'Total'], ['year', 'Par an'], ['month', 'Par mois'], ['day', 'Par jour'], ['minute', 'Par minute']] as const).map(([id, label]) => (
                 <button
                   key={id}
                   onClick={() => setAvgMode(id)}
