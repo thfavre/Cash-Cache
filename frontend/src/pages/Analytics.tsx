@@ -131,6 +131,8 @@ export default function Analytics() {
 
   const { summary, outflows, monthly_trend } = data
   const topCategory = outflows[0]
+  const totalOutflows = outflows.reduce((sum, out) => sum + out.amount, 0)
+  const leftoverCash = summary.income - totalOutflows
 
   return (
     <div className="p-6 space-y-6 w-full">
@@ -214,7 +216,7 @@ export default function Analytics() {
 
             <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
               <div className="flex items-center justify-between text-gray-500 text-xs font-medium mb-2">
-                <span>Solde Net / Épargne</span>
+                <span>Épargne Nette</span>
                 <span className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold ${
                   summary.net_savings >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
                 }`}>
@@ -223,6 +225,9 @@ export default function Analytics() {
               </div>
               <p className={`text-2xl font-extrabold ${summary.net_savings >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                 {summary.net_savings > 0 ? '+' : ''}{fmt(summary.net_savings)}
+              </p>
+              <p className="text-[10px] text-gray-400 mt-1.5 truncate">
+                dont Solde Liquide : <span className={leftoverCash >= 0 ? 'text-emerald-600 font-semibold' : 'text-red-600 font-semibold'}>{leftoverCash > 0 ? '+' : ''}{fmt(leftoverCash)}</span>
               </p>
             </div>
 

@@ -57,7 +57,17 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
 
   const { nodes, links, width, height, nodeWidth } = useMemo(() => {
     const { summary, inflows, outflows } = data
-    const maxVal = Math.max(summary.income, summary.expenses, 1)
+
+    // Calculate actual total inflows and outflows
+    const totalIncome = summary.income
+    const totalOutflows = outflows.reduce((sum, out) => sum + out.amount, 0)
+
+    const hasDeficit = totalOutflows > totalIncome
+    const deficitAmount = hasDeficit ? (totalOutflows - totalIncome) : 0
+    const surplusAmount = !hasDeficit ? (totalIncome - totalOutflows) : 0
+
+    // maxVal is the total flow volume traversing the hub
+    const maxVal = Math.max(totalIncome + deficitAmount, totalOutflows, 1)
 
     const width = 1450
     let height = 800
@@ -82,11 +92,11 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
         })
       }
     })
-    if (summary.expenses > summary.income && summary.expenses - summary.income > 0.01) {
+    if (deficitAmount > 0.01) {
       col0Nodes.push({
         id: 'in_deficit',
         name: 'Puisage sur réserves',
-        amount: summary.expenses - summary.income,
+        amount: deficitAmount,
         color: '#EF4444',
         icon: ''
       })
@@ -95,16 +105,15 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
       col0Nodes.push({
         id: 'in_budget',
         name: 'Revenus perçus',
-        amount: Math.max(summary.income, summary.expenses, 1),
+        amount: maxVal,
         color: '#10B981',
         icon: ''
       })
     }
 
     // Column 1: Intermediate Hub Layer (All money in goes here!)
-    const totalIn = Math.max(summary.income, summary.expenses, 1)
     const col1Nodes = [
-      { id: 'hub_budget', name: 'Budget', amount: totalIn, color: '#F97316', icon: '' }
+      { id: 'hub_budget', name: 'Budget', amount: maxVal, color: '#F97316', icon: '' }
     ]
 
     // Column 2: Expense Categories & Savings
@@ -122,11 +131,11 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
         })
       }
     }
-    if (summary.net_savings > 0.01) {
+    if (surplusAmount > 0.01) {
       col2Nodes.push({
         id: 'cat_savings',
-        name: 'Épargne constituée',
-        amount: summary.net_savings,
+        name: 'Solde Net restant',
+        amount: surplusAmount,
         color: '#10B981',
         icon: ''
       })
@@ -164,11 +173,11 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
         })
       }
     }
-    if (summary.net_savings > 0.01) {
+    if (surplusAmount > 0.01) {
       col3Nodes.push({
         id: 'sub_savings_acc',
-        name: 'Accumulation Nette',
-        amount: summary.net_savings,
+        name: 'Solde Net restant',
+        amount: surplusAmount,
         color: '#10B981',
         icon: '✨'
       })
