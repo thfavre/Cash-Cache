@@ -4,6 +4,8 @@ Handles all 3 accounts: main current account, savings, and rent deposit.
 """
 from __future__ import annotations
 
+import csv
+import hashlib
 import os
 from datetime import date, datetime
 from pathlib import Path
@@ -193,15 +195,208 @@ def parse_file(xml_path: Path, db: Session, known_ibans: set[str]) -> tuple[int,
     return accts_created, tx_count
 
 
+def is_revolut_csv(path: Path) -> bool:
+    if path.suffix.lower() != ".csv":
+        return False
+    try:
+        with open(path, "r", encoding="utf-8-sig") as f:
+            first_line = f.readline().strip()
+            headers = [h.strip() for h in first_line.split(",")]
+            required = {"Type", "Product", "Started Date", "Completed Date", "Description", "Amount", "Fee", "Currency", "State", "Balance"}
+            return required.issubset(set(headers))
+    except Exception:
+        return False
+
+
+def get_revolut_counterparty(description: str) -> str:
+    desc_lower = description.lower()
+    for prefix in ["transfer from ", "transfer to ", "payment from ", "payment to ", "to pocket "]:
+        if desc_lower.startswith(prefix):
+            return description[len(prefix):].strip()
+    return description.strip()
+
+
+def make_revolut_bank_ref(row: dict) -> str:
+    # Product, Started Date, Description, Amount, Currency, State, Balance
+    s = f"{row.get('Product')}|{row.get('Started Date')}|{row.get('Description')}|{row.get('Amount')}|{row.get('Currency')}|{row.get('State')}|{row.get('Balance')}"
+    return hashlib.md5(s.encode("utf-8")).hexdigest()
+
+
+def parse_revolut_csv(csv_path: Path, db: Session, known_ibans: set[str]) -> tuple[int, int]:
+    """
+    Parse a Revolut statement CSV file and upsert into the database.
+    Returns (accounts_created, transactions_imported).
+    """
+    rows = []
+    try:
+        with open(csv_path, mode="r", encoding="utf-8-sig") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                cleaned_row = {k.strip(): v.strip() for k, v in row.items() if k is not None and v is not None}
+                rows.append(cleaned_row)
+    except Exception as e:
+        print(f"Error reading Revolut CSV {csv_path}: {e}")
+        return 0, 0
+
+    if not rows:
+        return 0, 0
+
+    accounts_by_key = {}
+    accts_created = 0
+
+    # Group completed rows by Product and Currency to find opening/closing balances
+    completed_rows_by_key = {}
+    for row in rows:
+        if row.get("State") == "COMPLETED":
+            key = (row.get("Product"), row.get("Currency"))
+            completed_rows_by_key.setdefault(key, []).append(row)
+
+    for key, g_rows in completed_rows_by_key.items():
+        product, currency = key
+        if not product or not currency:
+            continue
+        g_rows.sort(key=lambda r: r.get("Started Date", ""))
+
+        first_tx = g_rows[0]
+        last_tx = g_rows[-1]
+
+        try:
+            first_amt = float(first_tx.get("Amount", "0"))
+            first_bal = float(first_tx.get("Balance", "0"))
+            last_bal = float(last_tx.get("Balance", "0"))
+        except ValueError:
+            first_amt = 0.0
+            first_bal = 0.0
+            last_bal = 0.0
+
+        opening_balance = first_bal - first_amt
+        closing_balance = last_bal
+
+        iban = f"REVOLUT_{product.upper()}_{currency.upper()}"
+        acct_name = f"Revolut {product}"
+
+        account = db.query(Account).filter(Account.iban == iban).first()
+        if account is None:
+            account = Account(
+                iban=iban,
+                name=acct_name,
+                currency=currency,
+                opening_balance=opening_balance,
+                closing_balance=closing_balance,
+            )
+            db.add(account)
+            db.flush()
+            accts_created += 1
+        else:
+            account.closing_balance = closing_balance
+            account.name = acct_name
+
+        accounts_by_key[key] = account
+        known_ibans.add(iban)
+
+    # Identify internal transfers between Revolut Savings and Current
+    revolut_internal_keys = set()
+    completed_by_time_amt = {}
+    for row in rows:
+        if row.get("State") == "COMPLETED":
+            try:
+                amt_val = abs(float(row.get("Amount", "0")))
+            except ValueError:
+                amt_val = 0.0
+            time_amt_key = (row.get("Started Date"), amt_val)
+            completed_by_time_amt.setdefault(time_amt_key, []).append(row)
+
+    for (started_date, abs_amt), group in completed_by_time_amt.items():
+        if len(group) == 2:
+            row1, row2 = group[0], group[1]
+            try:
+                val1 = float(row1.get("Amount", "0"))
+                val2 = float(row2.get("Amount", "0"))
+            except ValueError:
+                val1 = val2 = 0.0
+            if val1 * val2 < 0 and row1.get("Product") != row2.get("Product"):
+                revolut_internal_keys.add(make_revolut_bank_ref(row1))
+                revolut_internal_keys.add(make_revolut_bank_ref(row2))
+
+    tx_count = 0
+    for row in rows:
+        product = row.get("Product")
+        currency = row.get("Currency")
+        key = (product, currency)
+        account = accounts_by_key.get(key)
+        if not account:
+            continue
+
+        bank_ref = make_revolut_bank_ref(row)
+
+        if db.query(Transaction).filter(Transaction.bank_ref == bank_ref).first():
+            continue
+
+        try:
+            raw_amount = float(row.get("Amount", "0"))
+        except ValueError:
+            raw_amount = 0.0
+
+        amount = abs(raw_amount)
+        is_credit = raw_amount > 0
+        is_reversal = row.get("State") == "REVERTED"
+
+        started_dt_str = row.get("Started Date", "")
+        completed_dt_str = row.get("Completed Date", "")
+
+        try:
+            booking_date = datetime.strptime(started_dt_str[:10], "%Y-%m-%d").date()
+        except ValueError:
+            continue
+
+        value_date = None
+        if completed_dt_str and completed_dt_str != "NaN":
+            try:
+                value_date = datetime.strptime(completed_dt_str[:10], "%Y-%m-%d").date()
+            except ValueError:
+                pass
+
+        description = row.get("Description", "")
+        counterparty = get_revolut_counterparty(description)
+        tx_code = row.get("Type", "")
+
+        is_internal = bank_ref in revolut_internal_keys
+
+        tx = Transaction(
+            account_id=account.id,
+            date=booking_date,
+            value_date=value_date,
+            amount=amount,
+            is_credit=is_credit,
+            description=description,
+            counterparty=counterparty,
+            counterparty_iban=None,
+            remittance_info=description,
+            tx_code=tx_code,
+            bank_ref=bank_ref,
+            uetr=None,
+            is_reversal=is_reversal,
+            is_internal=is_internal,
+        )
+        db.add(tx)
+        tx_count += 1
+
+    db.commit()
+    return accts_created, tx_count
+
+
 def run_import(data_dir: str, db: Session) -> dict:
     """
-    Import all XML files found recursively under data_dir.
+    Import all XML and CSV files found recursively under data_dir.
     Must be called after categories have been seeded.
     """
     seed_default_categories(db)
 
     xml_files = list(Path(data_dir).rglob("*.xml"))
-    if not xml_files:
+    csv_files = list(Path(data_dir).rglob("*.csv"))
+    revolut_files = [p for p in csv_files if is_revolut_csv(p)]
+
+    if not xml_files and not revolut_files:
         return {"files": 0, "accounts": 0, "transactions": 0}
 
     # First pass: collect all IBANs so internal transfer detection works
@@ -219,6 +414,11 @@ def run_import(data_dir: str, db: Session) -> dict:
         total_accts += accts
         total_txs += txs
 
+    for path in revolut_files:
+        accts, txs = parse_revolut_csv(path, db, known_ibans)
+        total_accts += accts
+        total_txs += txs
+
     # Second pass: categorize all uncategorized transactions
     _categorize_all(db)
 
@@ -226,7 +426,7 @@ def run_import(data_dir: str, db: Session) -> dict:
     _mark_internal_transfers(db, known_ibans)
 
     db.commit()
-    return {"files": len(xml_files), "accounts": total_accts, "transactions": total_txs}
+    return {"files": len(xml_files) + len(revolut_files), "accounts": total_accts, "transactions": total_txs}
 
 
 def _categorize_all(db: Session) -> None:
@@ -242,6 +442,7 @@ def _mark_internal_transfers(db: Session, known_ibans: set[str]) -> None:
     """
     Use UETR to find transactions that appear in multiple accounts → internal transfers.
     Also mark any transaction whose counterparty IBAN is one of our accounts.
+    Also cross-match transfers between Raiffeisen and Revolut accounts.
     """
     from sqlalchemy import func
     # Find UETRs that appear more than once (cross-account)
@@ -260,3 +461,30 @@ def _mark_internal_transfers(db: Session, known_ibans: set[str]) -> None:
     ).all()
     for tx in txs:
         tx.is_internal = True
+
+    # Mark cross-bank transfers between Raiffeisen and Revolut
+    raiff_candidates = (
+        db.query(Transaction)
+        .filter(
+            Transaction.is_credit == False,
+            Transaction.is_internal == False,
+            (Transaction.description.ilike("%revolut%") | Transaction.counterparty.ilike("%revolut%"))
+        )
+        .all()
+    )
+
+    revolut_candidates = (
+        db.query(Transaction)
+        .filter(
+            Transaction.is_credit == True,
+            Transaction.is_internal == False,
+            (Transaction.description.ilike("%thomas%") | Transaction.description.ilike("%favre%"))
+        )
+        .all()
+    )
+
+    for r_tx in raiff_candidates:
+        for rev_tx in revolut_candidates:
+            if r_tx.amount == rev_tx.amount and abs((r_tx.date - rev_tx.date).days) <= 2:
+                r_tx.is_internal = True
+                rev_tx.is_internal = True

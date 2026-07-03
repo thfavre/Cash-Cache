@@ -71,7 +71,7 @@ app.include_router(history.router)
 
 @app.post("/import")
 def reimport(db: Session = Depends(get_db)):
-    """Re-parse all XML files (use after dropping DB or adding new files)."""
+    """Re-parse all XML and CSV files (use after dropping DB or adding new files)."""
     result = run_import(DATA_DIR, db)
     return result
 
