@@ -60,7 +60,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
 
     const width = 1450
     let height = 800
-    const padY = 40
+    let padY = 40
     const padX = 40
     const nodeWidth = 14
 
@@ -179,19 +179,23 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
     const colCols = [col0Nodes, col1Nodes, col2Nodes, col3Nodes]
     const maxNodes = Math.max(col0Nodes.length, col1Nodes.length, col2Nodes.length, col3Nodes.length)
     height = chartHeight
+    padY = height < 500 ? 15 : 40
     const colX = [60, 420, 780, 1100]
 
-    // Calculate a uniform gap and a single global yScale based on maxNodes
-    const gap = Math.min(20, Math.max(8, (height - 2 * padY - maxNodes * 12) / Math.max(1, maxNodes - 1)))
+    // Calculate a uniform gap and a single global yScale based on maxNodes, with zoom support for small heights
+    const minGap = height < 500 ? 2 : 8
+    const gap = Math.min(20, Math.max(minGap, (height - 2 * padY - maxNodes * (height < 500 ? 3 : 10)) / Math.max(1, maxNodes - 1)))
     const yScale = Math.max(0.01, (height - 2 * padY - (maxNodes - 1) * gap) / maxVal)
 
+    const minNodeH = height < 500 ? 2 : 4
+
     colCols.forEach((items, cIdx) => {
-      const totalColHeight = items.reduce((sum, item) => sum + Math.max(4, item.amount * yScale), 0) + (items.length - 1) * gap
+      const totalColHeight = items.reduce((sum, item) => sum + Math.max(minNodeH, item.amount * yScale), 0) + (items.length - 1) * gap
       let currY = padY + Math.max(0, (height - 2 * padY - totalColHeight) / 2)
 
       items.forEach((item) => {
-        // Height is scaled globally. We use a minimum height of 4px so tiny values remain visible.
-        const h = Math.max(4, item.amount * yScale)
+        // Height is scaled globally. We use a dynamic minimum height of 2px (small) or 4px (normal).
+        const h = Math.max(minNodeH, item.amount * yScale)
         nodeList.push({
           ...item,
           col: cIdx,
