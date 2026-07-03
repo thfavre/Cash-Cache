@@ -44,6 +44,11 @@ interface Link {
 
 const fmt = (n: number) => new Intl.NumberFormat('fr-CH', { style: 'currency', currency: 'CHF' }).format(n)
 
+const daysInMonth = (monthStr: string) => {
+  const [y, m] = monthStr.split('-').map(Number)
+  return new Date(y, m, 0).getDate()
+}
+
 const trunc = (str: string, n: number) => {
   if (!str) return ''
   return str.length > n ? str.slice(0, n - 1) + '…' : str
@@ -54,6 +59,18 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
   const [zoom, setZoom] = useState<number>(100)
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
   const [hoveredLinkId, setHoveredLinkId] = useState<string | null>(null)
+  const [avgMode, setAvgMode] = useState<'total' | 'day' | 'month'>('total')
+
+  const divisor = useMemo(() => {
+    if (avgMode === 'total') return 1
+    const monthCount = data.monthly_trend.length
+    if (monthCount === 0) return 1
+    if (avgMode === 'month') return monthCount
+    const dayCount = data.monthly_trend.reduce((s, m) => s + daysInMonth(m.month), 0)
+    return dayCount || 1
+  }, [avgMode, data.monthly_trend])
+
+  const fmtAmt = (n: number) => fmt(n / divisor)
 
   const { nodes, links, width, height, nodeWidth } = useMemo(() => {
     const { summary, inflows, outflows } = data
@@ -366,6 +383,25 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
 
         <div className="flex flex-wrap items-center gap-4 bg-gray-50 border border-gray-150 px-4 py-2 rounded-xl text-xs font-medium shadow-sm">
           <div className="flex items-center gap-2">
+            <span className="text-gray-500 font-semibold">Valeurs :</span>
+            <div className="bg-gray-200/70 p-0.5 rounded-lg flex items-center text-[11px]">
+              {([['total', 'Total'], ['month', 'Par mois'], ['day', 'Par jour']] as const).map(([id, label]) => (
+                <button
+                  key={id}
+                  onClick={() => setAvgMode(id)}
+                  className={`px-2.5 py-1 rounded-md transition-all ${
+                    avgMode === id ? 'bg-white text-gray-900 shadow-sm font-semibold' : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="h-4 w-px bg-gray-200 hidden sm:block"></div>
+
+          <div className="flex items-center gap-2">
             <span className="text-gray-500 font-semibold">Hauteur :</span>
             <input
               type="range"
@@ -445,7 +481,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                 onMouseLeave={() => setHoveredLinkId(null)}
                 onClick={() => handleNodeClick(tNode.col === 1 ? sNode : tNode)}
               >
-                <title>{`${sNode.name} ➔ ${tNode.name} : ${fmt(link.value)}`}</title>
+                <title>{`${sNode.name} ➔ ${tNode.name} : ${fmtAmt(link.value)}`}</title>
               </path>
             )
           })}
@@ -479,8 +515,8 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                 >
                   {node.detail && node.detail.length > 0 && (
                     <title>
-                      {`${node.name} : ${fmt(node.amount)}\n` +
-                        node.detail.map(d => `• ${d.name} : ${fmt(d.amount)}`).join('\n')}
+                      {`${node.name} : ${fmtAmt(node.amount)}\n` +
+                        node.detail.map(d => `• ${d.name} : ${fmtAmt(d.amount)}`).join('\n')}
                     </title>
                   )}
                 </rect>
@@ -525,8 +561,8 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                         : 'text-[13px] fill-gray-800 font-semibold'
                     }`}
                   >
-                    <title>{node.name}: {fmt(node.amount)}</title>
-                    {node.icon ? `${node.icon} ` : ''}{trunc(node.name, 22)}: {fmt(node.amount)}
+                    <title>{node.name}: {fmtAmt(node.amount)}</title>
+                    {node.icon ? `${node.icon} ` : ''}{trunc(node.name, 22)}: {fmtAmt(node.amount)}
                   </text>
                 )}
 
@@ -545,8 +581,8 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                         : 'text-[13px] fill-gray-800 font-semibold'
                     }`}
                   >
-                    <title>{node.name}: {fmt(node.amount)}</title>
-                    {trunc(node.name, 22)}: {fmt(node.amount)}
+                    <title>{node.name}: {fmtAmt(node.amount)}</title>
+                    {trunc(node.name, 22)}: {fmtAmt(node.amount)}
                   </text>
                 )}
 
@@ -565,8 +601,8 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                         : 'text-[13px] fill-gray-800 font-semibold'
                     }`}
                   >
-                    <title>{node.name}: {fmt(node.amount)}</title>
-                    {trunc(node.name, 22)}: {fmt(node.amount)}
+                    <title>{node.name}: {fmtAmt(node.amount)}</title>
+                    {trunc(node.name, 22)}: {fmtAmt(node.amount)}
                   </text>
                 )}
 
@@ -585,8 +621,8 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                         : 'text-[12px] fill-gray-800 font-medium'
                     }`}
                   >
-                    <title>{node.name}: {fmt(node.amount)}</title>
-                    {trunc(node.name, 22)}: {fmt(node.amount)}
+                    <title>{node.name}: {fmtAmt(node.amount)}</title>
+                    {trunc(node.name, 22)}: {fmtAmt(node.amount)}
                   </text>
                 )}
               </g>

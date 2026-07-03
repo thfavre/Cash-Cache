@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { api, CashflowData, Account, Transaction, BalanceHistory, Merchant } from '../api'
 import CashflowSankey from '../components/CashflowSankey'
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, CartesianGrid, Area, AreaChart
+  ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend, CartesianGrid, Area, AreaChart, ReferenceLine
 } from 'recharts'
 import { BarChart2, Activity, TrendingUp, Store, AlertTriangle, RefreshCw } from 'lucide-react'
 
@@ -43,6 +43,7 @@ export default function Analytics() {
   const [period, setPeriod] = useState<string>('last_6_months')
   const [accountId, setAccountId] = useState<number | undefined>(undefined)
   const [tab, setTab] = useState<TabId>('overview')
+  const [avgUnit, setAvgUnit] = useState<'day' | 'month'>('month')
 
   const [balanceHistory, setBalanceHistory] = useState<BalanceHistory[]>([])
   const [merchants, setMerchants] = useState<Merchant[]>([])
@@ -133,6 +134,28 @@ export default function Analytics() {
   const topCategory = outflows[0]
   const totalOutflows = outflows.reduce((sum, out) => sum + out.amount, 0)
   const leftoverCash = summary.income - totalOutflows
+
+  const daysInMonth = (monthStr: string) => {
+    const [y, m] = monthStr.split('-').map(Number)
+    return new Date(y, m, 0).getDate()
+  }
+  const totalIncomeSum = monthly_trend.reduce((s, m) => s + m.income, 0)
+  const totalExpensesSum = monthly_trend.reduce((s, m) => s + m.expenses, 0)
+  const totalNetSum = monthly_trend.reduce((s, m) => s + m.net, 0)
+  const monthCount = monthly_trend.length
+  const dayCount = monthly_trend.reduce((s, m) => s + daysInMonth(m.month), 0)
+  const avgDivisor = avgUnit === 'day' ? dayCount : monthCount
+  const avgIncome = avgDivisor ? totalIncomeSum / avgDivisor : 0
+  const avgExpenses = avgDivisor ? totalExpensesSum / avgDivisor : 0
+  const avgNet = avgDivisor ? totalNetSum / avgDivisor : 0
+  const avgNetPerMonth = monthCount ? totalNetSum / monthCount : 0
+  const avgBalance = balanceHistory.length ? balanceHistory.reduce((s, b) => s + b.balance, 0) / balanceHistory.length : 0
+
+  const trendData = monthly_trend.map((m, i) => {
+    const window = monthly_trend.slice(Math.max(0, i - 2), i + 1)
+    const rollingAvg = window.reduce((s, w) => s + w.net, 0) / window.length
+    return { ...m, rollingAvg }
+  })
 
   return (
     <div className="p-6 space-y-6 w-full">
@@ -305,9 +328,47 @@ export default function Analytics() {
         <div className="space-y-6">
           <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
             <h3 className="text-sm font-bold text-gray-900 mb-2">Évolution comparative Entrées vs Sorties</h3>
-            <p className="text-xs text-gray-500 mb-6">Comparez la dynamique de vos revenus, dépenses et capacité d'épargne mois par mois</p>
+            <p className="text-xs text-gray-500 mb-4">Comparez la dynamique de vos revenus, dépenses et capacité d'épargne mois par mois</p>
+
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-semibold text-gray-500">Moyennes sur la période</span>
+              <div className="bg-gray-100 p-0.5 rounded-lg flex items-center text-[11px] font-medium">
+                <button
+                  onClick={() => setAvgUnit('day')}
+                  className={`px-2.5 py-1 rounded-md transition-all ${
+                    avgUnit === 'day' ? 'bg-white text-gray-900 shadow-sm font-semibold' : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                >
+                  Par jour
+                </button>
+                <button
+                  onClick={() => setAvgUnit('month')}
+                  className={`px-2.5 py-1 rounded-md transition-all ${
+                    avgUnit === 'month' ? 'bg-white text-gray-900 shadow-sm font-semibold' : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                >
+                  Par mois
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3 mb-6">
+              <div className="rounded-xl bg-emerald-50/60 px-3 py-2.5">
+                <p className="text-[10px] font-medium text-emerald-700 uppercase tracking-wide">Revenus moyens / {avgUnit === 'day' ? 'jour' : 'mois'}</p>
+                <p className="text-sm font-extrabold text-emerald-700 mt-0.5">{fmt(avgIncome)}</p>
+              </div>
+              <div className="rounded-xl bg-red-50/60 px-3 py-2.5">
+                <p className="text-[10px] font-medium text-red-700 uppercase tracking-wide">Dépenses moyennes / {avgUnit === 'day' ? 'jour' : 'mois'}</p>
+                <p className="text-sm font-extrabold text-red-700 mt-0.5">{fmt(avgExpenses)}</p>
+              </div>
+              <div className="rounded-xl bg-blue-50/60 px-3 py-2.5">
+                <p className="text-[10px] font-medium text-blue-700 uppercase tracking-wide">Épargne nette moyenne / {avgUnit === 'day' ? 'jour' : 'mois'}</p>
+                <p className="text-sm font-extrabold text-blue-700 mt-0.5">{fmt(avgNet)}</p>
+              </div>
+            </div>
+
             <ResponsiveContainer width="100%" height={320}>
-              <BarChart data={monthly_trend} barGap={4}>
+              <ComposedChart data={trendData} barGap={4}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis dataKey="month" tickFormatter={fmtMonth} tick={{ fontSize: 12, fill: '#64748B' }} />
                 <YAxis tick={{ fontSize: 12, fill: '#64748B' }} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
@@ -316,7 +377,12 @@ export default function Analytics() {
                 <Bar dataKey="income" name="Revenus" fill="#10B981" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="expenses" name="Dépenses" fill="#EF4444" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="net" name="Épargne Nette" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-              </BarChart>
+                <Line dataKey="rollingAvg" name="Moyenne mobile (3 mois)" stroke="#8B5CF6" strokeWidth={2} dot={false} />
+                {monthly_trend.length > 0 && (
+                  <ReferenceLine y={avgNetPerMonth} stroke="#94A3B8" strokeDasharray="4 4"
+                    label={{ value: 'Moyenne', position: 'insideTopRight', fontSize: 11, fill: '#64748B' }} />
+                )}
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
 
@@ -332,6 +398,10 @@ export default function Analytics() {
                 <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
                 <Tooltip formatter={(v: number) => fmt(v)} labelFormatter={fmtMonth} />
                 <Area type="monotone" dataKey="balance" name="Solde" stroke="#3B82F6" fill="#EFF6FF" strokeWidth={2} />
+                {balanceHistory.length > 0 && (
+                  <ReferenceLine y={avgBalance} stroke="#94A3B8" strokeDasharray="4 4"
+                    label={{ value: 'Moyenne', position: 'insideTopRight', fontSize: 11, fill: '#64748B' }} />
+                )}
               </AreaChart>
             </ResponsiveContainer>
           </div>
