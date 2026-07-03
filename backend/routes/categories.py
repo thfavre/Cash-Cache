@@ -57,6 +57,7 @@ def create_category(body: CategoryCreate, db: Session = Depends(get_db)):
 @router.put("/{cat_id}", response_model=CategoryOut)
 def update_category(cat_id: int, body: CategoryUpdate, db: Session = Depends(get_db)):
     from ..models import Transaction
+    from ..categorizer import categorize
     cat = db.query(Category).filter(Category.id == cat_id).first()
     if not cat:
         raise HTTPException(status_code=404, detail="Category not found")
@@ -74,6 +75,7 @@ def update_category(cat_id: int, body: CategoryUpdate, db: Session = Depends(get
     db.commit()
     db.refresh(cat)
 
+    removed = []
     if body.rules is not None and list(body.rules) != previous_rules:
         added = [r for r in body.rules if r not in previous_rules]
         removed = [r for r in previous_rules if r not in body.rules]
@@ -87,6 +89,30 @@ def update_category(cat_id: int, body: CategoryUpdate, db: Session = Depends(get
             summary=f"Mots-clés modifiés pour {cat.name} ({' '.join(bits)})",
             payload={"category_id": cat.id, "previous_rules": previous_rules},
         )
+
+    if removed:
+        # Re-evaluate transactions currently in this category: any that were only
+        # matched by a now-removed keyword must fall through to whatever they still
+        # match (another category, or "Non catégorisé").
+        all_categories = db.query(Category).all()
+        affected_txs = db.query(Transaction).filter(
+            Transaction.category_id == cat_id,
+            Transaction.is_reversal == False,
+        ).all()
+        changes = []
+        for tx in affected_txs:
+            new_cat_id = categorize(tx, all_categories)
+            if new_cat_id != cat_id:
+                changes.append({"tx_id": tx.id, "previous_category_id": cat_id, "new_category_id": new_cat_id})
+                tx.category_id = new_cat_id
+        if changes:
+            db.commit()
+            log_history(
+                db, action="recategorize",
+                summary=f"{len(changes)} transaction(s) déplacée(s) hors de {cat.name} suite à la suppression de mot(s)-clé(s)",
+                payload={"category_id": cat.id, "changes": changes},
+            )
+
     return cat
 
 
