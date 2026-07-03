@@ -206,6 +206,32 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
       })
     })
 
+    // Auto-expand height if nodes overflow due to minimum height constraints
+    let maxY = height
+    nodeList.forEach(n => {
+      if (n.y + n.h + padY > maxY) {
+        maxY = n.y + n.h + padY
+      }
+    })
+    height = maxY
+
+    // Second pass: Re-align columns vertically based on the final height to ensure centering
+    for (let c = 0; c < 4; c++) {
+      const colNodes = nodeList.filter(n => n.col === c)
+      if (colNodes.length > 0) {
+        const totalColHeight = colNodes.reduce((sum, n) => sum + n.h, 0) + (colNodes.length - 1) * gap
+        const newStartY = padY + Math.max(0, (height - 2 * padY - totalColHeight) / 2)
+        const shiftY = newStartY - colNodes[0].y
+        if (Math.abs(shiftY) > 0.01) {
+          colNodes.forEach(n => {
+            n.y += shiftY
+            n.currSourceY += shiftY
+            n.currTargetY += shiftY
+          })
+        }
+      }
+    }
+
     const leftNodes = nodeList.filter(n => n.col === 0)
     const hubNode = nodeList.find(n => n.col === 1)!
     const catNodes = nodeList.filter(n => n.col === 2)
@@ -288,15 +314,6 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
         Z
       `
     })
-
-    // Auto-expand height if nodes overflow due to minimum height constraints
-    let maxY = height
-    nodeList.forEach(n => {
-      if (n.y + n.h + padY > maxY) {
-        maxY = n.y + n.h + padY
-      }
-    })
-    height = maxY
 
     return { nodes: nodeList, links: linkList, width, height, nodeWidth }
   }, [data, chartHeight])
