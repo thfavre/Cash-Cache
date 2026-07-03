@@ -186,7 +186,9 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
     const yScale = Math.max(0.01, (height - 2 * padY - (maxNodes - 1) * gap) / maxVal)
 
     colCols.forEach((items, cIdx) => {
-      let currY = padY
+      const totalColHeight = items.reduce((sum, item) => sum + Math.max(4, item.amount * yScale), 0) + (items.length - 1) * gap
+      let currY = padY + Math.max(0, (height - 2 * padY - totalColHeight) / 2)
+
       items.forEach((item) => {
         // Height is scaled globally. We use a minimum height of 4px so tiny values remain visible.
         const h = Math.max(4, item.amount * yScale)
