@@ -66,7 +66,7 @@ export default function Transactions() {
   ]
 
   return (
-    <div className="p-6 space-y-4 max-w-[1600px] mx-auto">
+    <div className="p-6 space-y-4 w-full">
       <h1 className="text-2xl font-bold text-gray-900">Transactions</h1>
 
       {/* Filters */}
