@@ -45,7 +45,7 @@ interface Link {
 const fmt = (n: number) => new Intl.NumberFormat('fr-CH', { style: 'currency', currency: 'CHF' }).format(n)
 
 export default function CashflowSankey({ data, onSelectCategory }: Props) {
-  const [sizeMode, setSizeMode] = useState<'auto' | 'confort' | 'xxl'>('auto')
+  const [chartHeight, setChartHeight] = useState<number>(1000)
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
   const [hoveredLinkId, setHoveredLinkId] = useState<string | null>(null)
 
@@ -173,13 +173,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
 
     const colCols = [col0Nodes, col1Nodes, col2Nodes, col3Nodes]
     const maxNodes = Math.max(col0Nodes.length, col1Nodes.length, col2Nodes.length, col3Nodes.length)
-    if (sizeMode === 'auto') {
-      height = Math.max(860, maxNodes * 38 + 140)
-    } else if (sizeMode === 'confort') {
-      height = 1150
-    } else if (sizeMode === 'xxl') {
-      height = 1800
-    }
+    height = chartHeight
     const colX = [60, 400, 760, 1140]
 
     colCols.forEach((items, cIdx) => {
@@ -293,7 +287,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
     })
 
     return { nodes: nodeList, links: linkList, width, height, nodeWidth }
-  }, [data, sizeMode])
+  }, [data, chartHeight])
 
   const handleNodeClick = (node: Node) => {
     if (node.rawId === undefined || !onSelectCategory) return
@@ -324,41 +318,18 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-
-          <div className="flex items-center bg-gray-100 p-1 rounded-xl text-xs font-medium">
-            <button
-              onClick={() => setSizeMode('auto')}
-              className={`px-2.5 py-1.5 rounded-lg whitespace-nowrap transition-all ${
-                sizeMode === 'auto'
-                  ? 'bg-white text-emerald-700 font-bold shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-              title="Hauteur ajustée automatiquement au nombre de détails"
-            >
-              Dynamique
-            </button>
-            <button
-              onClick={() => setSizeMode('confort')}
-              className={`px-2.5 py-1.5 rounded-lg whitespace-nowrap transition-all ${
-                sizeMode === 'confort'
-                  ? 'bg-white text-gray-900 font-bold shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Confort
-            </button>
-            <button
-              onClick={() => setSizeMode('xxl')}
-              className={`px-2.5 py-1.5 rounded-lg whitespace-nowrap transition-all ${
-                sizeMode === 'xxl'
-                  ? 'bg-white text-gray-900 font-bold shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              XXL
-            </button>
-          </div>
+        <div className="flex items-center gap-3 bg-gray-50 border border-gray-150 px-4 py-2 rounded-xl text-xs font-medium shadow-sm">
+          <span className="text-gray-500 font-semibold">Hauteur :</span>
+          <input
+            type="range"
+            min="500"
+            max="2000"
+            step="50"
+            value={chartHeight}
+            onChange={(e) => setChartHeight(Number(e.target.value))}
+            className="w-32 accent-blue-600 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+          />
+          <span className="text-gray-900 font-extrabold w-12 text-right">{chartHeight}px</span>
         </div>
       </div>
 
