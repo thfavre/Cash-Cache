@@ -32,7 +32,7 @@ const TABS = [
 
 type TabId = typeof TABS[number]['id']
 
-const MEMORY_CACHE: Record<string, CashflowData> = {}
+
 
 export default function Analytics() {
   const [data, setData] = useState<CashflowData | null>(null)
@@ -62,39 +62,19 @@ export default function Analytics() {
   }, [accountId])
 
   useEffect(() => {
-    const cacheKey = `${period}_${accountId ?? 'all'}`
-    if (MEMORY_CACHE[cacheKey]) {
-      setData(MEMORY_CACHE[cacheKey])
-      setLoading(false)
-      setError(null)
-      return
-    }
-
-    try {
-      const saved = sessionStorage.getItem(`cashflow_${cacheKey}`)
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        MEMORY_CACHE[cacheKey] = parsed
-        setData(parsed)
-        setLoading(false)
-        setError(null)
-        return
-      }
-    } catch (e) {}
-
     setLoading(true)
     setError(null)
     api.cashflow({ account_id: accountId, period })
       .then(res => {
-        MEMORY_CACHE[cacheKey] = res
-        try { sessionStorage.setItem(`cashflow_${cacheKey}`, JSON.stringify(res)) } catch (e) {}
         setData(res)
         setError(null)
       })
       .catch(err => {
         setError(err.message || 'Erreur inconnue')
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        setLoading(false)
+      })
   }, [period, accountId])
 
   async function handleOpenCategory(catName: string, catId?: number, filter?: { merchant?: string; merchants?: string[]; label?: string; isCredit?: boolean }) {
