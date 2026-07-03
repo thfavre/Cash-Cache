@@ -273,7 +273,7 @@ def parse_revolut_csv(csv_path: Path, db: Session, known_ibans: set[str]) -> tup
         closing_balance = last_bal
 
         iban = f"REVOLUT_{product.upper()}_{currency.upper()}"
-        acct_name = f"Revolut {product}"
+        acct_name = f"Revolut {product} ({currency})"
 
         account = db.query(Account).filter(Account.iban == iban).first()
         if account is None:
