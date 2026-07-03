@@ -38,6 +38,9 @@ async def lifespan(app: FastAPI):
             print("Database already populated — skipping auto-import.")
 
         # Seed existing category state
+        from .categorizer import seed_default_categories
+        seed_default_categories(db)
+
         invest_cat = db.query(Category).filter(Category.name == "Investissements").first()
         if invest_cat and not invest_cat.is_savings:
             invest_cat.is_savings = True

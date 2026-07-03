@@ -129,6 +129,16 @@ DEFAULT_CATEGORIES = [
         ],
     },
     {
+        "name": "Wellness & Bien-être",
+        "color": "#D946EF",
+        "icon": "✨",
+        "rules": [
+            "COIFFEUR", "COIFFURE", "BARBER", "ONGLE", "ONGLES",
+            "MASSAGE", "INSTITUT DE BEAUTE", "SALON DE BEAUTE",
+            "SPA ", "BIEN-ETRE", "BIEN-ÊTRE",
+        ],
+    },
+    {
         "name": "Non catégorisé",
         "color": "#D1D5DB",
         "icon": "❓",
@@ -138,12 +148,42 @@ DEFAULT_CATEGORIES = [
 
 
 def seed_default_categories(db: Session) -> None:
-    from .models import Category
-    if db.query(Category).count() > 0:
-        return
+    from .models import Category, Transaction
+    from .history import log_history
     for cat_data in DEFAULT_CATEGORIES:
-        db.add(Category(**cat_data))
-    db.commit()
+        exists = db.query(Category).filter(Category.name == cat_data["name"]).first()
+        if not exists:
+            new_cat = Category(**cat_data)
+            db.add(new_cat)
+            db.commit()
+            db.refresh(new_cat)
+            print(f"Seeded new default category: {new_cat.name}")
+
+            # Auto-recategorize transactions for the new category
+            if new_cat.rules:
+                txs = db.query(Transaction).filter(
+                    Transaction.is_reversal == False,
+                    Transaction.is_internal == False,
+                ).all()
+                changes = []
+                for tx in txs:
+                    search = " | ".join(filter(None, [
+                        tx.description or "", tx.counterparty or "", tx.remittance_info or ""
+                    ])).upper()
+                    for rule in new_cat.rules:
+                        if rule.upper() in search:
+                            if tx.category_id != new_cat.id:
+                                changes.append({"tx_id": tx.id, "previous_category_id": tx.category_id})
+                                tx.category_id = new_cat.id
+                            break
+                if changes:
+                    db.commit()
+                    log_history(
+                        db, action="recategorize",
+                        summary=f"{len(changes)} transaction(s) recatégorisée(s) vers {new_cat.name} lors du premier import",
+                        payload={"category_id": new_cat.id, "changes": changes},
+                    )
+                    print(f"Auto-categorized {len(changes)} transactions to {new_cat.name}")
 
 
 def categorize(tx, categories: list) -> Optional[int]:
