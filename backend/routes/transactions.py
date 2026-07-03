@@ -156,6 +156,8 @@ def update_category(tx_id: int, body: CategoryUpdate, db: Session = Depends(get_
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
     tx.category_id = body.category_id
+    cat = db.query(Category).filter(Category.id == body.category_id).first() if body.category_id else None
+    tx.is_internal = bool(cat.is_ignored) if cat else False
     db.commit()
     return {"ok": True}
 
@@ -168,6 +170,7 @@ def bulk_update_category(body: BulkCategoryUpdate, db: Session = Depends(get_db)
     including grouped "most frequent" assignments).
     """
     cat = db.query(Category).filter(Category.id == body.category_id).first() if body.category_id else None
+    new_is_internal = bool(cat.is_ignored) if cat else False
 
     changes = []
     for tx_id in body.tx_ids:
@@ -176,6 +179,7 @@ def bulk_update_category(body: BulkCategoryUpdate, db: Session = Depends(get_db)
             continue
         changes.append({"tx_id": tx.id, "previous_category_id": tx.category_id})
         tx.category_id = body.category_id
+        tx.is_internal = new_is_internal
 
     db.commit()
 

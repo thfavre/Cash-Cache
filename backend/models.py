@@ -29,6 +29,7 @@ class Category(Base):
     icon = Column(String, default="❓")
     rules = Column(JSON, default=list)
     is_savings = Column(Boolean, default=False, nullable=False)
+    is_ignored = Column(Boolean, default=False, nullable=False)
 
     transactions = relationship("Transaction", back_populates="category")
     budgets = relationship("Budget", back_populates="category")

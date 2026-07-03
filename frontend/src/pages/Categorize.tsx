@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { api, Transaction, Category, HistoryEntry } from '../api'
-import { Plus, Pencil, Trash2, X, Check, Tag, Search, ArrowUpDown, Layers, ChevronDown, ChevronUp, History, Undo2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Check, Tag, Search, ArrowUpDown, Layers, ChevronDown, ChevronUp, History, Undo2, PiggyBank, Ban } from 'lucide-react'
 import clsx from 'clsx'
 
 const fmt = (n: number) =>
@@ -16,6 +16,7 @@ const ICONS = [
   '💼','🛒','🚆','🍽️','🍺','🛍️','🏥','📱','🎮','📈',
   '🏛️','🛡️','🏠','🔄','❓','✈️','🎵','📚','🚗','☕',
   '💊','🎭','💳','🏋️','🍕','🎬','🌍','⚽',
+  '🚫','🎁','🐾','🧾','🔧','👶','✨',
 ]
 
 // ── Keyword suggestion from a transaction ──────────────────────────────────
@@ -37,9 +38,9 @@ function suggestRule(tx: Transaction): string {
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface RulePrompt { txId: number; catId: number; catName: string; catColor: string; suggestion: string }
-interface CatForm { name: string; color: string; icon: string; rules: string[]; is_savings: boolean }
+interface CatForm { name: string; color: string; icon: string; rules: string[]; is_savings: boolean; is_ignored: boolean }
 
-const EMPTY_FORM: CatForm = { name: '', color: '#3B82F6', icon: '❓', rules: [], is_savings: false }
+const EMPTY_FORM: CatForm = { name: '', color: '#3B82F6', icon: '❓', rules: [], is_savings: false, is_ignored: false }
 
 type CatSort = 'name' | 'tags'
 type TxSort = 'date' | 'amount' | 'frequency'
@@ -176,7 +177,7 @@ export default function Categorize() {
   }
 
   function openEditForm(cat: Category) {
-    setCatForm({ name: cat.name, color: cat.color, icon: cat.icon, rules: [...cat.rules], is_savings: cat.is_savings })
+    setCatForm({ name: cat.name, color: cat.color, icon: cat.icon, rules: [...cat.rules], is_savings: cat.is_savings, is_ignored: cat.is_ignored })
     setRuleTag('')
     setEditingCat(cat)
     setShowNewForm(false)
@@ -812,6 +813,16 @@ function CategoryDropCard({
           {cat.icon}
         </span>
         <span className="flex-1 text-xs font-medium text-gray-800 truncate leading-tight">{cat.name}</span>
+        {cat.is_savings && (
+          <span title="Flux d'épargne / investissement" className="shrink-0 text-emerald-500">
+            <PiggyBank size={12} />
+          </span>
+        )}
+        {cat.is_ignored && (
+          <span title="Ignoré des statistiques" className="shrink-0 text-gray-400">
+            <Ban size={12} />
+          </span>
+        )}
         {cat.rules.length > 0 && (
           <span className="text-[10px] text-gray-400 shrink-0">{cat.rules.length}</span>
         )}
@@ -920,6 +931,28 @@ function CategoryForm({
             className={clsx(
               "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
               form.is_savings ? "translate-x-4" : "translate-x-0"
+            )}
+          />
+        </button>
+      </div>
+
+      {/* Ignorer Toggle */}
+      <div className="flex items-center justify-between py-2 border-b border-gray-100 mb-2">
+        <div>
+          <p className="text-xs font-semibold text-gray-700">Ignorer des statistiques</p>
+          <p className="text-[10px] text-gray-400">Exclut ces transactions des totaux (ex: virements entre vos propres comptes)</p>
+        </div>
+        <button
+          onClick={() => onChange({ ...form, is_ignored: !form.is_ignored })}
+          className={clsx(
+            "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
+            form.is_ignored ? "bg-gray-500" : "bg-gray-200"
+          )}
+        >
+          <span
+            className={clsx(
+              "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+              form.is_ignored ? "translate-x-4" : "translate-x-0"
             )}
           />
         </button>

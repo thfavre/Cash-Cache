@@ -433,16 +433,25 @@ def _categorize_all(db: Session) -> None:
     from .models import Category
     txs = db.query(Transaction).filter(Transaction.category_id == None).all()
     categories = db.query(Category).all()
+    categories_by_id = {c.id: c for c in categories}
     for tx in txs:
         cat_id = categorize(tx, categories)
         tx.category_id = cat_id
+        cat = categories_by_id.get(cat_id)
+        if cat and cat.is_ignored:
+            tx.is_internal = True
 
 
 def _mark_internal_transfers(db: Session, known_ibans: set[str]) -> None:
     """
     Use UETR to find transactions that appear in multiple accounts → internal transfers.
     Also mark any transaction whose counterparty IBAN is one of our accounts.
-    Also cross-match transfers between Raiffeisen and Revolut accounts.
+
+    Transfers that can't be matched by IBAN/UETR (e.g. cross-bank top-ups like
+    Raiffeisen → Revolut) are instead excluded via category-level ignore rules
+    — see the "is_ignored" flag on Category and DEFAULT_CATEGORIES in
+    categorizer.py — so the exclusion works for any user/bank pair without
+    hardcoding personal names.
     """
     from sqlalchemy import func
     # Find UETRs that appear more than once (cross-account)
@@ -461,30 +470,3 @@ def _mark_internal_transfers(db: Session, known_ibans: set[str]) -> None:
     ).all()
     for tx in txs:
         tx.is_internal = True
-
-    # Mark cross-bank transfers between Raiffeisen and Revolut
-    raiff_candidates = (
-        db.query(Transaction)
-        .filter(
-            Transaction.is_credit == False,
-            Transaction.is_internal == False,
-            (Transaction.description.ilike("%revolut%") | Transaction.counterparty.ilike("%revolut%"))
-        )
-        .all()
-    )
-
-    revolut_candidates = (
-        db.query(Transaction)
-        .filter(
-            Transaction.is_credit == True,
-            Transaction.is_internal == False,
-            (Transaction.description.ilike("%thomas%") | Transaction.description.ilike("%favre%"))
-        )
-        .all()
-    )
-
-    for r_tx in raiff_candidates:
-        for rev_tx in revolut_candidates:
-            if r_tx.amount == rev_tx.amount and abs((r_tx.date - rev_tx.date).days) <= 2:
-                r_tx.is_internal = True
-                rev_tx.is_internal = True

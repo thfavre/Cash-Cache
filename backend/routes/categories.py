@@ -16,6 +16,7 @@ class CategoryOut(BaseModel):
     icon: str
     rules: list[str]
     is_savings: bool
+    is_ignored: bool
 
     class Config:
         from_attributes = True
@@ -27,6 +28,7 @@ class CategoryCreate(BaseModel):
     icon: str = "❓"
     rules: list[str] = []
     is_savings: bool = False
+    is_ignored: bool = False
 
 
 class CategoryUpdate(BaseModel):
@@ -35,6 +37,7 @@ class CategoryUpdate(BaseModel):
     icon: Optional[str] = None
     rules: Optional[list[str]] = None
     is_savings: Optional[bool] = None
+    is_ignored: Optional[bool] = None
 
 
 @router.get("", response_model=list[CategoryOut])
@@ -53,12 +56,21 @@ def create_category(body: CategoryCreate, db: Session = Depends(get_db)):
 
 @router.put("/{cat_id}", response_model=CategoryOut)
 def update_category(cat_id: int, body: CategoryUpdate, db: Session = Depends(get_db)):
+    from ..models import Transaction
     cat = db.query(Category).filter(Category.id == cat_id).first()
     if not cat:
         raise HTTPException(status_code=404, detail="Category not found")
     previous_rules = list(cat.rules or [])
+    previous_is_ignored = cat.is_ignored
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(cat, field, value)
+
+    if body.is_ignored is not None and body.is_ignored != previous_is_ignored:
+        # Toggling the ignore flag retroactively updates already-assigned transactions
+        db.query(Transaction).filter(Transaction.category_id == cat_id).update(
+            {"is_internal": body.is_ignored}
+        )
+
     db.commit()
     db.refresh(cat)
 
@@ -118,6 +130,8 @@ def recategorize(cat_id: int, db: Session = Depends(get_db)):
                 if tx.category_id != cat_id:
                     changes.append({"tx_id": tx.id, "previous_category_id": tx.category_id})
                     tx.category_id = cat_id
+                if cat.is_ignored:
+                    tx.is_internal = True
                 break
 
     db.commit()

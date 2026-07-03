@@ -125,8 +125,9 @@ DEFAULT_CATEGORIES = [
         "icon": "🔄",
         "rules": [
             "Transfert sur Compte", "Transfert depuis Compte",
-            "Total du bouclement",
+            "Total du bouclement", "Revolut Bank UAB",
         ],
+        "is_ignored": True,
     },
     {
         "name": "Wellness & Bien-être",
@@ -175,6 +176,8 @@ def seed_default_categories(db: Session) -> None:
                             if tx.category_id != new_cat.id:
                                 changes.append({"tx_id": tx.id, "previous_category_id": tx.category_id})
                                 tx.category_id = new_cat.id
+                            if new_cat.is_ignored:
+                                tx.is_internal = True
                             break
                 if changes:
                     db.commit()

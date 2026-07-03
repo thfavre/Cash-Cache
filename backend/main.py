@@ -25,6 +25,13 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         # Column already exists or table doesn't exist yet
         pass
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE categories ADD COLUMN is_ignored BOOLEAN DEFAULT 0 NOT NULL"))
+            print("Successfully migrated categories table: added is_ignored column.")
+    except Exception as e:
+        # Column already exists or table doesn't exist yet
+        pass
 
     Base.metadata.create_all(bind=engine)
     db = next(get_db())
@@ -46,6 +53,12 @@ async def lifespan(app: FastAPI):
             invest_cat.is_savings = True
             db.commit()
             print("Set is_savings=True for existing Investissements category.")
+
+        internal_cat = db.query(Category).filter(Category.name == "Virements internes").first()
+        if internal_cat and not internal_cat.is_ignored:
+            internal_cat.is_ignored = True
+            db.commit()
+            print("Set is_ignored=True for existing Virements internes category.")
     finally:
         db.close()
     yield

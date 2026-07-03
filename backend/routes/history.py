@@ -49,7 +49,10 @@ def revert_history(entry_id: int, db: Session = Depends(get_db)):
         for change in entry.payload["changes"]:
             tx = db.query(Transaction).filter(Transaction.id == change["tx_id"]).first()
             if tx:
-                tx.category_id = change["previous_category_id"]
+                prev_cat_id = change["previous_category_id"]
+                tx.category_id = prev_cat_id
+                prev_cat = db.query(Category).filter(Category.id == prev_cat_id).first() if prev_cat_id else None
+                tx.is_internal = bool(prev_cat.is_ignored) if prev_cat else False
 
     else:
         raise HTTPException(status_code=400, detail=f"Unknown action: {entry.action}")
