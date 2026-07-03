@@ -382,7 +382,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
             )
           })}
 
-          {/* Nodes */}
+          {/* Node Bars */}
           {nodes.map(node => {
             const isDirectOrLinkHovered = hoveredNodeId === node.id || links.some(l => (l.source.id === node.id || l.target.id === node.id) && hoveredLinkId === l.id)
             const isConnectedHovered = hoveredNodeId !== null && links.some(l => (l.source.id === hoveredNodeId && l.target.id === node.id) || (l.target.id === hoveredNodeId && l.source.id === node.id))
@@ -390,15 +390,9 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
             const anyHovered = hoveredNodeId !== null || hoveredLinkId !== null
             const isDimmed = anyHovered && !isHighlighted
 
-            const isCol0 = node.col === 0
-            const isCol1 = node.col === 1
-            const isCol2 = node.col === 2
-            const maxCol = 3
-            const isLastCol = node.col === maxCol
-
             return (
               <g
-                key={node.id}
+                key={`bar-${node.id}`}
                 className="cursor-pointer transition-transform duration-200"
                 onMouseEnter={() => setHoveredNodeId(node.id)}
                 onMouseLeave={() => setHoveredNodeId(null)}
@@ -422,7 +416,32 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                     </title>
                   )}
                 </rect>
+              </g>
+            )
+          })}
 
+          {/* Node Labels (Drawn last to guarantee they sit on top of all ribbons and bars) */}
+          {nodes.map(node => {
+            const isDirectOrLinkHovered = hoveredNodeId === node.id || links.some(l => (l.source.id === node.id || l.target.id === node.id) && hoveredLinkId === l.id)
+            const isConnectedHovered = hoveredNodeId !== null && links.some(l => (l.source.id === hoveredNodeId && l.target.id === node.id) || (l.target.id === hoveredNodeId && l.source.id === node.id))
+            const isHighlighted = isDirectOrLinkHovered || isConnectedHovered
+            const anyHovered = hoveredNodeId !== null || hoveredLinkId !== null
+            const isDimmed = anyHovered && !isHighlighted
+
+            const isCol0 = node.col === 0
+            const isCol1 = node.col === 1
+            const isCol2 = node.col === 2
+            const maxCol = 3
+            const isLastCol = node.col === maxCol
+
+            return (
+              <g
+                key={`label-${node.id}`}
+                className="cursor-pointer transition-transform duration-200"
+                onMouseEnter={() => setHoveredNodeId(node.id)}
+                onMouseLeave={() => setHoveredNodeId(null)}
+                onClick={() => handleNodeClick(node)}
+              >
                 {/* Col 0 Labels (to right of bar, inside the first ribbon) */}
                 {isCol0 && (
                   <text
