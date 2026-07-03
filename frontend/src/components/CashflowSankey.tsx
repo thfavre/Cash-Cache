@@ -351,7 +351,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
           <span className="text-gray-500 font-semibold">Hauteur :</span>
           <input
             type="range"
-            min="500"
+            min="300"
             max="2000"
             step="50"
             value={chartHeight}
