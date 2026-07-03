@@ -3,9 +3,7 @@ import Sidebar from './components/Sidebar'
 import Dashboard from './pages/Dashboard'
 import Transactions from './pages/Transactions'
 import Analytics from './pages/Analytics'
-import Cashflow from './pages/Cashflow'
-import Budgets from './pages/Budgets'
-import Predictions from './pages/Predictions'
+import Planification from './pages/Planification'
 import Categorize from './pages/Categorize'
 
 export default function App() {
@@ -19,10 +17,12 @@ export default function App() {
             <Route path="/dashboard" element={<div className="overflow-y-auto flex-1"><Dashboard /></div>} />
             <Route path="/transactions" element={<div className="overflow-y-auto flex-1"><Transactions /></div>} />
             <Route path="/analytics" element={<div className="overflow-y-auto flex-1"><Analytics /></div>} />
-            <Route path="/cashflow" element={<div className="overflow-y-auto flex-1"><Cashflow /></div>} />
-            <Route path="/budgets" element={<div className="overflow-y-auto flex-1"><Budgets /></div>} />
-            <Route path="/predictions" element={<div className="overflow-y-auto flex-1"><Predictions /></div>} />
+            <Route path="/planification" element={<div className="overflow-y-auto flex-1"><Planification /></div>} />
             <Route path="/categorize" element={<Categorize />} />
+            {/* Redirects for the old, now-merged routes */}
+            <Route path="/cashflow" element={<Navigate to="/analytics" replace />} />
+            <Route path="/budgets" element={<Navigate to="/planification" replace />} />
+            <Route path="/predictions" element={<Navigate to="/planification" replace />} />
           </Routes>
         </main>
       </div>

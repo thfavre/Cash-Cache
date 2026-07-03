@@ -72,9 +72,9 @@ export default function Budgets() {
   const total_spent = budgets.reduce((s, b) => s + b.spent, 0)
 
   return (
-    <div className="p-6 space-y-6 max-w-4xl mx-auto">
+    <div className="p-6 pt-4 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Budgets</h1>
+        <p className="text-sm text-gray-500">Limites de dépenses par catégorie</p>
         <div className="flex items-center gap-3">
           <button onClick={() => setMonth(m => adjMonth(m, -1))} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500">‹</button>
           <span className="text-sm font-medium text-gray-700 min-w-32 text-center capitalize">{monthLabel(month)}</span>

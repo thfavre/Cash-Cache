@@ -1,21 +1,12 @@
 import { useEffect, useState } from 'react'
-import { api, Overview, MonthlyStats, CategoryStats, Transaction, Account } from '../api'
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend
-} from 'recharts'
+import { Link } from 'react-router-dom'
+import { api, Overview, Transaction, Account } from '../api'
 import CategoryBadge from '../components/CategoryBadge'
 
 const fmt = (n: number) => new Intl.NumberFormat('fr-CH', { style: 'currency', currency: 'CHF' }).format(n)
-const fmtMonth = (s: string) => {
-  const [y, m] = s.split('-')
-  return new Date(+y, +m - 1).toLocaleDateString('fr-CH', { month: 'short', year: '2-digit' })
-}
 
 export default function Dashboard() {
   const [overview, setOverview] = useState<Overview | null>(null)
-  const [monthly, setMonthly] = useState<MonthlyStats[]>([])
-  const [catStats, setCatStats] = useState<CategoryStats[]>([])
   const [recentTxs, setRecentTxs] = useState<Transaction[]>([])
   const [accounts, setAccounts] = useState<Account[]>([])
   const [loading, setLoading] = useState(true)
@@ -27,14 +18,10 @@ export default function Dashboard() {
   useEffect(() => {
     Promise.all([
       api.overview({ year, month }),
-      api.monthly(),
-      api.categoryStats({ year, month }),
       api.transactions({ per_page: 10, is_internal: false }),
       api.accounts(),
-    ]).then(([ov, mon, cats, txs, accts]) => {
+    ]).then(([ov, txs, accts]) => {
       setOverview(ov)
-      setMonthly(mon.slice(-12))
-      setCatStats(cats.slice(0, 8))
       setRecentTxs(txs.items)
       setAccounts(accts)
     }).finally(() => setLoading(false))
@@ -79,43 +66,14 @@ export default function Dashboard() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Monthly bar chart */}
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
-          <h2 className="text-sm font-semibold text-gray-700 mb-4">Revenus vs Dépenses (12 mois)</h2>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={monthly} barGap={2}>
-              <XAxis dataKey="month" tickFormatter={fmtMonth} tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}`} />
-              <Tooltip formatter={(v: number) => fmt(v)} labelFormatter={fmtMonth} />
-              <Bar dataKey="income" name="Revenus" fill="#22C55E" radius={[3, 3, 0, 0]} />
-              <Bar dataKey="expenses" name="Dépenses" fill="#EF4444" radius={[3, 3, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Category donut */}
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
-          <h2 className="text-sm font-semibold text-gray-700 mb-4">Dépenses par catégorie (ce mois)</h2>
-          {catStats.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-12">Aucune donnée</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie data={catStats} dataKey="total" nameKey="name" cx="50%" cy="50%" outerRadius={80} innerRadius={45}>
-                  {catStats.map((c, i) => <Cell key={i} fill={c.color} />)}
-                </Pie>
-                <Tooltip formatter={(v: number) => fmt(v)} />
-                <Legend iconType="circle" iconSize={8} formatter={(v) => <span className="text-xs">{v}</span>} />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-      </div>
-
       {/* Recent transactions */}
       <div className="bg-white rounded-xl border border-gray-100 p-5">
-        <h2 className="text-sm font-semibold text-gray-700 mb-4">Transactions récentes</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold text-gray-700">Transactions récentes</h2>
+          <Link to="/transactions" className="text-xs font-semibold text-blue-600 hover:text-blue-800">
+            Voir tout ➔
+          </Link>
+        </div>
         <div className="space-y-2">
           {recentTxs.map(tx => (
             <div key={tx.id} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
@@ -131,6 +89,18 @@ export default function Dashboard() {
           ))}
         </div>
       </div>
+
+      {/* Link to deeper analytics */}
+      <Link
+        to="/analytics"
+        className="flex items-center justify-between bg-white rounded-xl border border-gray-100 p-5 hover:border-blue-200 hover:shadow-sm transition-all group"
+      >
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900">Voir les analytiques détaillées</h2>
+          <p className="text-xs text-gray-500 mt-0.5">Tendances, flux, marchands et répartition par catégorie</p>
+        </div>
+        <span className="text-blue-600 font-semibold text-sm group-hover:translate-x-0.5 transition-transform">➔</span>
+      </Link>
     </div>
   )
 }
