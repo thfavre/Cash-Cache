@@ -181,19 +181,15 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
     height = chartHeight
     const colX = [60, 420, 780, 1100]
 
+    // Calculate a uniform gap and a single global yScale based on maxNodes
+    const gap = Math.min(20, Math.max(8, (height - 2 * padY - maxNodes * 12) / Math.max(1, maxNodes - 1)))
+    const yScale = Math.max(0.01, (height - 2 * padY - (maxNodes - 1) * gap) / maxVal)
+
     colCols.forEach((items, cIdx) => {
-      const totalColVal = items.reduce((sum, item) => sum + item.amount, 0) || 1
-      const n = items.length
-      const gap = Math.min(24, Math.max(8, (height - 2 * padY - n * 18) / Math.max(1, n - 1)))
-      const availH = height - 2 * padY - (n - 1) * gap
-
-      const rawH = items.map(item => Math.max(18, (item.amount / totalColVal) * availH))
-      const sumRaw = rawH.reduce((a, b) => a + b, 0)
-      const scale = sumRaw > availH ? availH / sumRaw : 1
-
       let currY = padY
-      items.forEach((item, i) => {
-        const h = rawH[i] * scale
+      items.forEach((item) => {
+        // Height is scaled globally. We use a minimum height of 4px so tiny values remain visible.
+        const h = Math.max(4, item.amount * yScale)
         nodeList.push({
           ...item,
           col: cIdx,
