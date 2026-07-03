@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, Budget, Category } from '../api'
-import { Plus, Pencil, Trash2, X, Check } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Check, AlertTriangle } from 'lucide-react'
 import clsx from 'clsx'
 
 const fmt = (n: number) => new Intl.NumberFormat('fr-CH', { style: 'currency', currency: 'CHF' }).format(n)
@@ -103,8 +103,9 @@ export default function Budgets() {
       )}
 
       {overBudget.length > 0 && (
-        <div className="bg-red-50 border border-red-100 rounded-xl p-4">
-          <p className="text-sm font-medium text-red-700">⚠️ Dépassements : {overBudget.map(b => b.category_name).join(', ')}</p>
+        <div className="bg-red-50 border border-red-100 rounded-xl p-4 flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-red-700 shrink-0" />
+          <p className="text-sm font-medium text-red-700">Dépassements : {overBudget.map(b => b.category_name).join(', ')}</p>
         </div>
       )}
 

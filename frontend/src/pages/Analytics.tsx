@@ -5,6 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, CartesianGrid, Area, AreaChart
 } from 'recharts'
+import { BarChart2, Activity, TrendingUp, Store, AlertTriangle, RefreshCw, Lightbulb } from 'lucide-react'
 
 const fmt = (n: number) => new Intl.NumberFormat('fr-CH', { style: 'currency', currency: 'CHF' }).format(n)
 const fmtMonth = (s: string) => {
@@ -23,10 +24,10 @@ const PERIODS = [
 ]
 
 const TABS = [
-  { id: 'overview', label: "Vue d'ensemble", icon: '📊' },
-  { id: 'sankey', label: 'Flux (Sankey)', icon: '🌊' },
-  { id: 'trends', label: 'Tendances', icon: '📈' },
-  { id: 'merchants', label: 'Marchands', icon: '🏪' },
+  { id: 'overview', label: "Vue d'ensemble", icon: BarChart2 },
+  { id: 'sankey', label: 'Flux (Sankey)', icon: Activity },
+  { id: 'trends', label: 'Tendances', icon: TrendingUp },
+  { id: 'merchants', label: 'Marchands', icon: Store },
 ] as const
 
 type TabId = typeof TABS[number]['id']
@@ -121,8 +122,8 @@ export default function Analytics() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center p-6 space-y-4">
-        <div className="w-12 h-12 rounded-full bg-red-50 text-red-600 flex items-center justify-center text-xl font-bold shadow-sm">
-          ⚠️
+        <div className="w-12 h-12 rounded-full bg-red-50 text-red-600 flex items-center justify-center shadow-sm">
+          <AlertTriangle className="w-6 h-6" />
         </div>
         <h3 className="text-base font-bold text-gray-900">Impossible de charger les données</h3>
         <p className="text-xs text-gray-600 max-w-md leading-relaxed">
@@ -130,9 +131,10 @@ export default function Analytics() {
         </p>
         <button
           onClick={() => window.location.reload()}
-          className="px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-xl shadow-sm hover:bg-blue-700 transition-colors mt-2"
+          className="px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-xl shadow-sm hover:bg-blue-700 transition-colors mt-2 flex items-center gap-1.5 justify-center"
         >
-          🔄 Réessayer
+          <RefreshCw className="w-3.5 h-3.5" />
+          <span>Réessayer</span>
         </button>
       </div>
     )
@@ -193,17 +195,21 @@ export default function Analytics() {
 
       {/* Tabs */}
       <div className="flex items-center gap-6 border-b border-gray-200 pb-2">
-        {TABS.map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`pb-2 text-sm font-bold border-b-2 transition-all ${
-              tab === t.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-900'
-            }`}
-          >
-            {t.icon} {t.label}
-          </button>
-        ))}
+        {TABS.map(t => {
+          const Icon = t.icon
+          return (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`pb-2 text-sm font-bold border-b-2 transition-all flex items-center gap-1.5 ${
+                tab === t.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              <span>{t.label}</span>
+            </button>
+          )
+        })}
       </div>
 
       {tab === 'overview' && (
@@ -260,7 +266,9 @@ export default function Analytics() {
           {/* AI Insights */}
           <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-2xl border border-blue-100 p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-md">💡</div>
+              <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-md">
+                <Lightbulb className="w-5 h-5" />
+              </div>
               <div>
                 <h3 className="text-sm font-bold text-gray-900">Analyse Intelligente des Flux</h3>
                 <p className="text-xs text-gray-600 mt-1 leading-relaxed max-w-3xl">

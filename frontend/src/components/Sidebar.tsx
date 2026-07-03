@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, ArrowLeftRight, BarChart2,
-  Target, RefreshCw, Tags
+  Target, RefreshCw, Tags, Wallet
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { api } from '../api'
@@ -42,7 +42,10 @@ export default function Sidebar() {
   return (
     <aside className="w-56 bg-white border-r border-gray-200 flex flex-col py-6 shrink-0">
       <div className="px-5 mb-8">
-        <h1 className="text-lg font-bold text-gray-900">💰 Finances</h1>
+        <h1 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+          <Wallet className="w-5 h-5 text-blue-600" />
+          <span>Finances</span>
+        </h1>
         <p className="text-xs text-gray-400 mt-0.5">Thomas Favre</p>
       </div>
 

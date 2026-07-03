@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { Lightbulb } from 'lucide-react'
 import { CashflowData } from '../api'
 
 interface DrillDownFilter {
@@ -71,7 +72,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
           name: inf.name,
           amount: inf.amount,
           color: inf.color || '#10B981',
-          icon: inf.icon || '💰'
+          icon: inf.icon || ''
         })
       }
     })
@@ -81,7 +82,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
         name: 'Puisage sur réserves',
         amount: summary.expenses - summary.income,
         color: '#EF4444',
-        icon: '📉'
+        icon: ''
       })
     }
     if (col0Nodes.length === 0) {
@@ -90,7 +91,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
         name: 'Revenus perçus',
         amount: Math.max(summary.income, summary.expenses, 1),
         color: '#10B981',
-        icon: '💰'
+        icon: ''
       })
     }
 
@@ -110,7 +111,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
           name: out.name,
           amount: out.amount,
           color: out.color || '#64748B',
-          icon: out.icon || '📦',
+          icon: out.icon || '',
           txCount: out.tx_count
         })
       }
@@ -121,11 +122,11 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
         name: 'Épargne constituée',
         amount: summary.net_savings,
         color: '#10B981',
-        icon: '🏦'
+        icon: ''
       })
     }
     if (col2Nodes.length === 0) {
-      col2Nodes.push({ id: 'cat_empty', name: 'Dépenses', amount: 1, color: '#94A3B8', icon: '❓' })
+      col2Nodes.push({ id: 'cat_empty', name: 'Dépenses', amount: 1, color: '#94A3B8', icon: '' })
     }
 
     // Column 3: Subitems / Merchants
@@ -316,7 +317,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
         <div>
           <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-            <span>🌊 Diagramme de Flux Détaillé</span>
+            <span>Diagramme de Flux Détaillé</span>
           </h2>
           <p className="text-xs text-gray-500 mt-0.5">
             Survolez ou cliquez sur les sources, catégories ou marchands pour explorer le parcours complet de vos revenus
@@ -335,7 +336,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
               }`}
               title="Hauteur ajustée automatiquement au nombre de détails"
             >
-              🎯 Dynamique
+              Dynamique
             </button>
             <button
               onClick={() => setSizeMode('confort')}
@@ -345,7 +346,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              🖥️ Confort
+              Confort
             </button>
             <button
               onClick={() => setSizeMode('xxl')}
@@ -355,7 +356,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              🌊 XXL
+              XXL
             </button>
           </div>
         </div>
@@ -527,8 +528,9 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
         </svg>
       </div>
 
-      <div className="flex items-center mt-4 pt-3 border-t border-gray-100 text-[11px] text-gray-400">
-        <span>💡 Astuce : Survolez un flux pour isoler son parcours ou cliquez sur une catégorie pour voir ses transactions.</span>
+      <div className="flex items-center gap-1.5 mt-4 pt-3 border-t border-gray-100 text-[11px] text-gray-400">
+        <Lightbulb className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+        <span>Astuce : Survolez un flux pour isoler son parcours ou cliquez sur une catégorie pour voir ses transactions.</span>
       </div>
     </div>
   )
