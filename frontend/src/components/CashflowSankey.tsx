@@ -289,6 +289,15 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
       `
     })
 
+    // Auto-expand height if nodes overflow due to minimum height constraints
+    let maxY = height
+    nodeList.forEach(n => {
+      if (n.y + n.h + padY > maxY) {
+        maxY = n.y + n.h + padY
+      }
+    })
+    height = maxY
+
     return { nodes: nodeList, links: linkList, width, height, nodeWidth }
   }, [data, chartHeight])
 
