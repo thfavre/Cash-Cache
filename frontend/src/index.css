@@ -4793,3 +4793,13 @@
 [data-theme='shadow'] .theme-fx-nav-active {
   animation: theme-fx-shadow 3s linear infinite;
 }
+
+[data-theme='chaos_theory'] .theme-fx-logo,
+[data-theme='chaos_theory'] .theme-fx-nav-active {
+  transform: scaleX(-1);
+  transition: transform 0.3s;
+}
+[data-theme='chaos_theory'] .theme-fx-logo:hover,
+[data-theme='chaos_theory'] .theme-fx-nav-active:hover {
+  transform: scaleX(1);
+}

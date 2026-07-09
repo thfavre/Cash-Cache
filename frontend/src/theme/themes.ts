@@ -10,7 +10,7 @@ export interface Theme {
    */
   colors: [string, string, string]
   /** Set for themes with an animated CSS effect (see the theme-fx-* rules in index.css) */
-  effect?: 'rainbow' | 'rgb' | 'trance' | 'phantom' | 'shadow'
+  effect?: 'rainbow' | 'rgb' | 'trance' | 'phantom' | 'shadow' | 'chaos'
 }
 
 // The themes below (everything except 'light') are generated from Monkeytype's
@@ -42,7 +42,7 @@ export const THEMES: Theme[] = [
   { id: 'camping', name: 'camping', bg: '#faf1e4', colors: ['#618c56', '#3c403b', '#ece3d6'] },
   { id: 'carbon', name: 'carbon', bg: '#313131', colors: ['#f66e0d', '#f5e6c8', '#3d3d3d'] },
   { id: 'catppuccin', name: 'catppuccin', bg: '#1e1e2e', colors: ['#cba6f7', '#cdd6f4', '#36384a'] },
-  { id: 'chaos_theory', name: 'chaos theory', bg: '#141221', colors: ['#fd77d7', '#dde5ed', '#29293b'] },
+  { id: 'chaos_theory', name: 'chaos theory', bg: '#141221', colors: ['#fd77d7', '#dde5ed', '#29293b'], effect: 'chaos' },
   { id: 'cheesecake', name: 'cheesecake', bg: '#fdf0d5', colors: ['#8e2949', '#3a3335', '#f4bbc0'] },
   { id: 'cherry_blossom', name: 'cherry blossom', bg: '#323437', colors: ['#d65ccc', '#d1d0c5', '#44464a'] },
   { id: 'comfy', name: 'comfy', bg: '#4a5b6e', colors: ['#f8cdc6', '#f5efee', '#5f7586'] },

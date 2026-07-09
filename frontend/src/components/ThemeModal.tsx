@@ -23,6 +23,10 @@ interface ThemeModalProps {
 export default function ThemeModal({ current, onSelect, onPreview, onClose }: ThemeModalProps) {
   const [query, setQuery] = useState('')
   const [favorites, setFavorites] = useState(loadFavorites)
+  // Order is frozen for the lifetime of the modal so starring a theme doesn't
+  // yank it out from under the cursor mid-session — the new order only takes
+  // effect the next time the picker is opened.
+  const [sortSnapshot] = useState(loadFavorites)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -41,9 +45,9 @@ export default function ThemeModal({ current, onSelect, onPreview, onClose }: Th
   const filtered = useMemo(
     () =>
       THEMES.filter(t => t.name.toLowerCase().includes(query.trim().toLowerCase())).sort(
-        (a, b) => Number(favorites.has(b.id)) - Number(favorites.has(a.id))
+        (a, b) => Number(sortSnapshot.has(b.id)) - Number(sortSnapshot.has(a.id))
       ),
-    [query, favorites]
+    [query, sortSnapshot]
   )
 
   function handleClose() {
