@@ -74,7 +74,7 @@ export default function ThemeModal({ current, onSelect, onPreview, onClose }: Th
                 {theme.colors.map((color, i) => (
                   <span
                     key={i}
-                    className="w-3 h-3 rounded-full ring-1 ring-inset ring-black/10"
+                    className="w-3 h-3 rounded-full"
                     style={{ backgroundColor: color }}
                   />
                 ))}
