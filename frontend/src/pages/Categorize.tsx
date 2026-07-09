@@ -172,7 +172,13 @@ export default function Categorize() {
     const updatedRules = [...(cat.rules ?? []), ruleInput.trim()]
     await api.updateCategory(rulePrompt.catId, { rules: updatedRules })
     const result = await api.recategorize(rulePrompt.catId)
-    setRuleStatus(`✓ Règle ajoutée — ${result.updated} transaction(s) recatégorisée(s)`)
+    setRuleStatus(
+      result.updated === 0
+        ? '✓ Règle ajoutée — aucune autre transaction concernée'
+        : result.updated === 1
+        ? `✓ Règle ajoutée — 1 autre transaction recatégorisée`
+        : `✓ Règle ajoutée — ${result.updated} autres transactions recatégorisées`
+    )
     api.categories().then(setCategories)
     loadTxs()
     setTimeout(() => { setRulePrompt(null); setRuleStatus(null) }, 2500)
@@ -528,7 +534,8 @@ function RulePromptToast({
   return (
     <div
       className={clsx(
-        'fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/30 transition-opacity duration-300 ease-out',
+        'fixed inset-0 z-50 flex justify-center px-4 bg-black/30 transition-opacity duration-300 ease-out',
+        ruleStatus ? 'items-end pb-8' : 'items-center',
         visible ? 'opacity-100' : 'opacity-0',
       )}
       onClick={onDismiss}
