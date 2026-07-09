@@ -310,16 +310,24 @@ export default function Analytics() {
               {ovOutflows.length === 0 ? (
                 <p className="text-gray-400 text-sm text-center py-12">Aucune donnée</p>
               ) : (
-                <ResponsiveContainer width="100%" height={260}>
-                  <PieChart>
-                    <Pie data={ovOutflows} dataKey="amount" nameKey="name" cx="40%" cy="50%" outerRadius={100} innerRadius={55}>
-                      {ovOutflows.map((c, i) => <Cell key={i} fill={c.color} />)}
-                    </Pie>
-                    <Tooltip formatter={(v: number) => fmt(v)} />
-                    <Legend layout="vertical" align="right" verticalAlign="middle" iconType="circle" iconSize={8}
-                      formatter={(v) => <span className="text-xs">{v}</span>} />
-                  </PieChart>
-                </ResponsiveContainer>
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <ResponsiveContainer width="100%" height={260} className="!w-auto sm:flex-1">
+                    <PieChart>
+                      <Pie data={ovOutflows} dataKey="amount" nameKey="name" cx="50%" cy="50%" outerRadius={100} innerRadius={55}>
+                        {ovOutflows.map((c, i) => <Cell key={i} fill={c.color} />)}
+                      </Pie>
+                      <Tooltip formatter={(v: number) => fmt(v)} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <ul className="flex flex-col gap-1.5 max-h-[260px] overflow-y-auto pr-1 sm:w-52 shrink-0 self-stretch">
+                    {ovOutflows.map((c, i) => (
+                      <li key={i} className="flex items-center gap-2 text-xs text-gray-700">
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: c.color }} />
+                        <span className="truncate">{c.name}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </div>
 
