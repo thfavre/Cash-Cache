@@ -101,7 +101,8 @@ export default function VaporwaveEffect() {
       for (let i = 0; i < GRID_LINES; i++) {
         const p = (i + (offset % 1)) / GRID_LINES
         const y = horizonY + Math.pow(p, 2.2) * (h - horizonY)
-        ctx!.globalAlpha = Math.max(0, 1 - p * 0.7)
+        const fadeIn = Math.min(1, p / 0.25)
+        ctx!.globalAlpha = Math.max(0, fadeIn * (1 - p * 0.7))
         ctx!.beginPath()
         ctx!.moveTo(0, y)
         ctx!.lineTo(w, y)
