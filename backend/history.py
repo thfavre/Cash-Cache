@@ -8,6 +8,9 @@ from sqlalchemy.orm import Session
 from .models import HistoryEntry
 
 
-def log_history(db: Session, action: str, summary: str, payload: dict) -> None:
-    db.add(HistoryEntry(action=action, summary=summary, payload=payload))
+def log_history(db: Session, action: str, summary: str, payload: dict) -> HistoryEntry:
+    entry = HistoryEntry(action=action, summary=summary, payload=payload)
+    db.add(entry)
     db.commit()
+    db.refresh(entry)
+    return entry

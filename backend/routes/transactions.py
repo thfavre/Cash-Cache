@@ -183,15 +183,17 @@ def bulk_update_category(body: BulkCategoryUpdate, db: Session = Depends(get_db)
 
     db.commit()
 
+    history_id = None
     if changes:
         cat_name = cat.name if cat else "Non catégorisé"
         summary = (
             f"1 transaction assignée à {cat_name}" if len(changes) == 1
             else f"{len(changes)} transactions assignées à {cat_name}"
         )
-        log_history(
+        entry = log_history(
             db, action="assign", summary=summary,
             payload={"category_id": body.category_id, "changes": changes},
         )
+        history_id = entry.id
 
-    return {"updated": len(changes)}
+    return {"updated": len(changes), "history_id": history_id}

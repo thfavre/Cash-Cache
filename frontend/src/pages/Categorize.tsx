@@ -37,7 +37,7 @@ function suggestRule(tx: Transaction): string {
 }
 
 // ── Types ──────────────────────────────────────────────────────────────────
-interface RulePrompt { txId: number; catId: number; catName: string; catColor: string; suggestion: string }
+interface RulePrompt { txId: number; catId: number; catName: string; catColor: string; suggestion: string; historyId: number | null }
 interface CatForm { name: string; color: string; icon: string; rules: string[]; is_savings: boolean; is_ignored: boolean }
 
 const EMPTY_FORM: CatForm = { name: '', color: '#3B82F6', icon: '❓', rules: [], is_savings: false, is_ignored: false }
@@ -117,18 +117,28 @@ export default function Categorize() {
   // ── Assign one or more transactions to a category ─────────────────────
   async function assign(txIds: number[], catId: number) {
     if (txIds.length === 0) return
-    await api.updateTransactionsCategory(txIds, catId)
+    const result = await api.updateTransactionsCategory(txIds, catId)
     const tx = txs.find(t => txIds.includes(t.id))
     const cat = categories.find(c => c.id === catId)
     if (tx && cat) {
       const suggestion = suggestRule(tx)
-      setRulePrompt({ txId: tx.id, catId, catName: cat.name, catColor: cat.color, suggestion })
+      setRulePrompt({ txId: tx.id, catId, catName: cat.name, catColor: cat.color, suggestion, historyId: result.history_id })
       setRuleInput(suggestion)
       setRuleStatus(null)
     }
     setSelectedId(null)
     setSelectedGroupKey(null)
     loadTxs()
+  }
+
+  // ── Undo the assignment that triggered the rule prompt ─────────────────
+  async function handleCancelAssign() {
+    if (rulePrompt?.historyId != null) {
+      await api.revertHistory(rulePrompt.historyId)
+      loadHistory()
+      loadTxs()
+    }
+    setRulePrompt(null)
   }
 
   // ── Drop handler ──────────────────────────────────────────────────────
@@ -482,6 +492,7 @@ export default function Categorize() {
           onInputChange={setRuleInput}
           onAdd={handleAddRule}
           onDismiss={() => setRulePrompt(null)}
+          onCancel={handleCancelAssign}
         />
       )}
 
@@ -498,7 +509,7 @@ export default function Categorize() {
 }
 
 function RulePromptToast({
-  rulePrompt, ruleInput, ruleStatus, onInputChange, onAdd, onDismiss,
+  rulePrompt, ruleInput, ruleStatus, onInputChange, onAdd, onDismiss, onCancel,
 }: {
   rulePrompt: RulePrompt
   ruleInput: string
@@ -506,6 +517,7 @@ function RulePromptToast({
   onInputChange: (v: string) => void
   onAdd: () => void
   onDismiss: () => void
+  onCancel: () => void
 }) {
   const [visible, setVisible] = useState(false)
   useEffect(() => {
@@ -569,6 +581,12 @@ function RulePromptToast({
                 className="px-3 py-1.5 bg-gray-100 text-gray-600 text-sm rounded-lg hover:bg-gray-200 transition-colors"
               >
                 Non, juste cette fois
+              </button>
+              <button
+                onClick={onCancel}
+                className="px-3 py-1.5 bg-red-50 text-red-600 text-sm rounded-lg hover:bg-red-100 transition-colors"
+              >
+                Annuler l'assignation
               </button>
             </div>
           </div>

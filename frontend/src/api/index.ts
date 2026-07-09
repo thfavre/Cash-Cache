@@ -206,7 +206,7 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ category_id: categoryId }),
     }),
-  updateTransactionsCategory: (txIds: number[], categoryId: number | null): Promise<{ updated: number }> =>
+  updateTransactionsCategory: (txIds: number[], categoryId: number | null): Promise<{ updated: number; history_id: number | null }> =>
     req(`/transactions/bulk-category`, {
       method: 'PUT',
       body: JSON.stringify({ tx_ids: txIds, category_id: categoryId }),
