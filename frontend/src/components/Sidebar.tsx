@@ -89,7 +89,7 @@ export default function Sidebar() {
     <aside className="w-56 bg-white border-r border-gray-200 flex flex-col py-6 shrink-0">
       <div className="px-5 mb-8 flex items-start justify-between gap-2">
         <div>
-          <h1 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-lg font-bold text-gray-900 flex items-center gap-2 theme-fx-logo">
             <Wallet className="w-5 h-5 text-blue-600" />
             <span>Finances</span>
           </h1>
@@ -113,7 +113,7 @@ export default function Sidebar() {
               clsx(
                 'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                 isActive
-                  ? 'bg-blue-50 text-blue-700'
+                  ? 'bg-blue-50 text-blue-700 theme-fx-nav-active'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
               )
             }

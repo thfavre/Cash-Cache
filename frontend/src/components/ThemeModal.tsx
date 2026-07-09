@@ -1,7 +1,17 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { Search, Check } from 'lucide-react'
+import { Search, Check, Sparkles, Star } from 'lucide-react'
 import clsx from 'clsx'
 import { THEMES } from '../theme/themes'
+
+const FAVORITES_KEY = 'themeFavorites'
+
+function loadFavorites(): Set<string> {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]'))
+  } catch {
+    return new Set()
+  }
+}
 
 interface ThemeModalProps {
   current: string
@@ -12,15 +22,28 @@ interface ThemeModalProps {
 
 export default function ThemeModal({ current, onSelect, onPreview, onClose }: ThemeModalProps) {
   const [query, setQuery] = useState('')
+  const [favorites, setFavorites] = useState(loadFavorites)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     inputRef.current?.focus()
   }, [])
 
+  function toggleFavorite(id: string) {
+    setFavorites(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      localStorage.setItem(FAVORITES_KEY, JSON.stringify([...next]))
+      return next
+    })
+  }
+
   const filtered = useMemo(
-    () => THEMES.filter(t => t.name.toLowerCase().includes(query.trim().toLowerCase())),
-    [query]
+    () =>
+      THEMES.filter(t => t.name.toLowerCase().includes(query.trim().toLowerCase())).sort(
+        (a, b) => Number(favorites.has(b.id)) - Number(favorites.has(a.id))
+      ),
+    [query, favorites]
   )
 
   function handleClose() {
@@ -67,6 +90,17 @@ export default function ThemeModal({ current, onSelect, onPreview, onClose }: Th
                 {theme.id === current && <Check size={14} />}
               </span>
               <span className="flex-1 text-left">{theme.name}</span>
+              <button
+                onClick={e => { e.stopPropagation(); toggleFavorite(theme.id) }}
+                className="shrink-0 p-0.5 -m-0.5"
+                title={favorites.has(theme.id) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+              >
+                <Star
+                  size={14}
+                  fill={favorites.has(theme.id) ? 'currentColor' : 'none'}
+                  className={favorites.has(theme.id) ? 'text-amber-400' : 'text-gray-300'}
+                />
+              </button>
               <span
                 className="flex items-center gap-1 rounded-full px-2 py-1 shrink-0 shadow-sm"
                 style={{ backgroundColor: theme.bg }}
@@ -78,6 +112,12 @@ export default function ThemeModal({ current, onSelect, onPreview, onClose }: Th
                     style={{ backgroundColor: color }}
                   />
                 ))}
+              </span>
+              <span
+                className="w-4 shrink-0 text-amber-400 flex justify-center"
+                title={theme.effect ? 'Thème spécial' : undefined}
+              >
+                {theme.effect && <Sparkles size={13} />}
               </span>
             </button>
           ))}

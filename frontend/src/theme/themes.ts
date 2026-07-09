@@ -9,6 +9,8 @@ export interface Theme {
    * Dot 3 = hover / selection background (--gray-100)
    */
   colors: [string, string, string]
+  /** Set for themes with an animated CSS effect (see the theme-fx-* rules in index.css) */
+  effect?: 'rainbow' | 'rgb' | 'trance' | 'phantom' | 'shadow'
 }
 
 // The themes below (everything except 'light') are generated from Monkeytype's
@@ -146,18 +148,18 @@ export const THEMES: Theme[] = [
   { id: 'pastel', name: 'pastel', bg: '#e0b2bd', colors: ['#fbf4b6', '#6d5c6f', '#d5c0ce'] },
   { id: 'peach_blossom', name: 'peach blossom', bg: '#292929', colors: ['#99b898', '#fecea8', '#373737'] },
   { id: 'peaches', name: 'peaches', bg: '#e0d7c1', colors: ['#dd7a5f', '#5f4c41', '#e2ceb4'] },
-  { id: 'phantom', name: 'phantom', bg: '#000011', colors: ['#7aa2f7', '#c0caf5', '#101227'] },
+  { id: 'phantom', name: 'phantom', bg: '#000011', colors: ['#7aa2f7', '#c0caf5', '#101227'], effect: 'phantom' },
   { id: 'pink_lemonade', name: 'pink lemonade', bg: '#f6d992', colors: ['#f6a192', '#fcfcf8', '#f6cf92'] },
   { id: 'pulse', name: 'pulse', bg: '#181818', colors: ['#17b8bd', '#e5f4f4', '#272829'] },
   { id: 'purpleish', name: 'purpleish', bg: '#1e1e32', colors: ['#7a52cc', '#a3a3cc', '#2e2e4c'] },
-  { id: 'rainbow_trail', name: 'rainbow trail', bg: '#f5f5f5', colors: ['#363636', '#1f1f1f', '#cccccc'] },
+  { id: 'rainbow_trail', name: 'rainbow trail', bg: '#f5f5f5', colors: ['#363636', '#1f1f1f', '#cccccc'], effect: 'rainbow' },
   { id: 'red_dragon', name: 'red dragon', bg: '#1a0b0c', colors: ['#ff3a32', '#4a4d4e', '#4c3213'] },
   { id: 'red_samurai', name: 'red samurai', bg: '#84202c', colors: ['#c79e6e', '#e2dad0', '#781d28'] },
   { id: 'repose_dark', name: 'repose dark', bg: '#2f3338', colors: ['#d6d2bc', '#d6d2bc', '#474a4b'] },
   { id: 'repose_light', name: 'repose light', bg: '#efead0', colors: ['#5f605e', '#333538', '#d7d3bd'] },
   { id: 'retro', name: 'retro', bg: '#dad3c1', colors: ['#1d1b17', '#1d1b17', '#c8c1b0'] },
   { id: 'retrocast', name: 'retrocast', bg: '#07737a', colors: ['#88dbdf', '#ffffff', '#428e6a'] },
-  { id: 'rgb', name: 'rgb', bg: '#111111', colors: ['#eee', '#eeeeee', '#1e1e1e'] },
+  { id: 'rgb', name: 'rgb', bg: '#111111', colors: ['#eee', '#eeeeee', '#1e1e1e'], effect: 'rgb' },
   { id: 'rose_pine', name: 'rose pine', bg: '#1f1d27', colors: ['#9ccfd8', '#e0def4', '#484057'] },
   { id: 'rose_pine_dawn', name: 'rose pine dawn', bg: '#fffaf3', colors: ['#56949f', '#286983', '#f0e5f0'] },
   { id: 'rose_pine_moon', name: 'rose pine moon', bg: '#2a273f', colors: ['#9ccfd8', '#e0def4', '#514769'] },
@@ -167,7 +169,7 @@ export const THEMES: Theme[] = [
   { id: 'serika_dark', name: 'serika dark', bg: '#323437', colors: ['#e2b714', '#d1d0c5', '#3f4144'] },
   { id: 'sewing_tin', name: 'sewing tin', bg: '#241963', colors: ['#f2ce83', '#ffffff', '#2c2d80'] },
   { id: 'sewing_tin_light', name: 'sewing tin light', bg: '#ffffff', colors: ['#2d2076', '#2d2076', '#cdd7f2'] },
-  { id: 'shadow', name: 'shadow', bg: '#000000', colors: ['#eee', '#eeeeee', '#111111'] },
+  { id: 'shadow', name: 'shadow', bg: '#000000', colors: ['#eee', '#eeeeee', '#111111'], effect: 'shadow' },
   { id: 'shoko', name: 'shoko', bg: '#ced7e0', colors: ['#81c4dd', '#3b4c58', '#b8c8d4'] },
   { id: 'slambook', name: 'slambook', bg: '#fffdde', colors: ['#03001c', '#13005a', '#e0e9d8'] },
   { id: 'snes', name: 'snes', bg: '#bfbec2', colors: ['#553d94', '#2e2e2e', '#b7b1c7'] },
@@ -192,7 +194,7 @@ export const THEMES: Theme[] = [
   { id: 'terror_below', name: 'terror below', bg: '#0b1e1a', colors: ['#66ac92', '#dceae5', '#092e28'] },
   { id: 'tiramisu', name: 'tiramisu', bg: '#cfc6b9', colors: ['#c0976f', '#7d5448', '#cbbaa7'] },
   { id: 'trackday', name: 'trackday', bg: '#464d66', colors: ['#e0513e', '#cfcfcf', '#4c597b'] },
-  { id: 'trance', name: 'trance', bg: '#00021b', colors: ['#e51376', '#ffffff', '#0f1533'] },
+  { id: 'trance', name: 'trance', bg: '#00021b', colors: ['#e51376', '#ffffff', '#0f1533'], effect: 'trance' },
   { id: 'tron_orange', name: 'tron orange', bg: '#0d1c1c', colors: ['#f0e800', '#ffffff', '#4a2f15'] },
   { id: 'vaporwave', name: 'vaporwave', bg: '#a4a7ea', colors: ['#e368da', '#f1ebf1', '#9a9ddb'] },
   { id: 'vesper', name: 'vesper', bg: '#101010', colors: ['#ffc799', '#ffffff', '#343434'] },
