@@ -16,6 +16,7 @@ class HistoryOut(BaseModel):
     action: str
     summary: str
     reverted: bool
+    transactions: list[str] | None = None
 
     class Config:
         from_attributes = True
@@ -23,12 +24,34 @@ class HistoryOut(BaseModel):
 
 @router.get("", response_model=list[HistoryOut])
 def list_history(db: Session = Depends(get_db)):
-    return (
+    entries = (
         db.query(HistoryEntry)
         .order_by(HistoryEntry.id.desc())
         .limit(200)
         .all()
     )
+
+    tx_ids = {
+        change["tx_id"]
+        for entry in entries if entry.action in ("assign", "recategorize")
+        for change in entry.payload.get("changes", [])
+    }
+    tx_labels = {}
+    if tx_ids:
+        for tx in db.query(Transaction).filter(Transaction.id.in_(tx_ids)).all():
+            tx_labels[tx.id] = tx.counterparty or tx.description or f"Transaction #{tx.id}"
+
+    results = []
+    for entry in entries:
+        out = HistoryOut.model_validate(entry)
+        if entry.action in ("assign", "recategorize"):
+            out.transactions = [
+                tx_labels[change["tx_id"]]
+                for change in entry.payload.get("changes", [])
+                if change["tx_id"] in tx_labels
+            ]
+        results.append(out)
+    return results
 
 
 @router.post("/{entry_id}/revert", response_model=HistoryOut)

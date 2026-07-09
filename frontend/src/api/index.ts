@@ -179,6 +179,7 @@ export interface HistoryEntry {
   action: string
   summary: string
   reverted: boolean
+  transactions: string[] | null
 }
 
 // ---- API functions ----

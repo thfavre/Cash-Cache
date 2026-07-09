@@ -616,6 +616,8 @@ function HistoryPanel({
   const fmtDate = (iso: string) =>
     new Date(iso + 'Z').toLocaleString('fr-CH', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 
+  const [expandedId, setExpandedId] = useState<number | null>(null)
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/30" onClick={onClose}>
       <div
@@ -634,32 +636,48 @@ function HistoryPanel({
           {entries.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-10">Aucune action enregistrée pour l'instant.</p>
           ) : (
-            entries.map(entry => (
-              <div
-                key={entry.id}
-                className={clsx(
-                  'flex items-center justify-between gap-3 rounded-lg border px-3 py-2',
-                  entry.reverted ? 'border-gray-100 bg-gray-50' : 'border-gray-200',
-                )}
-              >
-                <div className="min-w-0">
-                  <p className={clsx('text-sm', entry.reverted ? 'text-gray-400 line-through' : 'text-gray-700')}>
-                    {entry.summary}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-0.5">{fmtDate(entry.created_at)}</p>
-                </div>
-                {entry.reverted ? (
-                  <span className="text-xs text-gray-400 shrink-0">Annulé</span>
-                ) : (
-                  <button
-                    onClick={() => onRevert(entry.id)}
-                    className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg text-blue-600 hover:bg-blue-50 shrink-0 transition-colors"
+            entries.map(entry => {
+              const hasDetails = !!entry.transactions?.length
+              const expanded = expandedId === entry.id
+              return (
+                <div
+                  key={entry.id}
+                  className={clsx(
+                    'rounded-lg border px-3 py-2',
+                    entry.reverted ? 'border-gray-100 bg-gray-50' : 'border-gray-200',
+                  )}
+                >
+                  <div
+                    className={clsx('flex items-center justify-between gap-3', hasDetails && 'cursor-pointer')}
+                    onClick={() => hasDetails && setExpandedId(id => id === entry.id ? null : entry.id)}
                   >
-                    <Undo2 size={12} /> Annuler
-                  </button>
-                )}
-              </div>
-            ))
+                    <div className="min-w-0">
+                      <p className={clsx('text-sm', entry.reverted ? 'text-gray-400 line-through' : 'text-gray-700')}>
+                        {entry.summary}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5">{fmtDate(entry.created_at)}</p>
+                    </div>
+                    {entry.reverted ? (
+                      <span className="text-xs text-gray-400 shrink-0">Annulé</span>
+                    ) : (
+                      <button
+                        onClick={e => { e.stopPropagation(); onRevert(entry.id) }}
+                        className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg text-blue-600 hover:bg-blue-50 shrink-0 transition-colors"
+                      >
+                        <Undo2 size={12} /> Annuler
+                      </button>
+                    )}
+                  </div>
+                  {hasDetails && expanded && (
+                    <ul className="mt-2 pt-2 border-t border-gray-100 space-y-0.5">
+                      {entry.transactions!.map((label, i) => (
+                        <li key={i} className="text-xs text-gray-500 truncate">{label}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )
+            })
           )}
         </div>
       </div>
