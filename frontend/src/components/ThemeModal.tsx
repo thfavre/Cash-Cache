@@ -4,6 +4,7 @@ import clsx from 'clsx'
 import { THEMES } from '../theme/themes'
 
 const FAVORITES_KEY = 'themeFavorites'
+const HOVER_PREVIEW_DELAY = 500
 
 function loadFavorites(): Set<string> {
   try {
@@ -28,10 +29,30 @@ export default function ThemeModal({ current, onSelect, onPreview, onClose }: Th
   // effect the next time the picker is opened.
   const [sortSnapshot] = useState(loadFavorites)
   const inputRef = useRef<HTMLInputElement>(null)
+  const hoverTimeoutRef = useRef<number | null>(null)
 
   useEffect(() => {
     inputRef.current?.focus()
   }, [])
+
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current !== null) window.clearTimeout(hoverTimeoutRef.current)
+    }
+  }, [])
+
+  function handleHover(id: string) {
+    if (hoverTimeoutRef.current !== null) window.clearTimeout(hoverTimeoutRef.current)
+    hoverTimeoutRef.current = window.setTimeout(() => onPreview(id), HOVER_PREVIEW_DELAY)
+  }
+
+  function handleHoverEnd() {
+    if (hoverTimeoutRef.current !== null) {
+      window.clearTimeout(hoverTimeoutRef.current)
+      hoverTimeoutRef.current = null
+    }
+    onPreview(null)
+  }
 
   function toggleFavorite(id: string) {
     setFavorites(prev => {
@@ -78,12 +99,12 @@ export default function ThemeModal({ current, onSelect, onPreview, onClose }: Th
 
         <div
           className="overflow-y-auto flex-1 py-1"
-          onMouseLeave={() => onPreview(null)}
+          onMouseLeave={handleHoverEnd}
         >
           {filtered.map(theme => (
             <button
               key={theme.id}
-              onMouseEnter={() => onPreview(theme.id)}
+              onMouseEnter={() => handleHover(theme.id)}
               onClick={() => onSelect(theme.id)}
               className={clsx(
                 'w-full flex items-center gap-2 px-4 py-2 text-sm transition-colors',
