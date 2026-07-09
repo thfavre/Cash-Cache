@@ -10,7 +10,7 @@ export interface Theme {
    */
   colors: [string, string, string]
   /** Set for themes with an animated CSS effect (see the theme-fx-* rules in index.css) */
-  effect?: 'rainbow' | 'rgb' | 'trance' | 'phantom' | 'shadow' | 'chaos'
+  effect?: 'rainbow' | 'rgb' | 'trance' | 'phantom' | 'shadow' | 'chaos' | 'matrix' | 'aurora' | 'nebula' | 'vaporwave'
 }
 
 // The themes below (everything except 'light') are generated from Monkeytype's
@@ -26,7 +26,7 @@ export const THEMES: Theme[] = [
   { id: 'alpine', name: 'alpine', bg: '#6c687f', colors: ['#ffffff', '#ffffff', '#77738d'] },
   { id: 'anti_hero', name: 'anti hero', bg: '#00002e', colors: ['#ffadad', '#f1deef', '#400f45'] },
   { id: 'arch', name: 'arch', bg: '#0c0d11', colors: ['#7ebab5', '#f6f5f5', '#1a1c26'] },
-  { id: 'aurora', name: 'aurora', bg: '#011926', colors: ['#00e980', '#ffffff', '#0a2a37'] },
+  { id: 'aurora', name: 'aurora', bg: '#011926', colors: ['#00e980', '#ffffff', '#0a2a37'], effect: 'aurora' },
   { id: 'beach', name: 'beach', bg: '#ffeead', colors: ['#96ceb4', '#5b7869', '#ffe699'] },
   { id: 'bento', name: 'bento', bg: '#2d394d', colors: ['#ff7a90', '#fffaf8', '#34485d'] },
   { id: 'bingsu', name: 'bingsu', bg: '#b8a7aa', colors: ['#83616e', '#ebe6ea', '#9c8b8f'] },
@@ -111,7 +111,7 @@ export const THEMES: Theme[] = [
   { id: 'mashu', name: 'mashu', bg: '#2b2b2c', colors: ['#76689a', '#f1e2e4', '#56484b'] },
   { id: 'matcha_moccha', name: 'matcha moccha', bg: '#523525', colors: ['#7ec160', '#ecddcc', '#65422e'] },
   { id: 'material', name: 'material', bg: '#263238', colors: ['#80cbc4', '#e6edf3', '#303f47'] },
-  { id: 'matrix', name: 'matrix', bg: '#000000', colors: ['#15ff00', '#d1ffcd', '#001900'] },
+  { id: 'matrix', name: 'matrix', bg: '#000000', colors: ['#15ff00', '#d1ffcd', '#001900'], effect: 'matrix' },
   { id: 'menthol', name: 'menthol', bg: '#00c18c', colors: ['#ffffff', '#ffffff', '#06aa7a'] },
   { id: 'metaverse', name: 'metaverse', bg: '#232323', colors: ['#d82934', '#e8e8e8', '#323232'] },
   { id: 'metropolis', name: 'metropolis', bg: '#0f1f2c', colors: ['#56c3b7', '#e4edf1', '#183242'] },
@@ -132,7 +132,7 @@ export const THEMES: Theme[] = [
   { id: 'ms_cupcakes', name: 'ms cupcakes', bg: '#ffffff', colors: ['#5ed5f3', '#0a282f', '#f5cfe3'] },
   { id: 'muted', name: 'muted', bg: '#525252', colors: ['#c5b4e3', '#b1e4e3', '#626569'] },
   { id: 'nautilus', name: 'nautilus', bg: '#132237', colors: ['#ebb723', '#1cbaac', '#112d44'] },
-  { id: 'nebula', name: 'nebula', bg: '#212135', colors: ['#be3c88', '#838686', '#1f4656'] },
+  { id: 'nebula', name: 'nebula', bg: '#212135', colors: ['#be3c88', '#838686', '#1f4656'], effect: 'nebula' },
   { id: 'night_runner', name: 'night runner', bg: '#212121', colors: ['#feff04', '#e8e8e8', '#302b40'] },
   { id: 'nord', name: 'nord', bg: '#242933', colors: ['#88c0d0', '#d8dee9', '#404551'] },
   { id: 'nord_light', name: 'nord light', bg: '#eceff4', colors: ['#8fbcbb', '#8fbcbb', '#ccd1db'] },
@@ -196,7 +196,7 @@ export const THEMES: Theme[] = [
   { id: 'trackday', name: 'trackday', bg: '#464d66', colors: ['#e0513e', '#cfcfcf', '#4c597b'] },
   { id: 'trance', name: 'trance', bg: '#00021b', colors: ['#e51376', '#ffffff', '#0f1533'], effect: 'trance' },
   { id: 'tron_orange', name: 'tron orange', bg: '#0d1c1c', colors: ['#f0e800', '#ffffff', '#4a2f15'] },
-  { id: 'vaporwave', name: 'vaporwave', bg: '#a4a7ea', colors: ['#e368da', '#f1ebf1', '#9a9ddb'] },
+  { id: 'vaporwave', name: 'vaporwave', bg: '#a4a7ea', colors: ['#e368da', '#f1ebf1', '#9a9ddb'], effect: 'vaporwave' },
   { id: 'vesper', name: 'vesper', bg: '#101010', colors: ['#ffc799', '#ffffff', '#343434'] },
   { id: 'vesper_light', name: 'vesper light', bg: '#ffffff', colors: ['#fb7100', '#000000', '#e7e7e7'] },
   { id: 'viridescent', name: 'viridescent', bg: '#2c3333', colors: ['#95d5b2', '#e9f5db', '#425149'] },

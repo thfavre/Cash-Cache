@@ -4486,18 +4486,18 @@
 }
 
 :root[data-theme='vaporwave'] {
-  color-scheme: light;
+  color-scheme: dark;
   --color-white: #989bd9;
   --color-black: #101117;
   --gray-50: #a4a7ea;
-  --gray-100: #9a9ddb;
-  --gray-200: #9093cd;
-  --gray-300: #8689be;
-  --gray-400: #7c7faf;
-  --gray-500: #9395bc;
-  --gray-600: #abaac9;
-  --gray-700: #c2c0d7;
-  --gray-800: #dad5e4;
+  --gray-100: #aeb0eb;
+  --gray-200: #b7b8ec;
+  --gray-300: #c1c1ec;
+  --gray-400: #cbc9ee;
+  --gray-500: #d4d2ee;
+  --gray-600: #dedaef;
+  --gray-700: #e7e3f0;
+  --gray-800: #eee8f0;
   --gray-900: #f1ebf1;
   --blue-50: #ac9fe8;
   --blue-100: #b19ae7;

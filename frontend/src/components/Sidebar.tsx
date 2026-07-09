@@ -8,6 +8,9 @@ import { api } from '../api'
 import clsx from 'clsx'
 import ThemeModal from './ThemeModal'
 import MatrixRain from './MatrixRain'
+import AuroraEffect from './AuroraEffect'
+import NebulaEffect from './NebulaEffect'
+import VaporwaveEffect from './VaporwaveEffect'
 import { THEMES, DEFAULT_THEME, THEME_STORAGE_KEY, applyTheme } from '../theme/themes'
 
 const NAV = [
@@ -42,7 +45,11 @@ export default function Sidebar() {
   }
 
   const activeThemeName = THEMES.find(t => t.id === theme)?.name ?? theme
-  const isMatrix = (preview ?? theme) === 'matrix'
+  const activeEffectTheme = preview ?? theme
+  const isMatrix = activeEffectTheme === 'matrix'
+  const isAurora = activeEffectTheme === 'aurora'
+  const isNebula = activeEffectTheme === 'nebula'
+  const isVaporwave = activeEffectTheme === 'vaporwave'
 
   async function handleImport() {
     setImporting(true)
@@ -62,6 +69,9 @@ export default function Sidebar() {
     return (
       <aside className="relative w-12 bg-white border-r border-gray-200 flex flex-col items-center py-6 shrink-0 overflow-hidden">
         {isMatrix && <MatrixRain />}
+        {isAurora && <AuroraEffect />}
+        {isNebula && <NebulaEffect />}
+        {isVaporwave && <VaporwaveEffect />}
         <button
           onClick={() => setCollapsed(false)}
           title="Ouvrir le menu"
@@ -91,6 +101,9 @@ export default function Sidebar() {
   return (
     <aside className="relative w-56 bg-white border-r border-gray-200 flex flex-col py-6 shrink-0 overflow-hidden">
       {isMatrix && <MatrixRain />}
+      {isAurora && <AuroraEffect />}
+      {isNebula && <NebulaEffect />}
+      {isVaporwave && <VaporwaveEffect />}
       <div className="relative z-10 flex flex-col flex-1 min-h-0">
         <div className="px-5 mb-8 flex items-start justify-between gap-2">
           <div>
