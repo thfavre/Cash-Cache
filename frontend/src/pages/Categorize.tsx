@@ -88,8 +88,9 @@ export default function Categorize() {
   const [txSort, setTxSort] = useState<TxSort>('date')
 
   // ── Data loading ──────────────────────────────────────────────────────
+  const loadedOnceRef = useRef(false)
   const loadTxs = useCallback(async () => {
-    setLoading(true)
+    if (!loadedOnceRef.current) setLoading(true)
     const result = await api.transactions({
       per_page: 2000,
       is_internal: false,
@@ -99,6 +100,7 @@ export default function Categorize() {
     setTxs(result.items)
     setTotal(result.total)
     setLoading(false)
+    loadedOnceRef.current = true
   }, [showAll])
 
   useEffect(() => { loadTxs(); api.categories().then(setCategories) }, [loadTxs])
