@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, ArrowLeftRight, BarChart2,
-  Target, RefreshCw, Tags, Wallet
+  Target, RefreshCw, Tags, Wallet, PanelLeftClose, PanelLeftOpen
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { api } from '../api'
@@ -19,6 +19,7 @@ export default function Sidebar() {
   const [importing, setImporting] = useState(false)
   const [msg, setMsg] = useState('')
   const [uncatCount, setUncatCount] = useState<number | null>(null)
+  const [collapsed, setCollapsed] = useState(false)
 
   useEffect(() => {
     api.transactions({ per_page: 1, is_internal: false, is_credit: false, uncategorized_only: true })
@@ -39,14 +40,37 @@ export default function Sidebar() {
     }
   }
 
+  if (collapsed) {
+    return (
+      <aside className="w-12 bg-white border-r border-gray-200 flex flex-col items-center py-6 shrink-0">
+        <button
+          onClick={() => setCollapsed(false)}
+          title="Ouvrir le menu"
+          className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+        >
+          <PanelLeftOpen size={18} />
+        </button>
+      </aside>
+    )
+  }
+
   return (
     <aside className="w-56 bg-white border-r border-gray-200 flex flex-col py-6 shrink-0">
-      <div className="px-5 mb-8">
-        <h1 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-          <Wallet className="w-5 h-5 text-blue-600" />
-          <span>Finances</span>
-        </h1>
-        <p className="text-xs text-gray-400 mt-0.5">Thomas Favre</p>
+      <div className="px-5 mb-8 flex items-start justify-between gap-2">
+        <div>
+          <h1 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <Wallet className="w-5 h-5 text-blue-600" />
+            <span>Finances</span>
+          </h1>
+          <p className="text-xs text-gray-400 mt-0.5">Thomas Favre</p>
+        </div>
+        <button
+          onClick={() => setCollapsed(true)}
+          title="Fermer le menu"
+          className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors shrink-0"
+        >
+          <PanelLeftClose size={16} />
+        </button>
       </div>
 
       <nav className="flex-1 space-y-1 px-3">
