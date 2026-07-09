@@ -847,7 +847,7 @@ function CategoryDropCard({
       )}
       style={{
         borderColor: isHovered ? cat.color : isSelectionMode ? cat.color + '88' : 'transparent',
-        background: isHovered ? cat.color + '18' : 'white',
+        background: isHovered ? cat.color + '18' : 'var(--color-white)',
       }}
     >
       <div className="flex items-center gap-1.5 min-w-0">

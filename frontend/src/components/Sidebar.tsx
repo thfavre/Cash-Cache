@@ -1,11 +1,13 @@
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, ArrowLeftRight, BarChart2,
-  Target, RefreshCw, Tags, Wallet, PanelLeftClose, PanelLeftOpen
+  Target, RefreshCw, Tags, Wallet, PanelLeftClose, PanelLeftOpen, Palette
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { api } from '../api'
 import clsx from 'clsx'
+import ThemeModal from './ThemeModal'
+import { THEMES, DEFAULT_THEME, THEME_STORAGE_KEY, applyTheme } from '../theme/themes'
 
 const NAV = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Tableau de bord' },
@@ -20,11 +22,25 @@ export default function Sidebar() {
   const [msg, setMsg] = useState('')
   const [uncatCount, setUncatCount] = useState<number | null>(null)
   const [collapsed, setCollapsed] = useState(false)
+  const [theme, setTheme] = useState(() => localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME)
+  const [preview, setPreview] = useState<string | null>(null)
+  const [themeModalOpen, setThemeModalOpen] = useState(false)
 
   useEffect(() => {
     api.transactions({ per_page: 1, is_internal: false, is_credit: false, uncategorized_only: true })
       .then(r => setUncatCount(r.total))
   }, [])
+
+  useEffect(() => {
+    applyTheme(preview ?? theme)
+  }, [theme, preview])
+
+  function handleSelectTheme(id: string) {
+    setTheme(id)
+    localStorage.setItem(THEME_STORAGE_KEY, id)
+  }
+
+  const activeThemeName = THEMES.find(t => t.id === theme)?.name ?? theme
 
   async function handleImport() {
     setImporting(true)
@@ -50,6 +66,21 @@ export default function Sidebar() {
         >
           <PanelLeftOpen size={18} />
         </button>
+        <button
+          onClick={() => setThemeModalOpen(true)}
+          title="Changer de thème"
+          className="mt-auto p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+        >
+          <Palette size={18} />
+        </button>
+        {themeModalOpen && (
+          <ThemeModal
+            current={theme}
+            onSelect={handleSelectTheme}
+            onPreview={setPreview}
+            onClose={() => setThemeModalOpen(false)}
+          />
+        )}
       </aside>
     )
   }
@@ -109,6 +140,25 @@ export default function Sidebar() {
         </button>
         {msg && <p className="text-xs text-green-600 px-3 mt-1">{msg}</p>}
       </div>
+
+      <div className="px-3 mt-1">
+        <button
+          onClick={() => setThemeModalOpen(true)}
+          className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+        >
+          <Palette size={14} />
+          {activeThemeName}
+        </button>
+      </div>
+
+      {themeModalOpen && (
+        <ThemeModal
+          current={theme}
+          onSelect={handleSelectTheme}
+          onPreview={setPreview}
+          onClose={() => setThemeModalOpen(false)}
+        />
+      )}
     </aside>
   )
 }
