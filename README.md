@@ -16,23 +16,12 @@ All data extraction, categorization, and financial modeling run entirely offline
 
 ## Key Features
 
-### 1. Data Ingestion & Automated Categorization
-- **Multi-Source Parser:** Supports simultaneous imports across traditional banks and fintech platforms (`CAMT.053 XML`, `Revolut CSV`, or any custom bank `CSV` with automatic delimiter detection and interactive field mapping) with full multi-currency tracking.
-- **Rule-Based Categorization:** Interactive drag-and-drop categorization hub (`Catégoriser`) with dynamic keyword learning and automated merchant normalization (e.g., grouping raw POS transactions into clean merchant entities).
-- **Automated Reconciliation:** Automatically identifies cross-bank transfers and currency conversions to prevent double-counting expenses.
-
-### 2. Cashflow & Portfolio Analytics
-- **Hierarchical Sankey Diagram:** Finary-inspired 3-tier flow visualization linking income sources directly to expense categories and specific merchants.
-- **Interactive Metrics:** Multi-period average calculations, custom date filtering, top merchant breakdowns, and real-time net savings tracking (`Épargne Nette`).
-- **High-Density UI:** Responsive, wide-screen optimized layout built with Recharts and Tailwind CSS.
-
-### 3. Wealth Planning & Simulation
-- **Monte Carlo Net-Worth Projections:** Simulates future wealth trajectories over decades using randomized market returns and inflation adjustments (`statsmodels` & `numpy`).
-- **Scenario Analysis:** Test recurring "what-if" financial decisions (e.g., property purchases, salary adjustments, or aggressive savings plans) with real vs. nominal purchasing power views.
-- **Dynamic Budgeting:** Set granular category budgets monitored by live progress indicators and overspend alerts.
-
-### 4. Customization & Experience
-- **Extensive Theme System:** Over 180 curated color themes adapted from Monkeytype, complete with optional visual accent effects (Aurora, Nebula, Vaporwave).
+- **Universal Bank Imports:** Natively parses **CAMT.053 XML**, **Revolut CSV**, and **any general bank CSV** via interactive custom column mapping.
+- **Automated Categorization & Reconciliation:** Drag-and-drop rule learning (`Catégoriser`), merchant normalization, and cross-bank internal transfer detection.
+- **Hierarchical Sankey Cashflow:** 3-tier visual breakdown (`Income → Categories → Merchants`) with custom date filtering and net savings tracking.
+- **Monte Carlo Wealth Simulation:** Decadal probabilistic net-worth projections (`statsmodels`/`numpy`), recurring what-if scenarios, and real vs. nominal views.
+- **Dynamic Budgets:** Granular monthly category budgets monitored by live progress bars and overspend alerts.
+- **180+ Color Themes:** Curated Monkeytype theme system (`ThemeModal`) with optional visual accent effects (Aurora, Nebula, Vaporwave).
 
 ---
 
