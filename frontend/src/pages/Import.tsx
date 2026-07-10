@@ -153,7 +153,12 @@ function defaultMapping(delimiter: string, decimalSeparator: string): ImportMapp
   }
 }
 
-export default function Import() {
+interface ImportPageProps {
+  onContinueWithoutData?: () => void
+  onDataChanged?: () => void
+}
+
+export default function Import({ onContinueWithoutData, onDataChanged }: ImportPageProps = {}) {
   const [accounts, setAccounts] = useState<Account[]>([])
   const [batchList, setBatchList] = useState<ImportBatchList | null>(null)
   const [initialLoading, setInitialLoading] = useState(true)
@@ -180,6 +185,7 @@ export default function Import() {
       setAccounts(a)
       setBatchList(b)
       setInitialLoading(false)
+      onDataChanged?.()
     })
   }
 
@@ -335,15 +341,21 @@ export default function Import() {
     </button>
   )
 
+  const isLanding = !!onContinueWithoutData
+
   return (
     <div className="p-6 space-y-4 w-full">
-      <div className="flex items-center justify-between border-b border-gray-200 pb-2 mb-2">
-        <h1 className="text-2xl font-bold text-gray-900 theme-fx-logo">Données importées</h1>
-        <div>
-          <input ref={fileInputRef} type="file" accept=".xml,.csv" className="hidden" onChange={handleFileSelected} />
-          {uploadButton}
+      {isLanding ? (
+        <input ref={fileInputRef} type="file" accept=".xml,.csv" className="hidden" onChange={handleFileSelected} />
+      ) : (
+        <div className="flex items-center justify-between border-b border-gray-200 pb-2 mb-2">
+          <h1 className="text-2xl font-bold text-gray-900 theme-fx-logo">Import de données</h1>
+          <div>
+            <input ref={fileInputRef} type="file" accept=".xml,.csv" className="hidden" onChange={handleFileSelected} />
+            {uploadButton}
+          </div>
         </div>
-      </div>
+      )}
 
       {msg && <p className="text-sm text-green-600">{msg}</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}
@@ -355,8 +367,7 @@ export default function Import() {
           </div>
           <h2 className="text-xl font-bold text-gray-900">Aucune donnée pour le moment</h2>
           <p className="text-sm text-gray-500 max-w-md">
-            Importez un relevé bancaire pour commencer : CAMT.053 (XML), export Revolut (CSV), ou tout
-            autre CSV grâce à l'outil de configuration manuelle.
+            Importez un relevé bancaire (fichier CSV ou XML) pour commencer.
           </p>
           <button
             onClick={() => fileInputRef.current?.click()}
@@ -366,11 +377,14 @@ export default function Import() {
             <Upload size={16} className={uploading ? 'animate-pulse' : ''} />
             {uploading ? 'Import en cours…' : 'Importer un fichier'}
           </button>
-          <div className="flex flex-wrap justify-center gap-x-5 gap-y-1 text-xs text-gray-400 mt-1">
-            <span>CAMT.053 (XML)</span>
-            <span>Revolut (CSV)</span>
-            <span>Autre CSV (mapping manuel)</span>
-          </div>
+          {onContinueWithoutData && (
+            <button
+              onClick={onContinueWithoutData}
+              className="text-sm text-gray-400 hover:text-gray-600 underline mt-2"
+            >
+              Continuer sans importer de données
+            </button>
+          )}
         </div>
       ) : (
       <>

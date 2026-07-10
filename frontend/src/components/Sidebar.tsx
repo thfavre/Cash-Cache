@@ -159,7 +159,7 @@ export default function Sidebar() {
             }
           >
             <Download size={14} />
-            Import / voir les données importées
+            Import de données
           </NavLink>
         </div>
 
