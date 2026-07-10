@@ -545,7 +545,7 @@ export default function Futur() {
       {/* "Contribution updated" confirmation */}
       {contribJustAdded && (
         <div
-          className={`bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center gap-2.5 transition-opacity duration-500 ${
+          className={`bg-white border border-gray-200 rounded-2xl p-4 flex items-center gap-2.5 shadow-sm transition-opacity duration-500 ${
             contribJustAddedFading ? 'opacity-0' : 'opacity-100'
           }`}
         >
@@ -563,13 +563,13 @@ export default function Futur() {
         const currentLabel = HISTORY_WINDOWS.find(w => w.months === cashflowWindow)?.label ?? 'Depuis toujours'
         const canAddToContrib = contribMode === 'manual' && cashflowSummary.leftover_per_month > 5 && cashflowSummary.above_target !== false
         return (
-          <div className="bg-purple-50 border border-purple-200 rounded-2xl p-5 space-y-4">
+          <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 shadow-sm">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2">
                 <PiggyBank className="w-5 h-5 text-purple-600 shrink-0" />
                 <h2 className="text-sm font-semibold text-gray-700">Analyse de trésorerie — {currentLabel}</h2>
               </div>
-              <div className="flex gap-1 bg-white border border-purple-200 rounded-xl p-1">
+              <div className="flex gap-1 bg-gray-50 border border-gray-200 rounded-xl p-1">
                 {windows.map(w => (
                   <button
                     key={w.label}
@@ -919,10 +919,17 @@ export default function Futur() {
                   + 3 segments) instead of an opaque mask painted back over the
                   bottom of a full area — that mask trick also hid the grid
                   lines underneath it all the way down to zero. */}
+              {/* Colors below use the app's theme CSS variables (not raw hex)
+                  so the chart tracks whichever theme is active, matching the
+                  Tailwind-styled tooltip/legend text right next to it —
+                  gray/blue are the two families this app remaps per theme
+                  (see tailwind.config.js + index.css); a fixed hex here would
+                  drift from the legend's color under any non-default theme,
+                  and could end up low-contrast against some theme backgrounds. */}
               <Area type="monotone" dataKey="band_base"  stackId="band" stroke="none" fill="none" />
-              <Area type="monotone" dataKey="band_10_25" stackId="band" stroke="none" fill="#bfdbfe" fillOpacity={0.35} />
-              <Area type="monotone" dataKey="band_25_75" stackId="band" stroke="none" fill="#93c5fd" fillOpacity={0.45} />
-              <Area type="monotone" dataKey="band_75_90" stackId="band" stroke="none" fill="#bfdbfe" fillOpacity={0.35} />
+              <Area type="monotone" dataKey="band_10_25" stackId="band" stroke="none" fill="var(--blue-200)" fillOpacity={0.35} />
+              <Area type="monotone" dataKey="band_25_75" stackId="band" stroke="none" fill="var(--blue-300)" fillOpacity={0.45} />
+              <Area type="monotone" dataKey="band_75_90" stackId="band" stroke="none" fill="var(--blue-200)" fillOpacity={0.35} />
 
               {/* Invisible lines just to get colored hover dots on p90/p10,
                   matching the tooltip's Optimiste/Pessimiste rows */}
@@ -932,7 +939,7 @@ export default function Futur() {
                 name="p90 (optimiste)"
                 stroke="none"
                 dot={false}
-                activeDot={{ r: 4, fill: '#34d399', stroke: '#fff', strokeWidth: 1 }}
+                activeDot={{ r: 4, fill: '#34d399', stroke: 'var(--color-white)', strokeWidth: 1 }}
               />
               <Line
                 type="monotone"
@@ -940,7 +947,7 @@ export default function Futur() {
                 name="p10 (pessimiste)"
                 stroke="none"
                 dot={false}
-                activeDot={{ r: 4, fill: '#fb923c', stroke: '#fff', strokeWidth: 1 }}
+                activeDot={{ r: 4, fill: '#fb923c', stroke: 'var(--color-white)', strokeWidth: 1 }}
               />
 
               {/* Median line */}
@@ -948,10 +955,10 @@ export default function Futur() {
                 type="monotone"
                 dataKey={`${view}_p50`}
                 name="Médiane (p50)"
-                stroke="#2563eb"
+                stroke="var(--blue-600)"
                 strokeWidth={2.5}
                 dot={false}
-                activeDot={{ r: 5, fill: '#60a5fa', stroke: '#fff', strokeWidth: 1 }}
+                activeDot={{ r: 5, fill: 'var(--blue-400)', stroke: 'var(--color-white)', strokeWidth: 1 }}
               />
 
               {/* Baseline (no what-if scenarios) median, for comparison */}
@@ -960,7 +967,7 @@ export default function Futur() {
                   type="monotone"
                   dataKey={`baseline_${view}_p50`}
                   name="Sans scénarios"
-                  stroke="#9ca3af"
+                  stroke="var(--gray-400)"
                   strokeWidth={1.5}
                   strokeDasharray="5 3"
                   dot={false}
