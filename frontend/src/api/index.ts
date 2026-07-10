@@ -100,30 +100,61 @@ export interface Budget {
   percent: number
 }
 
-export interface ForecastPoint {
+export interface InvestmentSettings {
+  annual_rate: number
+  inflation_rate: number
+  manual_portfolio: number | null
+  auto_portfolio: number
+  effective_portfolio: number
+  monthly_contrib: number | null
+  auto_monthly_contrib: number
+  effective_contrib: number
+}
+
+export interface MonthlySimPoint {
   month: string
-  predicted: number
-  lower: number
-  upper: number
+  balance_p10: number
+  balance_p25: number
+  balance_p50: number
+  balance_p75: number
+  balance_p90: number
+  portfolio_p10: number
+  portfolio_p25: number
+  portfolio_p50: number
+  portfolio_p75: number
+  portfolio_p90: number
+  networth_p10: number
+  networth_p25: number
+  networth_p50: number
+  networth_p75: number
+  networth_p90: number
 }
 
-export interface HistoricalPoint {
-  month: string
-  actual: number
+export interface FireMonths {
+  p10: number | null
+  p50: number | null
+  p90: number | null
 }
 
-export interface Prediction {
-  historical: HistoricalPoint[]
-  forecast: ForecastPoint[]
+export interface SimulationResult {
+  monthly: MonthlySimPoint[]
+  fire_number: number
+  fire_months: FireMonths
+  pct_simulations_fire: number
+  annual_expenses_median: number
+  starting_liquid: number
+  starting_portfolio: number
+  mu_monthly_cashflow: number
+  sigma_monthly_cashflow: number
 }
 
-export interface CategoryPrediction {
-  category_id: number
-  category_name: string
-  category_color: string
-  category_icon: string
-  next_month_predicted: number
-  avg_last_3: number
+export interface ScenarioItem {
+  type: 'expense_reduction' | 'income_increase' | 'one_time_event' | 'contribution_change'
+  category?: string
+  percent_change?: number
+  amount?: number
+  start_month: number
+  duration_months?: number
 }
 
 export interface Merchant {
@@ -283,17 +314,32 @@ export const api = {
   deleteBudget: (id: number): Promise<{ ok: boolean }> =>
     req(`/budgets/${id}`, { method: 'DELETE' }),
 
-  // Predictions
-  prediction: (categoryId?: number, months?: number): Promise<Prediction> => {
-    const qs = new URLSearchParams()
-    if (categoryId) qs.set('category_id', String(categoryId))
-    if (months) qs.set('months', String(months))
-    return req(`/predictions?${qs}`)
-  },
-  allCategoryPredictions: (months?: number): Promise<CategoryPrediction[]> => {
-    const qs = months ? `?months=${months}` : ''
-    return req(`/predictions/all-categories${qs}`)
-  },
+  // Future & Investments
+  investmentSettings: (): Promise<InvestmentSettings> =>
+    req('/future/investment-settings'),
+  saveInvestmentSettings: (body: {
+    annual_rate?: number
+    inflation_rate?: number
+    manual_portfolio?: number
+    monthly_contrib?: number
+  }): Promise<InvestmentSettings> =>
+    req('/future/investment-settings', { method: 'PUT', body: JSON.stringify(body) }),
+  simulate: (body: {
+    months: number
+    n_simulations?: number
+    scenarios?: ScenarioItem[]
+    annual_rate?: number
+    inflation_rate?: number
+    portfolio_value?: number
+    monthly_contrib?: number
+  }): Promise<SimulationResult> =>
+    req('/future/simulate', { method: 'POST', body: JSON.stringify(body) }),
+  fireSummary: (): Promise<{
+    fire_number: number
+    fire_months: FireMonths
+    pct_simulations_fire: number
+    annual_expenses_median: number
+  }> => req('/future/fire'),
 
   // Import
   reimport: (): Promise<{ files: number; accounts: number; transactions: number }> =>

@@ -5,6 +5,7 @@ import Transactions from './pages/Transactions'
 import Analytics from './pages/Analytics'
 import Planification from './pages/Planification'
 import Categorize from './pages/Categorize'
+import Futur from './pages/Futur'
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
             <Route path="/transactions" element={<div className="overflow-y-auto flex-1"><Transactions /></div>} />
             <Route path="/analytics" element={<div className="overflow-y-auto flex-1"><Analytics /></div>} />
             <Route path="/planification" element={<div className="overflow-y-auto flex-1"><Planification /></div>} />
+            <Route path="/futur" element={<div className="overflow-y-auto flex-1"><Futur /></div>} />
             <Route path="/categorize" element={<Categorize />} />
             {/* Redirects for the old, now-merged routes */}
             <Route path="/cashflow" element={<Navigate to="/analytics" replace />} />

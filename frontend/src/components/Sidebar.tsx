@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, ArrowLeftRight, BarChart2,
-  Target, RefreshCw, Tags, Wallet, PanelLeftClose, PanelLeftOpen, Palette
+  Target, RefreshCw, Tags, Wallet, PanelLeftClose, PanelLeftOpen, Palette, TrendingUp
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { api } from '../api'
@@ -18,6 +18,7 @@ const NAV = [
   { to: '/transactions', icon: ArrowLeftRight, label: 'Transactions' },
   { to: '/analytics', icon: BarChart2, label: 'Analytiques' },
   { to: '/planification', icon: Target, label: 'Planification' },
+  { to: '/futur', icon: TrendingUp, label: 'Futur' },
   { to: '/categorize', icon: Tags, label: 'Catégoriser', badge: true },
 ]
 

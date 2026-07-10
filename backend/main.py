@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from .database import engine, get_db, Base
 from .models import Account, Transaction, Category, Budget
-from .routes import transactions, categories, stats, budgets, predictions, history, settings
+from .routes import transactions, categories, stats, budgets, history, settings, future
 from .parser import run_import
 
 DATA_DIR = str(Path(__file__).parent.parent / "data")
@@ -80,7 +80,7 @@ app.include_router(transactions.router)
 app.include_router(categories.router)
 app.include_router(stats.router)
 app.include_router(budgets.router)
-app.include_router(predictions.router)
+app.include_router(future.router)
 app.include_router(history.router)
 app.include_router(settings.router)
 
