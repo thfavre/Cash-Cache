@@ -31,9 +31,9 @@ export default function Dashboard() {
 
   const cards = [
     { label: 'Solde total', value: fmt(overview?.total_balance ?? 0), color: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: 'Revenus ce mois', value: fmt(overview?.income ?? 0), color: 'text-green-600', bg: 'bg-green-50' },
-    { label: 'Dépenses ce mois', value: fmt(overview?.expenses ?? 0), color: 'text-red-500', bg: 'bg-red-50' },
-    { label: 'Taux d\'épargne', value: `${overview?.savings_rate ?? 0}%`, color: 'text-purple-600', bg: 'bg-purple-50' },
+    { label: 'Revenus ce mois', value: fmt(overview?.income ?? 0), color: 'text-green-600', bg: 'bg-green-500/10' },
+    { label: 'Dépenses ce mois', value: fmt(overview?.expenses ?? 0), color: 'text-red-500', bg: 'bg-red-500/10' },
+    { label: 'Taux d\'épargne', value: `${overview?.savings_rate ?? 0}%`, color: 'text-purple-600', bg: 'bg-purple-500/10' },
   ]
 
   return (
