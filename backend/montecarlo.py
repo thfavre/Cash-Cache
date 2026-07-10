@@ -157,29 +157,45 @@ def simulate(
     # Mean monthly expenses — used for realistic expense_reduction scenarios and inflation drag
     mean_expenses_hist = float(np.mean(expenses_history)) if expenses_history else 1000.0
 
-    # Apply scenario deltas to mu.
-    # `scenario_delta` is always a positive-means-more-cashflow quantity.
-    scenario_delta = 0.0
+    # Apply scenario deltas to mu, each starting at its own `start_month`
+    # rather than uniformly from month 1 — `delta_path`/`contrib_path` are
+    # per-month arrays so "starts at month X" is actually true, not just a
+    # label.
+    delta_path = np.zeros(months)
+    contrib_path = np.full(months, monthly_contrib)
     one_time_events: dict[int, float] = {}   # month_offset -> amount delta
 
     if scenarios:
         for sc in scenarios:
             sc_type = sc.get("type", "")
-            start_m = int(sc.get("start_month", 1))
+            start_m = max(1, int(sc.get("start_month", 1)))
+            start_idx = min(start_m - 1, months)   # clamp: starts past the horizon never kicks in
             dur     = sc.get("duration_months")  # reserved for future use
 
             if sc_type == "expense_reduction":
                 pct = float(sc.get("percent_change", 0)) / 100
                 # Spending falls → net cashflow rises by mean_expenses × pct
-                scenario_delta += mean_expenses_hist * pct
-            elif sc_type == "income_increase":
-                scenario_delta += float(sc.get("amount", 0))
+                delta_path[start_idx:] += mean_expenses_hist * pct
+            elif sc_type == "recurring_cashflow":
+                # A recurring amount (+ income / − expense) at an arbitrary
+                # frequency, converted to its monthly-equivalent average and
+                # smoothed across every month from start_month onward — same
+                # mechanism as the other additive scenarios, just generalized
+                # beyond "monthly".
+                amount = float(sc.get("amount", 0))
+                occurrences_per_month = {
+                    "daily":   30.44,   # 365.25 / 12
+                    "weekly":  4.348,   # 52.18  / 12
+                    "monthly": 1.0,
+                    "yearly":  1 / 12,
+                }.get(sc.get("frequency", "monthly"), 1.0)
+                delta_path[start_idx:] += amount * occurrences_per_month
             elif sc_type == "one_time_event":
                 one_time_events[start_m] = one_time_events.get(start_m, 0) + float(sc.get("amount", 0))
             elif sc_type == "contribution_change":
-                monthly_contrib = float(sc.get("amount", monthly_contrib))
+                contrib_path[start_idx:] = float(sc.get("amount", monthly_contrib))
 
-    effective_mu_path = np.array(mu_path) + scenario_delta   # (months,)
+    effective_mu_path = np.array(mu_path) + delta_path   # (months,)
 
     # Net the nominal return against inflation so portfolio growth reflects
     # actual purchasing power. Cashflow history/forecast is already in
@@ -220,8 +236,9 @@ def simulate(
             # monthly_contrib is a standing transfer: it must leave the liquid
             # balance the same way it enters the portfolio, otherwise investing
             # looks free and net worth grows too fast.
-            balance_mat[:, m]   = balance_mat[:, m - 1] + cf - monthly_contrib
-            portfolio_mat[:, m] = portfolio_mat[:, m - 1] * (1 + monthly_real_rate) + monthly_contrib
+            contrib = contrib_path[m - 1]
+            balance_mat[:, m]   = balance_mat[:, m - 1] + cf - contrib
+            portfolio_mat[:, m] = portfolio_mat[:, m - 1] * (1 + monthly_real_rate) + contrib
 
     networth_mat = balance_mat + portfolio_mat
 

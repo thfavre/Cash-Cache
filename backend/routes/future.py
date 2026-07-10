@@ -34,10 +34,11 @@ class InvestmentSettingsBody(BaseModel):
 
 
 class ScenarioItem(BaseModel):
-    type: str                           # expense_reduction | income_increase | one_time_event | contribution_change
+    type: str                           # expense_reduction | recurring_cashflow | one_time_event | contribution_change
     category: Optional[str] = None
     percent_change: Optional[float] = None
     amount: Optional[float] = None
+    frequency: Optional[str] = None     # daily | weekly | monthly | yearly (recurring_cashflow only)
     start_month: int = 1
     duration_months: Optional[int] = None
 

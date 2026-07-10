@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import {
-  api, InvestmentSettings, MonthlySimPoint, SimulationResult, ScenarioItem, CashflowSummary,
+  api, InvestmentSettings, MonthlySimPoint, SimulationResult, ScenarioItem, CashflowSummary, Category,
 } from '../api'
 
 // ── Formatters ────────────────────────────────────────────────────────────────
@@ -78,21 +78,40 @@ type ChartPoint = MonthlySimPoint & {
   baseline_portfolio_p50?: number
 }
 
+// All dollar-valued percentile fields — scaled when displaying in nominal terms
+const MONEY_FIELDS = [
+  'balance_p10', 'balance_p25', 'balance_p50', 'balance_p75', 'balance_p90',
+  'portfolio_p10', 'portfolio_p25', 'portfolio_p50', 'portfolio_p75', 'portfolio_p90',
+  'networth_p10', 'networth_p25', 'networth_p50', 'networth_p75', 'networth_p90',
+] as const satisfies readonly (keyof Omit<MonthlySimPoint, 'month'>)[]
+
 // ── Scenario helpers ──────────────────────────────────────────────────────────
 
 const SCENARIO_TYPES = [
   { value: 'expense_reduction',  label: '📉 Réduire une dépense' },
-  { value: 'income_increase',    label: '💰 Augmentation de salaire' },
+  { value: 'recurring_cashflow', label: '🔁 Revenu/dépense récurrent(e)' },
   { value: 'one_time_event',     label: '🎯 Événement ponctuel' },
   { value: 'contribution_change',label: '📈 Changer la contribution mensuelle' },
 ]
 
+const FREQUENCIES = [
+  { value: 'daily',   label: 'Quotidien',    perMonth: '/jour' },
+  { value: 'weekly',  label: 'Hebdomadaire', perMonth: '/semaine' },
+  { value: 'monthly', label: 'Mensuel',      perMonth: '/mois' },
+  { value: 'yearly',  label: 'Annuel',       perMonth: '/an' },
+] as const
+
 function scenarioLabel(sc: ScenarioItem): string {
+  const from = `dès ${monthsToLabel(sc.start_month)}`
   switch (sc.type) {
-    case 'expense_reduction':   return `📉 Réduction dépenses −${sc.percent_change ?? 0}%${sc.category ? ` (${sc.category})` : ''}`
-    case 'income_increase':     return `💰 Salaire +${fmt(sc.amount ?? 0)}/mois`
+    case 'expense_reduction':   return `📉 Réduction dépenses −${sc.percent_change ?? 0}%${sc.category ? ` (${sc.category})` : ''} (${from})`
+    case 'recurring_cashflow': {
+      const freq = FREQUENCIES.find(f => f.value === sc.frequency) ?? FREQUENCIES[2]
+      const amt = sc.amount ?? 0
+      return `🔁 ${amt >= 0 ? '+' : ''}${fmt(amt)}${freq.perMonth} (${from})`
+    }
     case 'one_time_event':      return `🎯 Événement: ${(sc.amount ?? 0) >= 0 ? '+' : ''}${fmt(sc.amount ?? 0)} au mois ${sc.start_month}`
-    case 'contribution_change': return `📈 Contribution → ${fmt(sc.amount ?? 0)}/mois`
+    case 'contribution_change': return `📈 Contribution → ${fmt(sc.amount ?? 0)}/mois (${from})`
     default: return sc.type
   }
 }
@@ -165,10 +184,30 @@ function Slider({
 // ── Info tooltip ("little helper") ────────────────────────────────────────────
 
 function InfoTip({ text }: { text: string }) {
+  const [align, setAlign] = useState<'center' | 'left' | 'right'>('center')
+  const iconRef = useRef<HTMLSpanElement>(null)
+
+  // Measure on hover so the tooltip flips away from whichever edge it's
+  // close to, instead of always centering (which pushes it off-screen
+  // for icons near the left/right edge of the viewport).
+  function handleEnter() {
+    const rect = iconRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const halfWidth = 130 // ~half of the tooltip's w-56 (224px) + a little buffer
+    if (rect.left < halfWidth) setAlign('left')
+    else if (window.innerWidth - rect.right < halfWidth) setAlign('right')
+    else setAlign('center')
+  }
+
+  const posClass =
+    align === 'left'  ? 'left-0' :
+    align === 'right' ? 'right-0' :
+    'left-1/2 -translate-x-1/2'
+
   return (
-    <span className="group relative inline-flex items-center">
+    <span ref={iconRef} className="group relative inline-flex items-center" onMouseEnter={handleEnter}>
       <HelpCircle className="w-3.5 h-3.5 text-gray-300 hover:text-gray-500 cursor-help" />
-      <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 rounded-lg bg-gray-900 text-white text-xs leading-snug p-2.5 opacity-0 scale-95 origin-bottom group-hover:opacity-100 group-hover:scale-100 transition-all z-20 shadow-2xl">
+      <span className={`pointer-events-none absolute ${posClass} bottom-full mb-2 w-56 rounded-lg bg-gray-900 text-white text-xs normal-case tracking-normal font-normal leading-snug p-2.5 opacity-0 scale-95 origin-bottom group-hover:opacity-100 group-hover:scale-100 transition-all z-20 shadow-2xl`}>
         {text}
       </span>
     </span>
@@ -189,14 +228,14 @@ function StatCard({
   caption?: string
 }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-4">
-      <div className="flex items-center gap-1.5 mb-1.5">
+    <div className="bg-white border border-gray-200 rounded-2xl p-4 min-w-0">
+      <div className="flex items-center gap-1.5 mb-1.5 min-w-0">
         <Icon className={`w-4 h-4 shrink-0 ${iconColorClass}`} />
-        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</span>
+        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-0 break-words">{label}</span>
         <InfoTip text={info} />
       </div>
-      <p className={`text-xl font-black ${valueColorClass ?? 'text-gray-900'}`}>{value}</p>
-      {caption && <p className="text-xs text-gray-400 mt-0.5">{caption}</p>}
+      <p className={`text-xl font-black break-words ${valueColorClass ?? 'text-gray-900'}`}>{value}</p>
+      {caption && <p className="text-xs text-gray-400 mt-0.5 break-words">{caption}</p>}
     </div>
   )
 }
@@ -231,9 +270,13 @@ export default function Futur() {
   // Simulation
   const [result, setResult]     = useState<SimulationResult | null>(null)
   const [baselineResult, setBaselineResult] = useState<SimulationResult | null>(null)  // no-scenario run, for what-if comparison
+  const [fireResult, setFireResult] = useState<SimulationResult | null>(null)  // always run at the full 50-year horizon, for the FIRE timeline
   const [loading, setLoading]   = useState(false)
   const [horizonIdx, setHorizonIdx] = useState(4) // default 10 years
   const [view, setView]         = useState<ViewMode>('networth')
+  // 'real' = today's purchasing power (what the engine computes natively);
+  // 'nominal' = inflated back up to the actual future CHF amount, display-only.
+  const [valueMode, setValueMode] = useState<'real' | 'nominal'>('real')
 
   // Scenarios
   const [scenarios, setScenarios]   = useState<ScenarioItem[]>([])
@@ -243,9 +286,12 @@ export default function Futur() {
   const [scPct, setScPct]           = useState('20')
   const [scMonth, setScMonth]       = useState('1')
   const [scCategory, setScCategory] = useState('')
+  const [scFrequency, setScFrequency] = useState<NonNullable<ScenarioItem['frequency']>>('monthly')
+  const [categories, setCategories] = useState<Category[]>([])
 
   // Settings panel open/close
   const [settingsOpen, setSettingsOpen] = useState(true)
+  const [explainOpen, setExplainOpen]   = useState(false)
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const requestIdRef = useRef(0)
@@ -265,6 +311,7 @@ export default function Futur() {
       setTargetLiquidValue(s.target_effective ?? s.target_liquid ?? 0)
       setTargetInflationAdjusted(s.target_inflation_adjusted)
     })
+    api.categories().then(setCategories)
   }, [])
 
   // ── Cleanup debounce on unmount ───────────────────────────────────────────
@@ -315,14 +362,20 @@ export default function Futur() {
         }
         // When what-if scenarios are active, also run a no-scenario baseline
         // in parallel so the chart can show their impact by comparison.
-        const [res, baseRes] = await Promise.all([
+        // The FIRE timeline (fire_months / pct_simulations_fire) is always
+        // computed over the full 50-year horizon, independent of the
+        // chart's own horizon selector — otherwise picking a short horizon
+        // would make FIRE look unreachable just because the window is short.
+        const [res, baseRes, fireRes] = await Promise.all([
           api.simulate({ ...baseParams, scenarios }),
           scenarios.length > 0 ? api.simulate({ ...baseParams, scenarios: [] }) : Promise.resolve(null),
+          api.simulate({ ...baseParams, months: 600, scenarios }),
         ])
         // Drop stale responses from a superseded request (out-of-order network replies).
         if (requestId === requestIdRef.current) {
           setResult(res)
           setBaselineResult(baseRes)
+          setFireResult(fireRes)
         }
       } finally {
         if (requestId === requestIdRef.current) setLoading(false)
@@ -334,24 +387,37 @@ export default function Futur() {
     if (settings !== null) runSim()
   }, [annualRate, inflationRate, portfolioValue, monthlyContrib, horizonIdx, scenarios, settings, contribMode, targetLiquidValue])
 
-  // ── Chart data (merge baseline p50s in, thin out for long horizons) ───────
+  // Real-terms → nominal (actual future CHF) factor for a given month offset
+  const nominalFactor = (monthOffset: number) => (1 + inflationRate) ** (monthOffset / 12)
+
+  // ── Chart data (merge baseline p50s in, scale to nominal if selected, thin out for long horizons) ───────
   const chartData: ChartPoint[] = (() => {
     if (!result) return []
-    const data: ChartPoint[] = baselineResult
-      ? result.monthly.map((d, i) => ({
-          ...d,
-          baseline_networth_p50:  baselineResult.monthly[i]?.networth_p50,
-          baseline_balance_p50:   baselineResult.monthly[i]?.balance_p50,
-          baseline_portfolio_p50: baselineResult.monthly[i]?.portfolio_p50,
-        }))
-      : result.monthly
+    const data: ChartPoint[] = result.monthly.map((d, i) => {
+      const f = valueMode === 'nominal' ? nominalFactor(i) : 1
+      const scaled = { ...d }
+      if (f !== 1) for (const k of MONEY_FIELDS) scaled[k] = d[k] * f
+      const bd = baselineResult?.monthly[i]
+      return {
+        ...scaled,
+        baseline_networth_p50:  bd ? bd.networth_p50  * f : undefined,
+        baseline_balance_p50:   bd ? bd.balance_p50   * f : undefined,
+        baseline_portfolio_p50: bd ? bd.portfolio_p50 * f : undefined,
+      }
+    })
     const maxPoints = 120
     if (data.length <= maxPoints) return data
     const step = Math.ceil(data.length / maxPoints)
     return data.filter((_, i) => i % step === 0 || i === data.length - 1)
   })()
 
-  const fireNumber = result?.fire_number ?? 0
+  // FIRE target as a single horizontal line only makes sense in real terms
+  // (it's defined as 25× today's expenses); in nominal mode, scale it to
+  // the horizon's end so it still lines up with where the curves land.
+  const horizonMonths = HORIZONS[horizonIdx].months
+  const fireNumber = result
+    ? result.fire_number * (valueMode === 'nominal' ? nominalFactor(horizonMonths) : 1)
+    : 0
 
   // ── Save settings to DB ───────────────────────────────────────────────────
   async function saveSettings() {
@@ -415,19 +481,19 @@ export default function Futur() {
       start_month: Number(scMonth) || 1,
     }
     if (scType === 'expense_reduction')   { sc.percent_change = Number(scPct); if (scCategory) sc.category = scCategory }
-    if (scType === 'income_increase')     sc.amount = Number(scAmount)
+    if (scType === 'recurring_cashflow')  { sc.amount = Number(scAmount); sc.frequency = scFrequency }
     if (scType === 'one_time_event')      sc.amount = Number(scAmount)
     if (scType === 'contribution_change') sc.amount = Number(scAmount)
 
     setScenarios(prev => [...prev, sc])
     setShowScForm(false)
-    setScAmount(''); setScPct('20'); setScMonth('1'); setScCategory('')
+    setScAmount(''); setScPct('20'); setScMonth('1'); setScCategory(''); setScFrequency('monthly')
   }
 
   // ── FIRE labels ───────────────────────────────────────────────────────────
-  const fireP10 = result?.fire_months?.p10 ?? null
-  const fireP50 = result?.fire_months?.p50 ?? null
-  const fireP90 = result?.fire_months?.p90 ?? null
+  const fireP10 = fireResult?.fire_months?.p10 ?? null
+  const fireP50 = fireResult?.fire_months?.p50 ?? null
+  const fireP90 = fireResult?.fire_months?.p90 ?? null
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -561,6 +627,31 @@ export default function Futur() {
                 format={v => `${(v * 100).toFixed(1)} %`}
                 onChange={setInflationRate}
               />
+
+              <div>
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5 inline-flex items-center gap-1">
+                  Affichage du graphique
+                  <InfoTip text="Réelle : montants en pouvoir d'achat d'aujourd'hui (un 100k dans 20 ans se lit comme 100k aujourd'hui). Nominale : montants regonflés à l'inflation — ce que votre compte affichera littéralement à cette date." />
+                </span>
+                <div className="flex gap-1 bg-gray-50 border border-gray-200 rounded-xl p-1 w-fit">
+                  {([
+                    ['real',    'Valeur réelle (aujourd\'hui)'],
+                    ['nominal', 'Valeur nominale (future)'],
+                  ] as const).map(([v, label]) => (
+                    <button
+                      key={v}
+                      onClick={() => setValueMode(v)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        valueMode === v
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'text-gray-500 hover:text-gray-900 hover:bg-white'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               <div>
                 <span className="text-xs font-medium text-gray-500 uppercase tracking-wide block mb-1.5">Mode de contribution</span>
@@ -761,9 +852,19 @@ export default function Futur() {
             }
             <InfoTip text="La zone ombrée couvre 80% des 1000 futurs simulés (p10 pessimiste à p90 optimiste). La ligne bleue est le résultat médian (p50) — celui qui a autant de chances d'être dépassé que non atteint." />
           </h2>
-          {loading && (
-            <span className="text-xs text-blue-500 animate-pulse">Calcul en cours…</span>
-          )}
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-1 text-xs font-medium text-gray-400 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1">
+              {valueMode === 'real' ? 'Valeur réelle' : 'Valeur nominale'}
+              <InfoTip text={
+                valueMode === 'real'
+                  ? "Les montants sont exprimés en pouvoir d'achat d'aujourd'hui — un 100k dans 20 ans se lit comme 100k aujourd'hui. Modifiable dans les Paramètres."
+                  : "Les montants sont regonflés à l'inflation projetée — ce que votre compte affichera littéralement à cette date future. Modifiable dans les Paramètres."
+              } />
+            </span>
+            {loading && (
+              <span className="text-xs text-blue-500 animate-pulse">Calcul en cours…</span>
+            )}
+          </div>
         </div>
         {baselineResult && (
           <p className="text-xs text-gray-400 mb-3 flex items-center gap-1.5">
@@ -890,6 +991,7 @@ export default function Futur() {
       {/* Summary stats */}
       {result && (() => {
         const last = result.monthly.at(-1)
+        const lastFactor = valueMode === 'nominal' ? nominalFactor(horizonMonths) : 1
         const solvent = result.pct_solvent_final
         const solventValueClass = solvent >= 90 ? 'text-emerald-600' : solvent >= 60 ? 'text-amber-500' : 'text-red-500'
         const solventIconClass  = solvent >= 60 ? 'text-orange-500' : 'text-red-500'
@@ -907,8 +1009,8 @@ export default function Futur() {
               <StatCard
                 icon={Target} iconColorClass="text-blue-500"
                 label={`Patrimoine dans ${HORIZONS[horizonIdx].label}`}
-                value={fmt(last?.networth_p50 ?? 0)}
-                caption={`Fourchette p10–p90 : ${fmt(last?.networth_p10 ?? 0)} – ${fmt(last?.networth_p90 ?? 0)}`}
+                value={fmt((last?.networth_p50 ?? 0) * lastFactor)}
+                caption={`Fourchette p10–p90 : ${fmt((last?.networth_p10 ?? 0) * lastFactor)} – ${fmt((last?.networth_p90 ?? 0) * lastFactor)}`}
                 info="Patrimoine net médian (balance liquide + portefeuille) parmi les 1000 futurs simulés, à la fin de l'horizon choisi. La fourchette va du scénario pessimiste (p10) à optimiste (p90)."
               />
               <StatCard
@@ -956,11 +1058,11 @@ export default function Futur() {
                 <div className="flex-1 bg-gray-100 rounded-full h-2">
                   <div
                     className="bg-amber-400 h-2 rounded-full transition-all"
-                    style={{ width: `${Math.min(100, result.pct_simulations_fire)}%` }}
+                    style={{ width: `${Math.min(100, fireResult?.pct_simulations_fire ?? 0)}%` }}
                   />
                 </div>
                 <span className="text-xs font-bold text-amber-600 whitespace-nowrap">
-                  {result.pct_simulations_fire.toFixed(0)}% des simulations atteignent le FIRE
+                  {(fireResult?.pct_simulations_fire ?? 0).toFixed(0)}% des simulations atteignent le FIRE (sur 50 ans)
                 </span>
               </div>
             </div>
@@ -1012,16 +1114,40 @@ export default function Futur() {
                   </div>
                   <div>
                     <label className="text-xs font-medium text-gray-500 block mb-1">Catégorie (optionnel)</label>
-                    <input
-                      type="text" value={scCategory} onChange={e => setScCategory(e.target.value)}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                      placeholder="Restaurants"
-                    />
+                    <select
+                      value={scCategory} onChange={e => setScCategory(e.target.value)}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    >
+                      <option value="">Toutes les catégories</option>
+                      {categories.map(c => <option key={c.id} value={c.name}>{c.icon} {c.name}</option>)}
+                    </select>
                   </div>
                 </>
               )}
 
-              {(scType === 'income_increase' || scType === 'one_time_event' || scType === 'contribution_change') && (
+              {scType === 'recurring_cashflow' && (
+                <>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 block mb-1">Montant (+ ou −)</label>
+                    <input
+                      type="number" value={scAmount} onChange={e => setScAmount(e.target.value)}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      placeholder="500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 block mb-1">Fréquence</label>
+                    <select
+                      value={scFrequency} onChange={e => setScFrequency(e.target.value as ScenarioItem['frequency'] & string)}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    >
+                      {FREQUENCIES.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                    </select>
+                  </div>
+                </>
+              )}
+
+              {(scType === 'one_time_event' || scType === 'contribution_change') && (
                 <div>
                   <label className="text-xs font-medium text-gray-500 block mb-1">
                     {scType === 'one_time_event' ? 'Montant (+ ou −)' : 'Montant (CHF/mois)'}
@@ -1082,6 +1208,62 @@ export default function Futur() {
           </p>
         )}
       </div>
+
+      {/* Explanation: how the forecast is actually computed, with real numbers */}
+      {result && (() => {
+        const historyMonths = cashflowSummary?.history_months_available ?? null
+        const seasonal = historyMonths !== null && historyMonths >= 24
+        const sinceLabel = historyMonths !== null ? monthsToLabel(-(historyMonths - 1)) : null
+        return (
+          <div className="bg-white border border-gray-200 rounded-2xl shadow-sm">
+            <button
+              onClick={() => setExplainOpen(o => !o)}
+              className="w-full flex items-center justify-between p-6 text-left"
+            >
+              <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                <HelpCircle className="w-4 h-4 text-gray-400" />
+                Comment cette prévision est-elle calculée ?
+              </h2>
+              {explainOpen ? <ChevronUp className="w-3 h-3 text-gray-400" /> : <ChevronDown className="w-3 h-3 text-gray-400" />}
+            </button>
+            {explainOpen && (
+              <div className="px-6 pb-6 space-y-3 text-sm text-gray-600 border-t border-gray-100 pt-4">
+                <p>
+                  {historyMonths !== null
+                    ? <>Nous utilisons tout votre historique disponible : <strong>{historyMonths} mois</strong>, depuis environ <strong>{sinceLabel}</strong>.</>
+                    : 'Nous utilisons tout votre historique de transactions disponible.'
+                  }{' '}
+                  Chaque mois, le cash-flow net = revenus − dépenses, en excluant les virements internes, les
+                  transactions annulées, et les catégories marquées comme épargne/investissement ou ignorées.
+                </p>
+                <p>
+                  {seasonal ? (
+                    <>Avec {historyMonths} mois d'historique (≥ 24), un modèle de prévision saisonnière (AutoETS) est utilisé :
+                    il détecte la tendance et les cycles annuels (ex : dépenses plus élevées en décembre) plutôt que
+                    d'appliquer une simple moyenne constante.</>
+                  ) : (
+                    <>Avec seulement {historyMonths ?? '?'} mois d'historique (moins de 24), il n'y a pas assez de données pour
+                    détecter une saisonnalité fiable : une moyenne simple de ces mois est utilisée à la place.</>
+                  )}
+                </p>
+                <p>
+                  Résultat pour votre compte : cash-flow net prévu de{' '}
+                  <strong className={result.mu_monthly_cashflow >= 0 ? 'text-emerald-600' : 'text-red-500'}>
+                    {result.mu_monthly_cashflow >= 0 ? '+' : ''}{fmt(result.mu_monthly_cashflow)}/mois
+                  </strong>{' '}
+                  en moyenne, avec une variabilité typique (écart-type) de <strong>± {fmt(result.sigma_monthly_cashflow)}</strong> —
+                  c'est cette variabilité qui détermine la largeur du cône de probabilité sur le graphique ci-dessus.
+                </p>
+                <p>
+                  Au-delà de 5 ans (60 mois), le modèle cesse d'extrapoler la tendance — les modèles de prévision
+                  peuvent dériver de façon irréaliste sur plusieurs décennies — et répète simplement à l'identique
+                  le dernier cycle de 12 mois prévu pour les mois suivants.
+                </p>
+              </div>
+            )}
+          </div>
+        )
+      })()}
     </div>
   )
 }

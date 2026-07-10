@@ -165,10 +165,11 @@ export interface CashflowSummary {
 }
 
 export interface ScenarioItem {
-  type: 'expense_reduction' | 'income_increase' | 'one_time_event' | 'contribution_change'
+  type: 'expense_reduction' | 'recurring_cashflow' | 'one_time_event' | 'contribution_change'
   category?: string
   percent_change?: number
   amount?: number
+  frequency?: 'daily' | 'weekly' | 'monthly' | 'yearly'
   start_month: number
   duration_months?: number
 }
