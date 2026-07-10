@@ -9,7 +9,7 @@ All data extraction, categorization, and financial modeling run entirely offline
 ## Architecture & Core Philosophy
 
 - **Offline Data Sovereignty:** Uses a local SQLite database (`finance.db`) to ensure zero external telemetry, zero credential sharing, and complete data ownership.
-- **Multi-Bank Standardization:** Natively ingests **ISO 20022 CAMT.053 XML** bank exports (e.g., Swiss Raiffeisen) and **Revolut CSV** statements, automatically detecting and reconciling cross-bank internal transfers.
+- **Multi-Bank Standardization:** Natively ingests **ISO 20022 CAMT.053 XML** bank exports, **Revolut CSV** statements, and **any general bank CSV export** (with interactive custom column mapping and delimiter detection), automatically reconciling cross-bank transfers.
 - **Institutional-Grade Analytics:** Combines real-time cashflow mapping (`Sankey` diagrams) with probabilistic long-term net-worth projections (`Monte Carlo` simulations).
 
 ---
@@ -17,7 +17,7 @@ All data extraction, categorization, and financial modeling run entirely offline
 ## Key Features
 
 ### 1. Data Ingestion & Automated Categorization
-- **Multi-Source Parser:** Supports simultaneous imports across traditional banks and fintech platforms with multi-currency tracking.
+- **Multi-Source Parser:** Supports simultaneous imports across traditional banks and fintech platforms (`CAMT.053 XML`, `Revolut CSV`, or any custom bank `CSV` with automatic delimiter detection and interactive field mapping) with full multi-currency tracking.
 - **Rule-Based Categorization:** Interactive drag-and-drop categorization hub (`Catégoriser`) with dynamic keyword learning and automated merchant normalization (e.g., grouping raw POS transactions into clean merchant entities).
 - **Automated Reconciliation:** Automatically identifies cross-bank transfers and currency conversions to prevent double-counting expenses.
 
@@ -44,7 +44,7 @@ All data extraction, categorization, and financial modeling run entirely offline
 | **Backend** | FastAPI, Python 3.12+, SQLAlchemy 2 | REST API & data parsing engine |
 | **Database** | SQLite (`finance.db`) | Local offline personal storage |
 | **Data & Simulation** | `statsmodels`, `numpy`, custom Monte Carlo engine | Exponential smoothing & wealth modeling |
-| **Supported Formats** | ISO 20022 `CAMT.053.001.08` XML, Revolut CSV | Bank statement standardization |
+| **Supported Formats** | ISO 20022 `CAMT.053.001.08` XML, Revolut CSV, Universal Bank CSV (Dynamic Mapping) | Bank statement standardization & ingestion |
 
 ---
 
@@ -75,7 +75,7 @@ You **do not** need to manually copy files into folder directories. All data ing
 
 1. Open **http://localhost:5173** in your browser.
 2. Navigate to the **Import (`Réimporter les données`)** page.
-3. Drag and drop your **CAMT.053 XML** bank exports or **Revolut / Bank CSV** files directly into the interactive upload modal.
+3. Drag and drop your **CAMT.053 XML** bank exports, **Revolut CSV**, or **any general bank CSV statement** directly into the interactive upload modal.
 4. The application will automatically parse transactions, match or create accounts, detect currencies, and let you configure column mappings on the fly.
 
 Interactive API documentation is also available locally at **http://localhost:8000/docs**.
