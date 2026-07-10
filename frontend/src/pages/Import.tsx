@@ -172,6 +172,13 @@ export default function Import({ onContinueWithoutData, onDataChanged }: ImportP
   const [customCurrencies, setCustomCurrencies] = useState<string[]>(loadCustomCurrencies)
   const currencyOptions = [...DEFAULT_CURRENCIES, ...customCurrencies.filter(c => !DEFAULT_CURRENCIES.includes(c))]
 
+  useEffect(() => {
+    if (!mappingState) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setMappingState(null) }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [mappingState])
+
   function saveCustomCurrency(code: string) {
     const trimmed = code.trim().toUpperCase()
     if (!trimmed || currencyOptions.includes(trimmed)) return

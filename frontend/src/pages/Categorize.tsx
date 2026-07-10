@@ -907,6 +907,11 @@ function CategoryForm({
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   useEffect(() => { inputRef.current?.focus() }, [])
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onCancel])
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
