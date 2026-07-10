@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Upload, FileText, Wallet, Trash2, Info, FileQuestion, HelpCircle, Inbox } from 'lucide-react'
+import { Upload, FileText, Wallet, Trash2, Info, FileQuestion, HelpCircle, Inbox, ChevronDown } from 'lucide-react'
 import {
   api, Account, ImportAccountOption, ImportAmountMode, ImportBankProfile,
   ImportBatchList, ImportMapping, ImportUploadResult,
@@ -38,6 +38,58 @@ function InfoTip({ text }: { text: string }) {
         {text}
       </span>
     </span>
+  )
+}
+
+// A dropdown whose placeholder only ever shows in the closed state — a
+// native <select> would list the placeholder as a selectable row too.
+function CustomSelect({
+  value, placeholder, options, onSelect, className,
+}: {
+  value: string
+  placeholder: string
+  options: { value: string; label: string }[]
+  onSelect: (value: string) => void
+  className: string
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const selected = options.find(o => o.value === value)
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className={`${className} flex items-center justify-between gap-2 text-left`}
+      >
+        <span className={selected ? '' : 'text-gray-400'}>{selected ? selected.label : placeholder}</span>
+        <ChevronDown size={14} className="text-gray-400 shrink-0" />
+      </button>
+      {open && (
+        <div className="absolute z-30 mt-1 w-full max-h-52 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg">
+          {options.map(o => (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => { onSelect(o.value); setOpen(false) }}
+              className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700"
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -162,7 +214,7 @@ export default function Import() {
           accountMode: 'new',
           accountId: result.accounts[0]?.id ?? null,
           newAccountName: '',
-          newAccountCurrency: 'CHF',
+          newAccountCurrency: '',
           newAccountCurrencyCustom: false,
           saveProfileName: '',
         })
@@ -197,8 +249,9 @@ export default function Import() {
     }
     if (state.accountMode === 'existing') {
       if (!state.accountId) invalid.add('account')
-    } else if (!state.newAccountName.trim()) {
-      invalid.add('account')
+    } else {
+      if (!state.newAccountName.trim()) invalid.add('account')
+      if (!state.newAccountCurrency.trim()) invalid.add('currency')
     }
     return invalid
   }
@@ -434,7 +487,7 @@ export default function Import() {
 
       {mappingState && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center pt-12 px-4 bg-black/30 overflow-y-auto"
+          className="fixed inset-0 z-50 flex items-start justify-center pt-12 px-4 bg-black/30 backdrop-blur-sm overflow-y-auto"
           onClick={() => setMappingState(null)}
         >
           <div
@@ -644,37 +697,40 @@ export default function Import() {
                   {mappingState.newAccountCurrencyCustom ? (
                     <div className="flex items-center gap-1.5">
                       <input
-                        className={inputClass}
+                        className={fieldCls('currency')}
                         placeholder="Code devise (ex. AUD)"
                         value={mappingState.newAccountCurrency}
                         autoFocus
-                        onChange={e => setMappingState({ ...mappingState, newAccountCurrency: e.target.value.toUpperCase() })}
+                        onChange={e => { setMappingState({ ...mappingState, newAccountCurrency: e.target.value.toUpperCase() }); clearInvalid('currency') }}
                         onBlur={e => saveCustomCurrency(e.target.value)}
                       />
                       <button
                         type="button"
                         title="Revenir à la liste"
-                        onClick={() => setMappingState({ ...mappingState, newAccountCurrencyCustom: false, newAccountCurrency: 'CHF' })}
+                        onClick={() => setMappingState({ ...mappingState, newAccountCurrencyCustom: false, newAccountCurrency: '' })}
                         className="text-xs text-gray-400 hover:text-gray-600 shrink-0"
                       >
                         liste
                       </button>
                     </div>
                   ) : (
-                    <select
-                      className={inputClass}
+                    <CustomSelect
+                      className={fieldCls('currency')}
+                      placeholder="Devise…"
                       value={mappingState.newAccountCurrency}
-                      onChange={e => {
-                        if (e.target.value === OTHER_CURRENCY) {
+                      options={[
+                        ...currencyOptions.map(c => ({ value: c, label: c })),
+                        { value: OTHER_CURRENCY, label: 'Autre…' },
+                      ]}
+                      onSelect={v => {
+                        clearInvalid('currency')
+                        if (v === OTHER_CURRENCY) {
                           setMappingState({ ...mappingState, newAccountCurrencyCustom: true, newAccountCurrency: '' })
                         } else {
-                          setMappingState({ ...mappingState, newAccountCurrency: e.target.value })
+                          setMappingState({ ...mappingState, newAccountCurrency: v })
                         }
                       }}
-                    >
-                      {currencyOptions.map(c => <option key={c} value={c}>{c}</option>)}
-                      <option value={OTHER_CURRENCY}>Autre…</option>
-                    </select>
+                    />
                   )}
                 </div>
               )}
