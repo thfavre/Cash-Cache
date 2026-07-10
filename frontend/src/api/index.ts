@@ -298,4 +298,13 @@ export const api = {
   history: (): Promise<HistoryEntry[]> => req('/history'),
   revertHistory: (id: number): Promise<HistoryEntry> =>
     req(`/history/${id}/revert`, { method: 'POST' }),
+
+  // Settings
+  getThemeFavorites: (): Promise<string[]> =>
+    req<{ favorites: string[] }>('/settings/theme-favorites').then(r => r.favorites),
+  setThemeFavorites: (favorites: string[]): Promise<string[]> =>
+    req<{ favorites: string[] }>('/settings/theme-favorites', {
+      method: 'PUT',
+      body: JSON.stringify({ favorites }),
+    }).then(r => r.favorites),
 }

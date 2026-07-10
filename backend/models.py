@@ -75,6 +75,15 @@ class HistoryEntry(Base):
     reverted = Column(Boolean, default=False)
 
 
+class Setting(Base):
+    """Small key-value store for user preferences that should survive
+    clearing browser storage (e.g. theme favorites)."""
+    __tablename__ = "settings"
+
+    key = Column(String, primary_key=True)
+    value = Column(JSON, nullable=False)
+
+
 class Budget(Base):
     __tablename__ = "budgets"
     __table_args__ = (UniqueConstraint("category_id", "month", name="uq_budget_cat_month"),)

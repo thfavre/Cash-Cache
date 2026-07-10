@@ -2,16 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { Search, Check, Sparkles, Star } from 'lucide-react'
 import clsx from 'clsx'
 import { THEMES } from '../theme/themes'
-
-const FAVORITES_KEY = 'themeFavorites'
-
-function loadFavorites(): Set<string> {
-  try {
-    return new Set(JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]'))
-  } catch {
-    return new Set()
-  }
-}
+import { api } from '../api'
 
 interface ThemeModalProps {
   current: string
@@ -21,11 +12,11 @@ interface ThemeModalProps {
 
 export default function ThemeModal({ current, onSelect, onClose }: ThemeModalProps) {
   const [query, setQuery] = useState('')
-  const [favorites, setFavorites] = useState(loadFavorites)
+  const [favorites, setFavorites] = useState<Set<string>>(new Set())
   // Order is frozen for the lifetime of the modal so starring a theme doesn't
   // yank it out from under the cursor mid-session — the new order only takes
   // effect the next time the picker is opened.
-  const [sortSnapshot] = useState(loadFavorites)
+  const [sortSnapshot, setSortSnapshot] = useState<Set<string> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -47,11 +38,33 @@ export default function ThemeModal({ current, onSelect, onClose }: ThemeModalPro
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
+  useEffect(() => {
+    api.getThemeFavorites().then(async list => {
+      // One-time migration from the old localStorage-based favorites.
+      const legacyRaw = localStorage.getItem('themeFavorites')
+      if (list.length === 0 && legacyRaw) {
+        try {
+          const legacy = JSON.parse(legacyRaw)
+          if (Array.isArray(legacy) && legacy.length > 0) {
+            list = await api.setThemeFavorites(legacy)
+          }
+        } catch {
+          // ignore malformed legacy data
+        }
+      }
+      if (legacyRaw !== null) localStorage.removeItem('themeFavorites')
+
+      const set = new Set(list)
+      setFavorites(set)
+      setSortSnapshot(set)
+    })
+  }, [])
+
   function toggleFavorite(id: string) {
     setFavorites(prev => {
       const next = new Set(prev)
       next.has(id) ? next.delete(id) : next.add(id)
-      localStorage.setItem(FAVORITES_KEY, JSON.stringify([...next]))
+      api.setThemeFavorites([...next]).catch(() => {})
       return next
     })
   }
@@ -59,9 +72,9 @@ export default function ThemeModal({ current, onSelect, onClose }: ThemeModalPro
   const filtered = useMemo(
     () =>
       THEMES.filter(t => t.name.toLowerCase().includes(query.trim().toLowerCase())).sort(
-        (a, b) => Number(sortSnapshot.has(b.id)) - Number(sortSnapshot.has(a.id))
+        (a, b) => Number((sortSnapshot ?? favorites).has(b.id)) - Number((sortSnapshot ?? favorites).has(a.id))
       ),
-    [query, sortSnapshot]
+    [query, sortSnapshot, favorites]
   )
 
   return (
