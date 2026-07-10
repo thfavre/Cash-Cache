@@ -1,100 +1,94 @@
-# Finance Dashboard
+# Cash-Cache
 
-Personal finance dashboard for Swiss bank accounts (Raiffeisen, CAMT.053 format).
+**Cash-Cache** is a local, privacy-first personal finance and wealth forecasting platform. Designed for data sovereignty, it parses standard bank export files directly on your machine without relying on cloud aggregators or third-party synchronization.
 
-## Features
+All data extraction, categorization, and financial modeling run entirely offline using Python, SQLite, and React. Your financial records never leave your device.
 
-- **Dashboard** — balance overview, income vs. expenses, category breakdown, recent transactions
-- **Transactions** — searchable and filterable list with inline category editing
-- **Analytics** — monthly charts, balance history, top merchants, net savings
-- **Budgets** — monthly budgets per category with progress bars and overspend alerts
-- **Prévisions** — 3-month spending forecasts per category (exponential smoothing)
+---
 
-## Stack
+## Architecture & Core Philosophy
 
-| Layer | Tech |
-|---|---|
-| Frontend | React 18 + TypeScript + Vite + Tailwind CSS + Recharts |
-| Backend | FastAPI (Python 3.12) + SQLAlchemy 2 + SQLite |
-| Forecasting | statsmodels (ExponentialSmoothing) + numpy fallback |
-| Data format | ISO 20022 CAMT.053.001.08 (Swiss bank statement XML) |
+- **Offline Data Sovereignty:** Uses a local SQLite database (`finance.db`) to ensure zero external telemetry, zero credential sharing, and complete data ownership.
+- **Multi-Bank Standardization:** Natively ingests **ISO 20022 CAMT.053 XML** bank exports (e.g., Swiss Raiffeisen) and **Revolut CSV** statements, automatically detecting and reconciling cross-bank internal transfers.
+- **Institutional-Grade Analytics:** Combines real-time cashflow mapping (`Sankey` diagrams) with probabilistic long-term net-worth projections (`Monte Carlo` simulations).
 
-## Setup
+---
+
+## Key Features
+
+### 1. Data Ingestion & Automated Categorization
+- **Multi-Source Parser:** Supports simultaneous imports across traditional banks and fintech platforms with multi-currency tracking.
+- **Rule-Based Categorization:** Interactive drag-and-drop categorization hub (`Catégoriser`) with dynamic keyword learning and automated merchant normalization (e.g., grouping raw POS transactions into clean merchant entities).
+- **Automated Reconciliation:** Automatically identifies cross-bank transfers and currency conversions to prevent double-counting expenses.
+
+### 2. Cashflow & Portfolio Analytics
+- **Hierarchical Sankey Diagram:** Finary-inspired 3-tier flow visualization linking income sources directly to expense categories and specific merchants.
+- **Interactive Metrics:** Multi-period average calculations, custom date filtering, top merchant breakdowns, and real-time net savings tracking (`Épargne Nette`).
+- **High-Density UI:** Responsive, wide-screen optimized layout built with Recharts and Tailwind CSS.
+
+### 3. Wealth Planning & Simulation
+- **Monte Carlo Net-Worth Projections:** Simulates future wealth trajectories over decades using randomized market returns and inflation adjustments (`statsmodels` & `numpy`).
+- **Scenario Analysis:** Test recurring "what-if" financial decisions (e.g., property purchases, salary adjustments, or aggressive savings plans) with real vs. nominal purchasing power views.
+- **Dynamic Budgeting:** Set granular category budgets monitored by live progress indicators and overspend alerts.
+
+### 4. Customization & Experience
+- **Extensive Theme System:** Over 180 curated color themes adapted from Monkeytype, complete with optional visual accent effects (Aurora, Nebula, Vaporwave).
+
+---
+
+## Tech Stack
+
+| Layer | Technology | Purpose |
+|---|---|---|
+| **Frontend** | React 18, TypeScript, Vite, Tailwind CSS, Recharts | Interactive UI & financial visualizations |
+| **Backend** | FastAPI, Python 3.12+, SQLAlchemy 2 | REST API & data parsing engine |
+| **Database** | SQLite (`finance.db`) | Local offline personal storage |
+| **Data & Simulation** | `statsmodels`, `numpy`, custom Monte Carlo engine | Exponential smoothing & wealth modeling |
+| **Supported Formats** | ISO 20022 `CAMT.053.001.08` XML, Revolut CSV | Bank statement standardization |
+
+---
+
+## Getting Started
 
 ### Prerequisites
-
 - Python 3.12+
 - Node.js 18+
 
-### Install dependencies
+### Quick Start & Execution
 
-```bash
-# Backend
-pip install -r backend/requirements.txt
-
-# Frontend
-cd frontend && npm install
-```
-
-### Add your data
-
-Place your CAMT.053 XML export files anywhere under the `data/` folder:
-
-```
-data/
-└── your_export/
-    ├── camt053_..._account1.xml
-    ├── camt053_..._account2.xml
-    └── camt053_..._account3.xml
-```
-
-The app auto-imports on first launch. To re-import after adding new files, click **Réimporter les données** in the sidebar or call `POST /import`.
-
-### Run
+To launch both the FastAPI backend (`port 8000`) and the React development server (`port 5173`) concurrently, simply execute:
 
 ```powershell
-# Windows — starts both servers
+# Windows PowerShell
 .\start.ps1
 ```
-
-Or manually:
-
 ```bash
-# Backend (from project root)
-py -3.12 -m uvicorn backend.main:app --reload --port 8000
-
-# Frontend (from frontend/)
-npm run dev
+# macOS / Linux / Git Bash
+./start.sh
 ```
 
-Open **http://localhost:5173** in your browser.
+*(Note: On a fresh machine, run `pip install -r backend/requirements.txt` and `cd frontend && npm install` once before launching).*
 
-## Data & Privacy
+### Importing Bank Data
 
-- `data/` and `finance.db` are excluded from git (personal financial data)
-- Everything runs locally — no data leaves your machine
+You **do not** need to manually copy files into folder directories. All data ingestion happens directly through the web interface:
 
-## API
+1. Open **http://localhost:5173** in your browser.
+2. Navigate to the **Import (`Réimporter les données`)** page.
+3. Drag and drop your **CAMT.053 XML** bank exports or **Revolut / Bank CSV** files directly into the interactive upload modal.
+4. The application will automatically parse transactions, match or create accounts, detect currencies, and let you configure column mappings on the fly.
 
-Interactive docs available at **http://localhost:8000/docs** when the backend is running.
+Interactive API documentation is also available locally at **http://localhost:8000/docs**.
 
-Key endpoints:
+---
 
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/stats/overview` | Balance, income, expenses, savings rate |
-| `GET` | `/stats/monthly` | Monthly income/expenses breakdown |
-| `GET` | `/stats/categories` | Spending by category |
-| `GET` | `/stats/balance-history` | Monthly balance over time |
-| `GET` | `/transactions` | Paginated, filterable transaction list |
-| `PUT` | `/transactions/{id}/category` | Re-categorize a transaction |
-| `GET` | `/categories` | List / manage categories and rules |
-| `GET` | `/budgets` | Budgets with spending progress |
-| `GET` | `/predictions` | Forecast next N months of spending |
-| `POST` | `/import` | Re-parse all XML files |
+## Privacy & Security
 
-## Categorization
+- `data/` and `finance.db` are strictly ignored by Git (`.gitignore`) and remain isolated on your local disk.
+- No network requests are made to third-party tracking or aggregation APIs.
 
-Transactions are auto-categorized on import using keyword rules per category (Swiss merchants: Migros, Coop, SBB, SALT, etc.). Rules are stored in the database and editable via the categories API.
+---
 
-Categories with default rules: Salaire, Alimentation, Transport, Restaurants, Bars & Sorties, Shopping, Santé, Télécom, Loisirs & Voyages, Investissements, Impôts, Assurances, Loyer & Logement, Virements internes.
+## License
+
+Distributed under the **MIT License**. See [LICENSE](file:///C:/Users/Thomas/Desktop/doc2/Personal/finances/program/LICENSE) for full legal terms.
