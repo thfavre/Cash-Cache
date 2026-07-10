@@ -2,13 +2,12 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
 
 from .database import engine, get_db, Base
 from .models import Account, Transaction, Category, Budget
-from .routes import transactions, categories, stats, budgets, history, settings, future
+from .routes import transactions, categories, stats, budgets, history, settings, future, import_data
 from .parser import run_import
 
 DATA_DIR = str(Path(__file__).parent.parent / "data")
@@ -31,6 +30,15 @@ async def lifespan(app: FastAPI):
             print("Successfully migrated categories table: added is_ignored column.")
     except Exception as e:
         # Column already exists or table doesn't exist yet
+        pass
+
+    # import_batches/bank_profiles are new tables, created below by create_all.
+    # transactions.import_batch_id is a new column on an existing table.
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE transactions ADD COLUMN import_batch_id INTEGER"))
+            print("Successfully migrated transactions table: added import_batch_id column.")
+    except Exception as e:
         pass
 
     Base.metadata.create_all(bind=engine)
@@ -83,13 +91,7 @@ app.include_router(budgets.router)
 app.include_router(future.router)
 app.include_router(history.router)
 app.include_router(settings.router)
-
-
-@app.post("/import")
-def reimport(db: Session = Depends(get_db)):
-    """Re-parse all XML and CSV files (use after dropping DB or adding new files)."""
-    result = run_import(DATA_DIR, db)
-    return result
+app.include_router(import_data.router)
 
 
 @app.get("/health")

@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, ArrowLeftRight, BarChart2,
-  Target, RefreshCw, Tags, Wallet, PanelLeftClose, PanelLeftOpen, Palette, TrendingUp
+  Target, Download, Tags, Wallet, PanelLeftClose, PanelLeftOpen, Palette, TrendingUp
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { api } from '../api'
@@ -23,8 +23,6 @@ const NAV = [
 ]
 
 export default function Sidebar() {
-  const [importing, setImporting] = useState(false)
-  const [msg, setMsg] = useState('')
   const [uncatCount, setUncatCount] = useState<number | null>(null)
   const [collapsed, setCollapsed] = useState(false)
   const [theme, setTheme] = useState(() => localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME)
@@ -66,20 +64,6 @@ export default function Sidebar() {
   const isAurora = theme === 'aurora'
   const isNebula = theme === 'nebula'
   const isVaporwave = theme === 'vaporwave'
-
-  async function handleImport() {
-    setImporting(true)
-    setMsg('')
-    try {
-      const r = await api.reimport()
-      setMsg(`✓ ${r.transactions} transactions importées`)
-      setTimeout(() => { setMsg(''); window.location.reload() }, 2000)
-    } catch (e: any) {
-      setMsg('Erreur: ' + e.message)
-    } finally {
-      setImporting(false)
-    }
-  }
 
   if (collapsed) {
     return (
@@ -163,15 +147,20 @@ export default function Sidebar() {
         </nav>
 
         <div className="px-3 mt-4">
-          <button
-            onClick={handleImport}
-            disabled={importing}
-            className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+          <NavLink
+            to="/import"
+            className={({ isActive }) =>
+              clsx(
+                'flex items-center gap-2 w-full px-3 py-2 text-xs rounded-lg transition-colors',
+                isActive
+                  ? 'bg-blue-50 text-blue-700'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+              )
+            }
           >
-            <RefreshCw size={14} className={importing ? 'animate-spin' : ''} />
-            Réimporter les données
-          </button>
-          {msg && <p className="text-xs text-green-600 px-3 mt-1">{msg}</p>}
+            <Download size={14} />
+            Import / voir les données importées
+          </NavLink>
         </div>
 
         <div className="px-3 mt-1">

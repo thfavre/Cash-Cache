@@ -54,9 +54,11 @@ class Transaction(Base):
     uetr = Column(String, index=True)  # UUID for cross-account transfer matching
     is_reversal = Column(Boolean, default=False)
     is_internal = Column(Boolean, default=False)
+    import_batch_id = Column(Integer, ForeignKey("import_batches.id"), nullable=True)
 
     account = relationship("Account", back_populates="transactions")
     category = relationship("Category", back_populates="transactions")
+    import_batch = relationship("ImportBatch", back_populates="transactions")
 
 
 class HistoryEntry(Base):
@@ -94,3 +96,29 @@ class Budget(Base):
     amount_limit = Column(Float, nullable=False)
 
     category = relationship("Category", back_populates="budgets")
+
+
+class ImportBatch(Base):
+    """One user-initiated file upload. Lets the Import page show what was
+    imported and delete exactly the transactions that came from one file."""
+    __tablename__ = "import_batches"
+
+    id = Column(Integer, primary_key=True, index=True)
+    filename = Column(String, nullable=False)      # original uploaded filename
+    stored_path = Column(String, nullable=False)    # relative path under data/uploads/
+    kind = Column(String, nullable=False)            # "camt" | "revolut" | "generic_csv"
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    transactions = relationship("Transaction", back_populates="import_batch")
+
+
+class BankProfile(Base):
+    """A saved column-mapping for a generic (non-CAMT, non-Revolut) CSV
+    format, so the same bank's export doesn't need remapping every time."""
+    __tablename__ = "bank_profiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False, unique=True)
+    header_signature = Column(JSON, nullable=False)  # sorted list of CSV column headers
+    mapping = Column(JSON, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

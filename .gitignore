@@ -2,6 +2,7 @@
 *.db
 *.db-shm
 *.db-wal
+*.db.backup-*
 
 # Data files (personal bank exports)
 data/

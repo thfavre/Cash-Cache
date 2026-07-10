@@ -230,6 +230,62 @@ export interface HistoryEntry {
   transactions: string[] | null
 }
 
+export type ImportAmountMode = 'single_signed' | 'single_unsigned_with_type' | 'separate_debit_credit'
+
+export interface ImportMapping {
+  delimiter: string
+  date_column: string
+  date_format: string
+  description_column?: string | null
+  counterparty_column?: string | null
+  amount_mode: ImportAmountMode
+  amount_column?: string | null
+  type_column?: string | null
+  credit_value?: string | null
+  debit_column?: string | null
+  credit_column?: string | null
+  decimal_separator: string
+}
+
+export interface ImportAccountOption {
+  id: number
+  name: string
+  currency: string
+}
+
+export interface ImportBankProfile {
+  id: number
+  name: string
+  mapping: ImportMapping
+}
+
+export type ImportUploadResult =
+  | { status: 'imported'; batch_id: number | null; accounts: number; transactions: number }
+  | {
+      status: 'needs_mapping'
+      upload_id: string
+      delimiter: string
+      decimal_separator: string
+      headers: string[]
+      sample_rows: string[][]
+      accounts: ImportAccountOption[]
+      suggested_profile: ImportBankProfile | null
+    }
+
+export interface ImportBatch {
+  id: number
+  filename: string
+  kind: 'camt' | 'revolut' | 'generic_csv'
+  created_at: string
+  transaction_count: number
+  accounts: ImportAccountOption[]
+}
+
+export interface ImportBatchList {
+  batches: ImportBatch[]
+  legacy_transaction_count: number
+}
+
 // ---- API functions ----
 
 
@@ -368,8 +424,21 @@ export const api = {
   }> => req('/future/fire'),
 
   // Import
-  reimport: (): Promise<{ files: number; accounts: number; transactions: number }> =>
-    req('/import', { method: 'POST' }),
+  uploadImport: (file: File): Promise<ImportUploadResult> => {
+    const form = new FormData()
+    form.append('file', file)
+    return req('/import/upload', { method: 'POST', headers: {}, body: form })
+  },
+  mapImport: (uploadId: string, payload: {
+    mapping: ImportMapping
+    account_id?: number
+    new_account?: { name: string; currency: string }
+    save_profile_name?: string
+  }): Promise<ImportUploadResult> =>
+    req(`/import/upload/${uploadId}/map`, { method: 'POST', body: JSON.stringify(payload) }),
+  importBatches: (): Promise<ImportBatchList> => req('/import/batches'),
+  deleteImportBatch: (id: number): Promise<{ status: string }> =>
+    req(`/import/batches/${id}`, { method: 'DELETE' }),
 
   // History
   history: (): Promise<HistoryEntry[]> => req('/history'),

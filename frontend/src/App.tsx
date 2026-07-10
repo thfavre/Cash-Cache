@@ -6,6 +6,7 @@ import Analytics from './pages/Analytics'
 import Planification from './pages/Planification'
 import Categorize from './pages/Categorize'
 import Futur from './pages/Futur'
+import Import from './pages/Import'
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
             <Route path="/planification" element={<div className="overflow-y-auto flex-1"><Planification /></div>} />
             <Route path="/futur" element={<div className="overflow-y-auto flex-1"><Futur /></div>} />
             <Route path="/categorize" element={<Categorize />} />
+            <Route path="/import" element={<div className="overflow-y-auto flex-1"><Import /></div>} />
             {/* Redirects for the old, now-merged routes */}
             <Route path="/cashflow" element={<Navigate to="/analytics" replace />} />
             <Route path="/budgets" element={<Navigate to="/planification" replace />} />

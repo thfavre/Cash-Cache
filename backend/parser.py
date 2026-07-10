@@ -94,7 +94,7 @@ def _get_uetr(ntry: ET._Element) -> Optional[str]:
     return _t(tx, "ns:Refs/ns:UETR")
 
 
-def parse_file(xml_path: Path, db: Session, known_ibans: set[str]) -> tuple[int, int]:
+def parse_file(xml_path: Path, db: Session, known_ibans: set[str], import_batch_id: Optional[int] = None) -> tuple[int, int]:
     """
     Parse one CAMT.053 XML file and upsert into the database.
     Returns (accounts_created, transactions_imported).
@@ -187,6 +187,7 @@ def parse_file(xml_path: Path, db: Session, known_ibans: set[str]) -> tuple[int,
             uetr=uetr,
             is_reversal=is_reversal,
             is_internal=is_internal,
+            import_batch_id=import_batch_id,
         )
         db.add(tx)
         tx_count += 1
@@ -222,7 +223,7 @@ def make_revolut_bank_ref(row: dict) -> str:
     return hashlib.md5(s.encode("utf-8")).hexdigest()
 
 
-def parse_revolut_csv(csv_path: Path, db: Session, known_ibans: set[str]) -> tuple[int, int]:
+def parse_revolut_csv(csv_path: Path, db: Session, known_ibans: set[str], import_batch_id: Optional[int] = None) -> tuple[int, int]:
     """
     Parse a Revolut statement CSV file and upsert into the database.
     Returns (accounts_created, transactions_imported).
@@ -377,12 +378,119 @@ def parse_revolut_csv(csv_path: Path, db: Session, known_ibans: set[str]) -> tup
             uetr=None,
             is_reversal=is_reversal,
             is_internal=is_internal,
+            import_batch_id=import_batch_id,
         )
         db.add(tx)
         tx_count += 1
 
     db.commit()
     return accts_created, tx_count
+
+
+def _parse_generic_number(raw: Optional[str], decimal_separator: str) -> Optional[float]:
+    if raw is None:
+        return None
+    s = raw.strip()
+    if not s:
+        return None
+    if decimal_separator == ",":
+        s = s.replace(".", "").replace(",", ".")
+    else:
+        s = s.replace(",", "")
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
+def make_generic_bank_ref(account_id: int, row: dict) -> str:
+    s = f"{account_id}|" + "|".join(f"{k}={v}" for k, v in sorted(row.items()))
+    return hashlib.md5(s.encode("utf-8")).hexdigest()
+
+
+def parse_generic_csv(csv_path: Path, mapping: dict, account: Account, db: Session, import_batch_id: Optional[int] = None) -> int:
+    """
+    Parse a CSV whose column layout was mapped by the user via the
+    "generic import" tool (see backend/routes/import_data.py). All
+    transactions are attached to `account`, which the caller has already
+    created or resolved. Returns the number of transactions imported.
+    """
+    delimiter = mapping.get("delimiter", ",")
+    decimal_separator = mapping.get("decimal_separator", ".")
+    date_format = mapping["date_format"]
+    date_column = mapping["date_column"]
+    description_column = mapping.get("description_column")
+    counterparty_column = mapping.get("counterparty_column")
+    amount_mode = mapping["amount_mode"]
+
+    with open(csv_path, "r", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f, delimiter=delimiter)
+        rows = [row for row in reader]
+
+    tx_count = 0
+    for row in rows:
+        date_str = row.get(date_column)
+        if not date_str:
+            continue
+        try:
+            tx_date = datetime.strptime(date_str.strip(), date_format).date()
+        except ValueError:
+            continue
+
+        if amount_mode == "single_signed":
+            raw_amount = _parse_generic_number(row.get(mapping["amount_column"]), decimal_separator)
+            if raw_amount is None:
+                continue
+            amount = abs(raw_amount)
+            is_credit = raw_amount > 0
+        elif amount_mode == "single_unsigned_with_type":
+            raw_amount = _parse_generic_number(row.get(mapping["amount_column"]), decimal_separator)
+            if raw_amount is None:
+                continue
+            amount = abs(raw_amount)
+            type_value = (row.get(mapping["type_column"]) or "").strip()
+            is_credit = type_value == mapping.get("credit_value")
+        elif amount_mode == "separate_debit_credit":
+            credit = _parse_generic_number(row.get(mapping.get("credit_column")), decimal_separator)
+            debit = _parse_generic_number(row.get(mapping.get("debit_column")), decimal_separator)
+            if credit:
+                amount, is_credit = abs(credit), True
+            elif debit:
+                amount, is_credit = abs(debit), False
+            else:
+                continue
+        else:
+            continue
+
+        description = (row.get(description_column) or "").strip() or None if description_column else None
+        counterparty = (row.get(counterparty_column) or "").strip() or None if counterparty_column else None
+
+        bank_ref = make_generic_bank_ref(account.id, row)
+        if db.query(Transaction).filter(Transaction.bank_ref == bank_ref).first():
+            continue
+
+        tx = Transaction(
+            account_id=account.id,
+            date=tx_date,
+            value_date=None,
+            amount=amount,
+            is_credit=is_credit,
+            description=description,
+            counterparty=counterparty,
+            counterparty_iban=None,
+            remittance_info=description,
+            tx_code=None,
+            bank_ref=bank_ref,
+            uetr=None,
+            is_reversal=False,
+            is_internal=False,
+            import_batch_id=import_batch_id,
+        )
+        db.add(tx)
+        tx_count += 1
+
+    db.commit()
+    return tx_count
 
 
 def run_import(data_dir: str, db: Session) -> dict:
