@@ -32,6 +32,21 @@ export default function ThemeModal({ current, onSelect, onClose }: ThemeModalPro
     inputRef.current?.focus()
   }, [])
 
+  // Redirect ordinary typing to the search box even if focus has drifted
+  // elsewhere in the modal (e.g. after clicking a favorite star or tabbing
+  // to a theme row) — refocusing before the key's default action fires lets
+  // the character land in the input for that same keystroke.
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (document.activeElement === inputRef.current) return
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      if (e.key.length !== 1 || e.key === ' ') return
+      inputRef.current?.focus()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
   function toggleFavorite(id: string) {
     setFavorites(prev => {
       const next = new Set(prev)
