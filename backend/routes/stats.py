@@ -52,8 +52,6 @@ def clean_merchant_name(raw_desc: str, cat_name: str) -> str:
         return "McDonald's"
     if any(k in s_upper for k in ["PHARMACIE", "SUN STORE", "AMAVITA"]):
         return "Pharmacie"
-    if any(k in s_upper for k in ["FAVRE THOMAS", "THOMAS FAVRE"]):
-        return "Virements internes / CB"
 
     if len(s) > 24:
         s = s[:24] + "..."

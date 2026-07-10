@@ -110,7 +110,6 @@ export default function Sidebar() {
               <Wallet className="w-5 h-5 text-blue-600" />
               <span>Finances</span>
             </h1>
-            <p className="text-xs text-gray-400 mt-0.5">Thomas Favre</p>
           </div>
           <button
             onClick={() => setCollapsed(true)}
