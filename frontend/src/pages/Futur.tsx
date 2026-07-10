@@ -71,11 +71,16 @@ function defaultHistoryWindow(historyMonths: number): number | null {
   return largestFinite ? largestFinite.months : null
 }
 
-// Chart row: a simulation month, plus the baseline (no-scenario) p50 for comparison
+// Chart row: a simulation month, plus the baseline (no-scenario) p50 for comparison,
+// plus stacked-band segments for the currently selected view (see chartData below).
 type ChartPoint = MonthlySimPoint & {
   baseline_networth_p50?: number
   baseline_balance_p50?: number
   baseline_portfolio_p50?: number
+  band_base?: number
+  band_10_25?: number
+  band_25_75?: number
+  band_75_90?: number
 }
 
 // All dollar-valued percentile fields — scaled when displaying in nominal terms
@@ -406,11 +411,21 @@ export default function Futur() {
       const scaled = { ...d }
       if (f !== 1) for (const k of MONEY_FIELDS) scaled[k] = d[k] * f
       const bd = baselineResult?.monthly[i]
+      // Stacked-band segments (base offset + 3 increments) for the current
+      // view, instead of drawing a full area and then painting an opaque
+      // mask back over its bottom — the mask trick also hides the grid
+      // lines underneath it all the way down to zero.
+      const p10 = scaled[`${view}_p10`], p25 = scaled[`${view}_p25`]
+      const p75 = scaled[`${view}_p75`], p90 = scaled[`${view}_p90`]
       return {
         ...scaled,
         baseline_networth_p50:  bd ? bd.networth_p50  * f : undefined,
         baseline_balance_p50:   bd ? bd.balance_p50   * f : undefined,
         baseline_portfolio_p50: bd ? bd.portfolio_p50 * f : undefined,
+        band_base:   p10,
+        band_10_25:  p25 - p10,
+        band_25_75:  p75 - p25,
+        band_75_90:  p90 - p75,
       }
     })
     const maxPoints = 120
@@ -900,51 +915,35 @@ export default function Futur() {
               />
               <Tooltip content={(props) => <CustomTooltip {...props} view={view} hasBaseline={!!baselineResult} />} />
 
-              {/* p10–p90 outer band */}
-              <Area
+              {/* p10–p90 probability band, built as stacked increments (base offset
+                  + 3 segments) instead of an opaque mask painted back over the
+                  bottom of a full area — that mask trick also hid the grid
+                  lines underneath it all the way down to zero. */}
+              <Area type="monotone" dataKey="band_base"  stackId="band" stroke="none" fill="none" />
+              <Area type="monotone" dataKey="band_10_25" stackId="band" stroke="none" fill="#bfdbfe" fillOpacity={0.35} />
+              <Area type="monotone" dataKey="band_25_75" stackId="band" stroke="none" fill="#93c5fd" fillOpacity={0.45} />
+              <Area type="monotone" dataKey="band_75_90" stackId="band" stroke="none" fill="#bfdbfe" fillOpacity={0.35} />
+
+              {/* Invisible lines just to get colored hover dots on p90/p10,
+                  matching the tooltip's Optimiste/Pessimiste rows */}
+              <Line
                 type="monotone"
                 dataKey={`${view}_p90`}
                 name="p90 (optimiste)"
                 stroke="none"
-                fill="#bfdbfe"
-                fillOpacity={0.35}
                 dot={false}
-                activeDot={false}
+                activeDot={{ r: 4, fill: '#34d399', stroke: '#fff', strokeWidth: 1 }}
               />
-              <Area
+              <Line
                 type="monotone"
                 dataKey={`${view}_p10`}
                 name="p10 (pessimiste)"
                 stroke="none"
-                fill="var(--color-white)"
-                fillOpacity={1}
                 dot={false}
-                activeDot={false}
+                activeDot={{ r: 4, fill: '#fb923c', stroke: '#fff', strokeWidth: 1 }}
               />
 
-              {/* p25–p75 inner band */}
-              <Area
-                type="monotone"
-                dataKey={`${view}_p75`}
-                name="p75"
-                stroke="none"
-                fill="#93c5fd"
-                fillOpacity={0.45}
-                dot={false}
-                activeDot={false}
-              />
-              <Area
-                type="monotone"
-                dataKey={`${view}_p25`}
-                name="p25"
-                stroke="none"
-                fill="var(--color-white)"
-                fillOpacity={1}
-                dot={false}
-                activeDot={false}
-              />
-
-              {/* Median line — the only series that shows a hover dot */}
+              {/* Median line */}
               <Line
                 type="monotone"
                 dataKey={`${view}_p50`}
@@ -952,7 +951,7 @@ export default function Futur() {
                 stroke="#2563eb"
                 strokeWidth={2.5}
                 dot={false}
-                activeDot={{ r: 4 }}
+                activeDot={{ r: 5, fill: '#60a5fa', stroke: '#fff', strokeWidth: 1 }}
               />
 
               {/* Baseline (no what-if scenarios) median, for comparison */}
@@ -969,7 +968,7 @@ export default function Futur() {
                 />
               )}
 
-              {/* FIRE line — drawn last so it isn't hidden under the opaque p10/p25 mask bands */}
+              {/* FIRE line — drawn last so it renders on top of the probability band */}
               {fireNumber > 0 && (
                 <ReferenceLine
                   y={fireNumber}
