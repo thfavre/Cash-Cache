@@ -27,7 +27,6 @@ export default function Sidebar() {
   const [uncatCount, setUncatCount] = useState<number | null>(null)
   const [collapsed, setCollapsed] = useState(false)
   const [theme, setTheme] = useState(() => localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME)
-  const [preview, setPreview] = useState<string | null>(null)
   const [themeModalOpen, setThemeModalOpen] = useState(false)
 
   useEffect(() => {
@@ -36,8 +35,8 @@ export default function Sidebar() {
   }, [])
 
   useEffect(() => {
-    applyTheme(preview ?? theme)
-  }, [theme, preview])
+    applyTheme(theme)
+  }, [theme])
 
   function handleSelectTheme(id: string) {
     setTheme(id)
@@ -45,11 +44,10 @@ export default function Sidebar() {
   }
 
   const activeThemeName = THEMES.find(t => t.id === theme)?.name ?? theme
-  const activeEffectTheme = preview ?? theme
-  const isMatrix = activeEffectTheme === 'matrix'
-  const isAurora = activeEffectTheme === 'aurora'
-  const isNebula = activeEffectTheme === 'nebula'
-  const isVaporwave = activeEffectTheme === 'vaporwave'
+  const isMatrix = theme === 'matrix'
+  const isAurora = theme === 'aurora'
+  const isNebula = theme === 'nebula'
+  const isVaporwave = theme === 'vaporwave'
 
   async function handleImport() {
     setImporting(true)
@@ -90,7 +88,6 @@ export default function Sidebar() {
           <ThemeModal
             current={theme}
             onSelect={handleSelectTheme}
-            onPreview={setPreview}
             onClose={() => setThemeModalOpen(false)}
           />
         )}
@@ -174,7 +171,6 @@ export default function Sidebar() {
         <ThemeModal
           current={theme}
           onSelect={handleSelectTheme}
-          onPreview={setPreview}
           onClose={() => setThemeModalOpen(false)}
         />
       )}

@@ -4730,6 +4730,25 @@
 }
 
 /*
+ * Diagonal wipe transition when switching themes (see applyTheme in
+ * theme/themes.ts, which drives this via the View Transitions API).
+ * The "new" snapshot is clipped to a triangle anchored at the top-left
+ * corner that grows past the viewport bounds, so its diagonal edge sweeps
+ * toward the bottom-right; the "old" snapshot sits underneath unanimated
+ * and is progressively covered.
+ */
+::view-transition-old(root) {
+  animation: none;
+}
+::view-transition-new(root) {
+  animation: theme-wipe-reveal 0.7s ease-in-out forwards;
+}
+@keyframes theme-wipe-reveal {
+  from { clip-path: polygon(0% 0%, 0% 0%, 0% 0%); }
+  to { clip-path: polygon(0% 0%, 200% 0%, 0% 200%); }
+}
+
+/*
  * Animated "prank theme" effects, adapted from Monkeytype's rainbow_trail,
  * rgb, trance, phantom and shadow themes. Applied via .theme-fx-logo and
  * .theme-fx-nav-active, which are inert unless the matching theme is active.

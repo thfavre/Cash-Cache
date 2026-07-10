@@ -4,7 +4,6 @@ import clsx from 'clsx'
 import { THEMES } from '../theme/themes'
 
 const FAVORITES_KEY = 'themeFavorites'
-const HOVER_PREVIEW_DELAY = 500
 
 function loadFavorites(): Set<string> {
   try {
@@ -17,11 +16,10 @@ function loadFavorites(): Set<string> {
 interface ThemeModalProps {
   current: string
   onSelect: (id: string) => void
-  onPreview: (id: string | null) => void
   onClose: () => void
 }
 
-export default function ThemeModal({ current, onSelect, onPreview, onClose }: ThemeModalProps) {
+export default function ThemeModal({ current, onSelect, onClose }: ThemeModalProps) {
   const [query, setQuery] = useState('')
   const [favorites, setFavorites] = useState(loadFavorites)
   // Order is frozen for the lifetime of the modal so starring a theme doesn't
@@ -29,30 +27,10 @@ export default function ThemeModal({ current, onSelect, onPreview, onClose }: Th
   // effect the next time the picker is opened.
   const [sortSnapshot] = useState(loadFavorites)
   const inputRef = useRef<HTMLInputElement>(null)
-  const hoverTimeoutRef = useRef<number | null>(null)
 
   useEffect(() => {
     inputRef.current?.focus()
   }, [])
-
-  useEffect(() => {
-    return () => {
-      if (hoverTimeoutRef.current !== null) window.clearTimeout(hoverTimeoutRef.current)
-    }
-  }, [])
-
-  function handleHover(id: string) {
-    if (hoverTimeoutRef.current !== null) window.clearTimeout(hoverTimeoutRef.current)
-    hoverTimeoutRef.current = window.setTimeout(() => onPreview(id), HOVER_PREVIEW_DELAY)
-  }
-
-  function handleHoverEnd() {
-    if (hoverTimeoutRef.current !== null) {
-      window.clearTimeout(hoverTimeoutRef.current)
-      hoverTimeoutRef.current = null
-    }
-    onPreview(null)
-  }
 
   function toggleFavorite(id: string) {
     setFavorites(prev => {
@@ -71,15 +49,10 @@ export default function ThemeModal({ current, onSelect, onPreview, onClose }: Th
     [query, sortSnapshot]
   )
 
-  function handleClose() {
-    onPreview(null)
-    onClose()
-  }
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-start justify-center pt-24 px-4 bg-black/30"
-      onClick={handleClose}
+      onClick={onClose}
     >
       <div
         onClick={e => e.stopPropagation()}
@@ -91,23 +64,24 @@ export default function ThemeModal({ current, onSelect, onPreview, onClose }: Th
             ref={inputRef}
             value={query}
             onChange={e => setQuery(e.target.value)}
-            onKeyDown={e => e.key === 'Escape' && handleClose()}
+            onKeyDown={e => e.key === 'Escape' && onClose()}
             placeholder="Thème..."
             className="flex-1 outline-none text-sm text-gray-900 placeholder:text-gray-400 bg-transparent"
           />
         </div>
 
-        <div
-          className="overflow-y-auto flex-1 py-1"
-          onMouseLeave={handleHoverEnd}
-        >
+        <div className="overflow-y-auto flex-1 py-1">
           {filtered.map(theme => (
-            <button
+            <div
               key={theme.id}
-              onMouseEnter={() => handleHover(theme.id)}
+              role="button"
+              tabIndex={0}
               onClick={() => onSelect(theme.id)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(theme.id) }
+              }}
               className={clsx(
-                'w-full flex items-center gap-2 px-4 py-2 text-sm transition-colors',
+                'w-full flex items-center gap-2 px-4 py-2 text-sm transition-colors cursor-pointer',
                 theme.id === current ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
               )}
             >
@@ -144,7 +118,7 @@ export default function ThemeModal({ current, onSelect, onPreview, onClose }: Th
               >
                 {theme.effect && <Sparkles size={13} />}
               </span>
-            </button>
+            </div>
           ))}
           {filtered.length === 0 && (
             <p className="px-4 py-6 text-sm text-gray-400 text-center">Aucun thème trouvé</p>

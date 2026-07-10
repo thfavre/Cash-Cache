@@ -211,5 +211,14 @@ export const DEFAULT_THEME = 'light'
 export const THEME_STORAGE_KEY = 'theme'
 
 export function applyTheme(id: string) {
-  document.documentElement.setAttribute('data-theme', id)
+  if (document.documentElement.getAttribute('data-theme') === id) return
+  const apply = () => document.documentElement.setAttribute('data-theme', id)
+  const startViewTransition = (document as Document & {
+    startViewTransition?: (callback: () => void) => void
+  }).startViewTransition
+  if (typeof startViewTransition === 'function') {
+    startViewTransition.call(document, apply)
+  } else {
+    apply()
+  }
 }
