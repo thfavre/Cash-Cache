@@ -109,6 +109,11 @@ export interface InvestmentSettings {
   monthly_contrib: number | null
   auto_monthly_contrib: number
   effective_contrib: number
+  target_liquid: number | null
+  target_inflation_adjusted: boolean
+  target_set_date: string | null
+  target_effective: number | null
+  contrib_mode: 'manual' | 'auto'
 }
 
 export interface MonthlySimPoint {
@@ -146,6 +151,17 @@ export interface SimulationResult {
   starting_portfolio: number
   mu_monthly_cashflow: number
   sigma_monthly_cashflow: number
+  pct_solvent_final: number
+}
+
+export interface CashflowSummary {
+  leftover_per_month: number
+  invested_per_month: number
+  history_months_available: number
+  current_liquid_balance: number
+  target_liquid: number | null
+  target_effective: number | null
+  above_target: boolean | null
 }
 
 export interface ScenarioItem {
@@ -322,6 +338,9 @@ export const api = {
     inflation_rate?: number
     manual_portfolio?: number
     monthly_contrib?: number
+    target_liquid?: number
+    target_inflation_adjusted?: boolean
+    contrib_mode?: 'manual' | 'auto'
   }): Promise<InvestmentSettings> =>
     req('/future/investment-settings', { method: 'PUT', body: JSON.stringify(body) }),
   simulate: (body: {
@@ -332,8 +351,14 @@ export const api = {
     inflation_rate?: number
     portfolio_value?: number
     monthly_contrib?: number
+    contrib_mode?: 'manual' | 'auto'
+    target_liquid?: number
   }): Promise<SimulationResult> =>
     req('/future/simulate', { method: 'POST', body: JSON.stringify(body) }),
+  cashflowSummary: (windowMonths?: number | null): Promise<CashflowSummary> => {
+    const qs = windowMonths ? `?window_months=${windowMonths}` : ''
+    return req(`/future/cashflow-summary${qs}`)
+  },
   fireSummary: (): Promise<{
     fire_number: number
     fire_months: FireMonths

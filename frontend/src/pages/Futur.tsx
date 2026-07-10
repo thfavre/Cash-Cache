@@ -5,10 +5,11 @@ import {
 } from 'recharts'
 import {
   TrendingUp, Flame, Settings2, Plus, X, ChevronDown, ChevronUp,
-  Target, AlertTriangle, Sparkles,
+  Target, AlertTriangle, Sparkles, HelpCircle, PiggyBank, CheckCircle2,
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import {
-  api, InvestmentSettings, MonthlySimPoint, SimulationResult, ScenarioItem,
+  api, InvestmentSettings, MonthlySimPoint, SimulationResult, ScenarioItem, CashflowSummary,
 } from '../api'
 
 // ── Formatters ────────────────────────────────────────────────────────────────
@@ -45,6 +46,38 @@ const HORIZONS = [
 // Which data key to show
 type ViewMode = 'networth' | 'balance' | 'portfolio'
 
+// ── History window presets (for the leftover/invested cashflow analysis) ──────
+
+const HISTORY_WINDOWS: { label: string; months: number | null }[] = [
+  { label: '1 mois',          months: 1 },
+  { label: '3 mois',          months: 3 },
+  { label: '6 mois',          months: 6 },
+  { label: '1 an',            months: 12 },
+  { label: '2 ans',           months: 24 },
+  { label: '5 ans',           months: 60 },
+  { label: 'Depuis toujours', months: null },
+]
+
+function availableHistoryWindows(historyMonths: number) {
+  return HISTORY_WINDOWS.filter(w => w.months === null || w.months <= historyMonths)
+}
+
+// Prefer a 1-year window; fall back to the largest window the data actually
+// supports, so we never suggest "5 ans" when there's only 1 year of history.
+function defaultHistoryWindow(historyMonths: number): number | null {
+  const avail = availableHistoryWindows(historyMonths)
+  if (avail.some(w => w.months === 12)) return 12
+  const largestFinite = [...avail].reverse().find(w => w.months !== null)
+  return largestFinite ? largestFinite.months : null
+}
+
+// Chart row: a simulation month, plus the baseline (no-scenario) p50 for comparison
+type ChartPoint = MonthlySimPoint & {
+  baseline_networth_p50?: number
+  baseline_balance_p50?: number
+  baseline_portfolio_p50?: number
+}
+
 // ── Scenario helpers ──────────────────────────────────────────────────────────
 
 const SCENARIO_TYPES = [
@@ -68,18 +101,22 @@ function scenarioLabel(sc: ScenarioItem): string {
 
 interface CustomTooltipProps {
   active?: boolean
-  payload?: Array<{ payload?: MonthlySimPoint }>
+  payload?: Array<{ payload?: ChartPoint }>
   label?: string
   view: ViewMode
+  hasBaseline: boolean
 }
 
-function CustomTooltip({ active, payload, label, view }: CustomTooltipProps) {
+function CustomTooltip({ active, payload, label, view, hasBaseline }: CustomTooltipProps) {
   if (!active || !payload?.length) return null
   const d = payload[0]?.payload
   if (!d) return null
 
   const at = (pct: string) => d[`${view}_${pct}` as keyof MonthlySimPoint] as number
   const keys = { p10: at('p10'), p25: at('p25'), p50: at('p50'), p75: at('p75'), p90: at('p90') }
+
+  const baseline = hasBaseline ? d[`baseline_${view}_p50` as keyof ChartPoint] as number | undefined : undefined
+  const delta = baseline !== undefined ? keys.p50 - baseline : undefined
 
   return (
     <div className="bg-gray-900 text-white rounded-xl px-4 py-3 shadow-2xl text-sm border border-gray-700 min-w-[200px]">
@@ -88,6 +125,14 @@ function CustomTooltip({ active, payload, label, view }: CustomTooltipProps) {
         <div className="flex justify-between gap-6"><span className="text-emerald-400">Optimiste (p90)</span><span className="font-bold">{fmt(keys.p90)}</span></div>
         <div className="flex justify-between gap-6"><span className="text-blue-400">Probable (p50)</span><span className="font-bold">{fmt(keys.p50)}</span></div>
         <div className="flex justify-between gap-6"><span className="text-orange-400">Pessimiste (p10)</span><span className="font-bold">{fmt(keys.p10)}</span></div>
+        {delta !== undefined && (
+          <div className="flex justify-between gap-6 pt-1.5 mt-1.5 border-t border-gray-700">
+            <span className="text-purple-400">Impact scénarios</span>
+            <span className={`font-bold ${delta >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              {delta >= 0 ? '+' : ''}{fmt(delta)}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -117,6 +162,45 @@ function Slider({
   )
 }
 
+// ── Info tooltip ("little helper") ────────────────────────────────────────────
+
+function InfoTip({ text }: { text: string }) {
+  return (
+    <span className="group relative inline-flex items-center">
+      <HelpCircle className="w-3.5 h-3.5 text-gray-300 hover:text-gray-500 cursor-help" />
+      <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 rounded-lg bg-gray-900 text-white text-xs leading-snug p-2.5 opacity-0 scale-95 origin-bottom group-hover:opacity-100 group-hover:scale-100 transition-all z-20 shadow-2xl">
+        {text}
+      </span>
+    </span>
+  )
+}
+
+// ── Stat card ─────────────────────────────────────────────────────────────────
+
+function StatCard({
+  icon: Icon, iconColorClass, label, info, value, valueColorClass, caption,
+}: {
+  icon: LucideIcon
+  iconColorClass: string
+  label: string
+  info: string
+  value: string
+  valueColorClass?: string
+  caption?: string
+}) {
+  return (
+    <div className="bg-white border border-gray-200 rounded-2xl p-4">
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <Icon className={`w-4 h-4 shrink-0 ${iconColorClass}`} />
+        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</span>
+        <InfoTip text={info} />
+      </div>
+      <p className={`text-xl font-black ${valueColorClass ?? 'text-gray-900'}`}>{value}</p>
+      {caption && <p className="text-xs text-gray-400 mt-0.5">{caption}</p>}
+    </div>
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function Futur() {
@@ -129,8 +213,24 @@ export default function Futur() {
   const [manualPortfolio, setManualPortfolio] = useState('')  // raw input for portfolio override
   const [contribManuallySet, setContribManuallySet] = useState(false)  // whether monthly_contrib should be persisted as an override
 
+  // Contribution mode: manual (fixed amount) vs auto (sweep excess above a liquid-balance target)
+  const [contribMode, setContribMode] = useState<'manual' | 'auto'>('manual')
+
+  // Liquid-balance target (buffer to always keep in cash, used by auto mode)
+  const [targetLiquidInput, setTargetLiquidInput]           = useState('')  // raw input
+  const [targetLiquidValue, setTargetLiquidValue]           = useState(0)   // live numeric value, drives the simulation immediately
+  const [targetInflationAdjusted, setTargetInflationAdjusted] = useState(false)
+
+  // Historical cashflow analysis (leftover / invested per month)
+  const [cashflowWindow, setCashflowWindow]         = useState<number | null>(12)
+  const [cashflowWindowInitialized, setCashflowWindowInitialized] = useState(false)
+  const [cashflowSummary, setCashflowSummary]       = useState<CashflowSummary | null>(null)
+  const [contribJustAdded, setContribJustAdded]     = useState<{ amount: number; newContrib: number } | null>(null)
+  const [contribJustAddedFading, setContribJustAddedFading] = useState(false)
+
   // Simulation
   const [result, setResult]     = useState<SimulationResult | null>(null)
+  const [baselineResult, setBaselineResult] = useState<SimulationResult | null>(null)  // no-scenario run, for what-if comparison
   const [loading, setLoading]   = useState(false)
   const [horizonIdx, setHorizonIdx] = useState(4) // default 10 years
   const [view, setView]         = useState<ViewMode>('networth')
@@ -160,6 +260,10 @@ export default function Futur() {
       setMonthlyContrib(s.effective_contrib)
       setManualPortfolio(s.manual_portfolio != null ? String(s.manual_portfolio) : '')
       setContribManuallySet(s.monthly_contrib != null)
+      setContribMode(s.contrib_mode)
+      setTargetLiquidInput(s.target_liquid != null ? String(s.target_liquid) : '')
+      setTargetLiquidValue(s.target_effective ?? s.target_liquid ?? 0)
+      setTargetInflationAdjusted(s.target_inflation_adjusted)
     })
   }, [])
 
@@ -168,6 +272,30 @@ export default function Futur() {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
   }, [])
 
+  // ── Load cashflow analysis (re-fetch whenever the window changes) ────────
+  useEffect(() => {
+    if (!settings) return
+    api.cashflowSummary(cashflowWindow ?? undefined).then(info => {
+      setCashflowSummary(info)
+      if (!cashflowWindowInitialized) {
+        setCashflowWindowInitialized(true)
+        // Only trigger a second fetch if the resolved default actually
+        // differs from what we already fetched — avoids a redundant
+        // round-trip (and the resulting flicker) on the common case.
+        const def = defaultHistoryWindow(info.history_months_available)
+        if (def !== cashflowWindow) setCashflowWindow(def)
+      }
+    })
+  }, [settings, cashflowWindow, cashflowWindowInitialized])
+
+  // ── Fade out the "contribution updated" confirmation after a few seconds ─
+  useEffect(() => {
+    if (!contribJustAdded) return
+    const fadeTimer   = setTimeout(() => setContribJustAddedFading(true), 3200)
+    const removeTimer = setTimeout(() => { setContribJustAdded(null); setContribJustAddedFading(false) }, 3700)
+    return () => { clearTimeout(fadeTimer); clearTimeout(removeTimer) }
+  }, [contribJustAdded])
+
   // ── Run simulation (debounced) ────────────────────────────────────────────
   const runSim = useCallback(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -175,31 +303,48 @@ export default function Futur() {
       const requestId = ++requestIdRef.current
       setLoading(true)
       try {
-        const res = await api.simulate({
+        const baseParams = {
           months:          HORIZONS[horizonIdx].months,
           n_simulations:   1000,
           annual_rate:     annualRate,
           inflation_rate:  inflationRate,
           portfolio_value: portfolioValue,
           monthly_contrib: monthlyContrib,
-          scenarios,
-        })
+          contrib_mode:    contribMode,
+          target_liquid:   contribMode === 'auto' ? targetLiquidValue : undefined,
+        }
+        // When what-if scenarios are active, also run a no-scenario baseline
+        // in parallel so the chart can show their impact by comparison.
+        const [res, baseRes] = await Promise.all([
+          api.simulate({ ...baseParams, scenarios }),
+          scenarios.length > 0 ? api.simulate({ ...baseParams, scenarios: [] }) : Promise.resolve(null),
+        ])
         // Drop stale responses from a superseded request (out-of-order network replies).
-        if (requestId === requestIdRef.current) setResult(res)
+        if (requestId === requestIdRef.current) {
+          setResult(res)
+          setBaselineResult(baseRes)
+        }
       } finally {
         if (requestId === requestIdRef.current) setLoading(false)
       }
     }, 400)
-  }, [annualRate, inflationRate, portfolioValue, monthlyContrib, horizonIdx, scenarios])
+  }, [annualRate, inflationRate, portfolioValue, monthlyContrib, horizonIdx, scenarios, contribMode, targetLiquidValue])
 
   useEffect(() => {
     if (settings !== null) runSim()
-  }, [annualRate, inflationRate, portfolioValue, monthlyContrib, horizonIdx, scenarios, settings])
+  }, [annualRate, inflationRate, portfolioValue, monthlyContrib, horizonIdx, scenarios, settings, contribMode, targetLiquidValue])
 
-  // ── Chart data (thin out for long horizons) ───────────────────────────────
-  const chartData = (() => {
+  // ── Chart data (merge baseline p50s in, thin out for long horizons) ───────
+  const chartData: ChartPoint[] = (() => {
     if (!result) return []
-    const data = result.monthly
+    const data: ChartPoint[] = baselineResult
+      ? result.monthly.map((d, i) => ({
+          ...d,
+          baseline_networth_p50:  baselineResult.monthly[i]?.networth_p50,
+          baseline_balance_p50:   baselineResult.monthly[i]?.balance_p50,
+          baseline_portfolio_p50: baselineResult.monthly[i]?.portfolio_p50,
+        }))
+      : result.monthly
     const maxPoints = 120
     if (data.length <= maxPoints) return data
     const step = Math.ceil(data.length / maxPoints)
@@ -225,6 +370,34 @@ export default function Futur() {
     setSettings(updated)
     setPortfolioValue(updated.effective_portfolio)
     setMonthlyContrib(updated.effective_contrib)
+  }
+
+  // ── Move the detected leftover into the monthly contribution ─────────────
+  async function addLeftoverToContrib() {
+    if (!cashflowSummary || !settings) return
+    const amount = cashflowSummary.leftover_per_month
+    const updated = await api.saveInvestmentSettings({
+      monthly_contrib: settings.effective_contrib + amount,
+    })
+    setSettings(updated)
+    setMonthlyContrib(updated.effective_contrib)
+    setContribManuallySet(true)
+    setContribJustAdded({ amount, newContrib: updated.effective_contrib })
+  }
+
+  // ── Save the liquid-balance target (buffer to always keep in cash) ───────
+  async function saveTargetLiquid() {
+    const updated = await api.saveInvestmentSettings({
+      target_liquid:              targetLiquidInput !== '' ? Number(targetLiquidInput) : -1,
+      target_inflation_adjusted:  targetInflationAdjusted,
+    })
+    setSettings(updated)
+  }
+
+  async function clearTargetLiquid() {
+    const updated = await api.saveInvestmentSettings({ target_liquid: -1 })
+    setSettings(updated)
+    setTargetLiquidInput('')
   }
 
   // ── Reset monthly contribution back to the auto-computed average ─────────
@@ -278,6 +451,94 @@ export default function Futur() {
         </button>
       </div>
 
+      {/* "Contribution updated" confirmation */}
+      {contribJustAdded && (
+        <div
+          className={`bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center gap-2.5 transition-opacity duration-500 ${
+            contribJustAddedFading ? 'opacity-0' : 'opacity-100'
+          }`}
+        >
+          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+          <p className="text-sm text-gray-700">
+            Contribution mensuelle mise à jour : <strong className="text-emerald-700">{fmt(contribJustAdded.newContrib)}/mois</strong>
+            {' '}(+{fmt(contribJustAdded.amount)})
+          </p>
+        </div>
+      )}
+
+      {/* Cashflow analysis: leftover / invested per month + buffer status */}
+      {settingsOpen && cashflowSummary && (() => {
+        const windows = availableHistoryWindows(cashflowSummary.history_months_available)
+        const currentLabel = HISTORY_WINDOWS.find(w => w.months === cashflowWindow)?.label ?? 'Depuis toujours'
+        const canAddToContrib = contribMode === 'manual' && cashflowSummary.leftover_per_month > 5 && cashflowSummary.above_target !== false
+        return (
+          <div className="bg-purple-50 border border-purple-200 rounded-2xl p-5 space-y-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <PiggyBank className="w-5 h-5 text-purple-600 shrink-0" />
+                <h2 className="text-sm font-semibold text-gray-700">Analyse de trésorerie — {currentLabel}</h2>
+              </div>
+              <div className="flex gap-1 bg-white border border-purple-200 rounded-xl p-1">
+                {windows.map(w => (
+                  <button
+                    key={w.label}
+                    onClick={() => setCashflowWindow(w.months)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                      cashflowWindow === w.months
+                        ? 'bg-purple-600 text-white shadow-sm'
+                        : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                    }`}
+                  >
+                    {w.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Reste en moyenne / mois</p>
+                <p className={`text-xl font-black ${cashflowSummary.leftover_per_month >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                  {cashflowSummary.leftover_per_month >= 0 ? '+' : ''}{fmt(cashflowSummary.leftover_per_month)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Investi en moyenne / mois</p>
+                <p className="text-xl font-black text-blue-600">{fmt(cashflowSummary.invested_per_month)}</p>
+              </div>
+            </div>
+
+            {cashflowSummary.target_effective !== null && (
+              <p className="text-xs text-gray-500">
+                Solde actuel <strong className="text-gray-700">{fmt(cashflowSummary.current_liquid_balance)}</strong>
+                {' '}—{' '}
+                {cashflowSummary.above_target ? (
+                  <span className="text-emerald-600 font-semibold">
+                    {fmt(cashflowSummary.current_liquid_balance - cashflowSummary.target_effective)} au-dessus
+                  </span>
+                ) : (
+                  <span className="text-red-500 font-semibold">
+                    {fmt(cashflowSummary.target_effective - cashflowSummary.current_liquid_balance)} en-dessous
+                  </span>
+                )}
+                {' '}de votre objectif de {fmt(cashflowSummary.target_effective)}.
+              </p>
+            )}
+
+            {canAddToContrib && (
+              <div className="flex justify-end">
+                <button
+                  onClick={addLeftoverToContrib}
+                  className="px-4 py-1.5 bg-purple-600 text-white text-sm font-semibold rounded-lg hover:bg-purple-700 transition-colors"
+                >
+                  Ajouter à la contribution mensuelle (+{fmt(cashflowSummary.leftover_per_month)}/mois)
+                </button>
+              </div>
+            )}
+          </div>
+        )
+      })()}
+
       {/* Settings panel */}
       {settingsOpen && (
         <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
@@ -300,23 +561,104 @@ export default function Futur() {
                 format={v => `${(v * 100).toFixed(1)} %`}
                 onChange={setInflationRate}
               />
+
               <div>
-                <Slider
-                  label="Contribution mensuelle"
-                  value={monthlyContrib}
-                  min={0} max={10000} step={50}
-                  format={v => fmt(v)}
-                  onChange={v => { setMonthlyContrib(v); setContribManuallySet(true) }}
-                />
-                {contribManuallySet && (
-                  <button
-                    onClick={clearContribOverride}
-                    className="text-xs text-gray-400 hover:text-red-500 mt-1 underline"
-                  >
-                    Revenir à la moyenne auto ({fmt(settings?.auto_monthly_contrib ?? 0)})
-                  </button>
-                )}
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide block mb-1.5">Mode de contribution</span>
+                <div className="flex gap-1 bg-gray-50 border border-gray-200 rounded-xl p-1 w-fit">
+                  {([
+                    ['manual', 'Manuel'],
+                    ['auto',   'Automatique'],
+                  ] as const).map(([mode, label]) => (
+                    <button
+                      key={mode}
+                      onClick={() => {
+                        setContribMode(mode)
+                        api.saveInvestmentSettings({ contrib_mode: mode }).then(setSettings)
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        contribMode === mode
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'text-gray-500 hover:text-gray-900 hover:bg-white'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
+
+              {contribMode === 'manual' ? (
+                <div>
+                  <Slider
+                    label="Contribution mensuelle"
+                    value={monthlyContrib}
+                    min={0} max={10000} step={50}
+                    format={v => fmt(v)}
+                    onChange={v => { setMonthlyContrib(v); setContribManuallySet(true) }}
+                  />
+                  {contribManuallySet && (
+                    <button
+                      onClick={clearContribOverride}
+                      className="text-xs text-gray-400 hover:text-red-500 mt-1 underline"
+                    >
+                      Revenir à la moyenne auto ({fmt(settings?.auto_monthly_contrib ?? 0)})
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-gray-400">
+                    Le montant à toujours garder en liquide. Tout ce qui dépasse cet objectif est automatiquement investi chaque mois.
+                  </p>
+                  <div className="flex flex-wrap items-end gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide block mb-1">
+                        Montant cible (CHF)
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="ex. 10000"
+                        value={targetLiquidInput}
+                        onChange={e => {
+                          setTargetLiquidInput(e.target.value)
+                          setTargetLiquidValue(e.target.value !== '' ? Number(e.target.value) : 0)
+                        }}
+                        className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-40 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                    </div>
+                    <label className="flex items-center gap-2 text-sm text-gray-600 pb-2">
+                      <input
+                        type="checkbox"
+                        checked={targetInflationAdjusted}
+                        onChange={e => setTargetInflationAdjusted(e.target.checked)}
+                        className="rounded border-gray-300 accent-blue-600"
+                      />
+                      Ajuster à l'inflation
+                    </label>
+                    <button
+                      onClick={saveTargetLiquid}
+                      className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Sauvegarder
+                    </button>
+                  </div>
+                  {settings?.target_liquid != null && (
+                    <>
+                      {settings.target_inflation_adjusted && settings.target_effective != null && (
+                        <p className="text-xs text-gray-400">
+                          Objectif ajusté à l'inflation depuis le {settings.target_set_date} : {fmt(settings.target_effective)} aujourd'hui.
+                        </p>
+                      )}
+                      <button
+                        onClick={clearTargetLiquid}
+                        className="text-xs text-gray-400 hover:text-red-500 underline"
+                      >
+                        Supprimer l'objectif
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Right: portfolio value override */}
@@ -411,17 +753,24 @@ export default function Futur() {
 
       {/* Main chart */}
       <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-gray-700">
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
             Cône de probabilité — {
               view === 'networth' ? 'Patrimoine net (balance + portefeuille)' :
               view === 'portfolio' ? 'Portefeuille d\'investissement' : 'Balance liquide'
             }
+            <InfoTip text="La zone ombrée couvre 80% des 1000 futurs simulés (p10 pessimiste à p90 optimiste). La ligne bleue est le résultat médian (p50) — celui qui a autant de chances d'être dépassé que non atteint." />
           </h2>
           {loading && (
             <span className="text-xs text-blue-500 animate-pulse">Calcul en cours…</span>
           )}
         </div>
+        {baselineResult && (
+          <p className="text-xs text-gray-400 mb-3 flex items-center gap-1.5">
+            <span className="inline-block w-3 border-t-2 border-dashed border-gray-400" />
+            Sans scénarios · <span className="inline-block w-3 border-t-2 border-dashed border-purple-400" /> Début d'un scénario
+          </p>
+        )}
 
         {result ? (
           <ResponsiveContainer width="100%" height={380}>
@@ -438,18 +787,7 @@ export default function Futur() {
                 tickFormatter={fmtSm}
                 width={60}
               />
-              <Tooltip content={(props) => <CustomTooltip {...props} view={view} />} />
-
-              {/* FIRE line */}
-              {fireNumber > 0 && (
-                <ReferenceLine
-                  y={fireNumber}
-                  stroke="#f59e0b"
-                  strokeDasharray="6 3"
-                  strokeWidth={1.5}
-                  label={{ value: `🎯 FIRE ${fmtSm(fireNumber)}`, position: 'insideTopRight', fontSize: 11, fill: '#f59e0b' }}
-                />
-              )}
+              <Tooltip content={(props) => <CustomTooltip {...props} view={view} hasBaseline={!!baselineResult} />} />
 
               {/* p10–p90 outer band */}
               <Area
@@ -465,7 +803,7 @@ export default function Futur() {
                 dataKey={`${view}_p10`}
                 name="p10 (pessimiste)"
                 stroke="none"
-                fill="#ffffff"
+                fill="var(--color-white)"
                 fillOpacity={1}
               />
 
@@ -483,7 +821,7 @@ export default function Futur() {
                 dataKey={`${view}_p25`}
                 name="p25"
                 stroke="none"
-                fill="#ffffff"
+                fill="var(--color-white)"
                 fillOpacity={1}
               />
 
@@ -496,6 +834,47 @@ export default function Futur() {
                 strokeWidth={2.5}
                 dot={false}
               />
+
+              {/* Baseline (no what-if scenarios) median, for comparison */}
+              {baselineResult && (
+                <Line
+                  type="monotone"
+                  dataKey={`baseline_${view}_p50`}
+                  name="Sans scénarios"
+                  stroke="#9ca3af"
+                  strokeWidth={1.5}
+                  strokeDasharray="5 3"
+                  dot={false}
+                />
+              )}
+
+              {/* FIRE line — drawn last so it isn't hidden under the opaque p10/p25 mask bands */}
+              {fireNumber > 0 && (
+                <ReferenceLine
+                  y={fireNumber}
+                  stroke="#f59e0b"
+                  strokeDasharray="6 3"
+                  strokeWidth={1.5}
+                  label={{ value: `🎯 FIRE ${fmtSm(fireNumber)}`, position: 'insideTopRight', fontSize: 11, fill: '#f59e0b' }}
+                />
+              )}
+
+              {/* Mark where each what-if scenario kicks in */}
+              {scenarios.map((sc, i) => {
+                const monthLabel = result.monthly[sc.start_month]?.month
+                if (!monthLabel) return null
+                const icon = SCENARIO_TYPES.find(t => t.value === sc.type)?.label.split(' ')[0] ?? '•'
+                return (
+                  <ReferenceLine
+                    key={i}
+                    x={monthLabel}
+                    stroke="#c084fc"
+                    strokeDasharray="2 3"
+                    strokeWidth={1.5}
+                    label={{ value: icon, position: 'insideBottom', fontSize: 13 }}
+                  />
+                )
+              })}
             </ComposedChart>
           </ResponsiveContainer>
         ) : (
@@ -508,100 +887,86 @@ export default function Futur() {
         )}
       </div>
 
-      {/* FIRE card + summary stats */}
-      {result && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-          {/* FIRE card */}
-          <div className="md:col-span-2 bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-6">
-            <div className="flex items-start gap-3">
-              <div className="bg-amber-400 rounded-xl p-2.5">
-                <Flame className="w-5 h-5 text-white" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-bold text-gray-900 text-base">Indépendance Financière (FIRE)</h3>
-                <p className="text-xs text-gray-500 mt-0.5">Règle des 4% · Portefeuille cible</p>
-                <p className="text-3xl font-black text-amber-600 mt-2">{fmt(result.fire_number)}</p>
-                <p className="text-xs text-gray-500 mt-1">= {fmt(result.annual_expenses_median)} dépenses/an × 25</p>
-              </div>
+      {/* Summary stats */}
+      {result && (() => {
+        const last = result.monthly.at(-1)
+        const solvent = result.pct_solvent_final
+        const solventValueClass = solvent >= 90 ? 'text-emerald-600' : solvent >= 60 ? 'text-amber-500' : 'text-red-500'
+        const solventIconClass  = solvent >= 60 ? 'text-orange-500' : 'text-red-500'
+        return (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <StatCard
+                icon={Flame} iconColorClass="text-amber-500"
+                label="Capital FIRE"
+                value={fmt(result.fire_number)}
+                valueColorClass="text-amber-600"
+                caption={`= ${fmt(result.annual_expenses_median)} dépenses/an × 25`}
+                info="La règle des 4% : une fois votre portefeuille égal à 25× vos dépenses annuelles, vous pouvez théoriquement en retirer 4%/an indéfiniment. C'est le capital visé pour l'indépendance financière (FIRE)."
+              />
+              <StatCard
+                icon={Target} iconColorClass="text-blue-500"
+                label={`Patrimoine dans ${HORIZONS[horizonIdx].label}`}
+                value={fmt(last?.networth_p50 ?? 0)}
+                caption={`Fourchette p10–p90 : ${fmt(last?.networth_p10 ?? 0)} – ${fmt(last?.networth_p90 ?? 0)}`}
+                info="Patrimoine net médian (balance liquide + portefeuille) parmi les 1000 futurs simulés, à la fin de l'horizon choisi. La fourchette va du scénario pessimiste (p10) à optimiste (p90)."
+              />
+              <StatCard
+                icon={Sparkles} iconColorClass="text-purple-500"
+                label="Cash-flow moyen"
+                value={`${result.mu_monthly_cashflow >= 0 ? '+' : ''}${fmt(result.mu_monthly_cashflow)}/mois`}
+                valueColorClass={result.mu_monthly_cashflow >= 0 ? 'text-emerald-600' : 'text-red-500'}
+                caption={`Variabilité typique (σ) : ± ${fmt(result.sigma_monthly_cashflow)}`}
+                info="Revenus moins dépenses hors investissements, projetés mois par mois à partir de votre historique. σ (l'écart-type) indique de combien ce chiffre varie généralement d'un mois à l'autre — plus il est grand, plus le cône du graphique est large."
+              />
+              <StatCard
+                icon={AlertTriangle} iconColorClass={solventIconClass}
+                label="Solvabilité"
+                value={`${solvent.toFixed(0)}%`}
+                valueColorClass={solventValueClass}
+                caption={`Balance liquide ≥ 0 dans ${HORIZONS[horizonIdx].label}`}
+                info="Pourcentage des 1000 futurs simulés où votre balance liquide (hors portefeuille d'investissement) ne tombe jamais sous zéro d'ici la fin de l'horizon choisi."
+              />
             </div>
 
-            <div className="mt-4 grid grid-cols-3 gap-3">
-              <div className="bg-white/70 rounded-xl p-3 text-center">
-                <p className="text-xs text-emerald-600 font-semibold">Optimiste</p>
-                <p className="text-sm font-bold text-gray-900 mt-1">{monthsToLabel(fireP10)}</p>
-                <p className="text-xs text-gray-400">p10</p>
+            {/* FIRE timeline */}
+            <div className="bg-white border border-gray-200 rounded-2xl p-6">
+              <div className="flex items-center gap-1.5 mb-4">
+                <Flame className="w-4 h-4 text-amber-500" />
+                <h3 className="text-sm font-semibold text-gray-700">Quand atteindrez-vous le FIRE ?</h3>
+                <InfoTip text="Mois estimé où votre portefeuille d'investissement seul (hors balance liquide) dépasse le capital FIRE ci-dessus, pour les scénarios optimiste (p10), médian (p50) et pessimiste (p90) parmi les futurs simulés." />
               </div>
-              <div className="bg-white/90 rounded-xl p-3 text-center border-2 border-amber-300">
-                <p className="text-xs text-amber-600 font-semibold">Médian</p>
-                <p className="text-sm font-bold text-gray-900 mt-1">{monthsToLabel(fireP50)}</p>
-                <p className="text-xs text-gray-400">p50</p>
-              </div>
-              <div className="bg-white/70 rounded-xl p-3 text-center">
-                <p className="text-xs text-orange-500 font-semibold">Pessimiste</p>
-                <p className="text-sm font-bold text-gray-900 mt-1">{monthsToLabel(fireP90)}</p>
-                <p className="text-xs text-gray-400">p90</p>
-              </div>
-            </div>
 
-            <div className="mt-3 flex items-center gap-2">
-              <div className="flex-1 bg-amber-100 rounded-full h-2">
-                <div
-                  className="bg-amber-400 h-2 rounded-full transition-all"
-                  style={{ width: `${Math.min(100, result.pct_simulations_fire)}%` }}
-                />
+              <div className="grid grid-cols-3 gap-3">
+                <div className="text-center">
+                  <p className="text-xs text-emerald-600 font-semibold">Optimiste (p10)</p>
+                  <p className="text-sm font-bold text-gray-900 mt-1">{monthsToLabel(fireP10)}</p>
+                </div>
+                <div className="text-center border-x border-gray-100">
+                  <p className="text-xs text-amber-600 font-semibold">Médian (p50)</p>
+                  <p className="text-sm font-bold text-gray-900 mt-1">{monthsToLabel(fireP50)}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-orange-500 font-semibold">Pessimiste (p90)</p>
+                  <p className="text-sm font-bold text-gray-900 mt-1">{monthsToLabel(fireP90)}</p>
+                </div>
               </div>
-              <span className="text-xs font-bold text-amber-700 whitespace-nowrap">
-                {result.pct_simulations_fire.toFixed(0)}% des simulations atteignent le FIRE
-              </span>
-            </div>
-          </div>
 
-          {/* Stats column */}
-          <div className="space-y-3">
-            <div className="bg-white border border-gray-200 rounded-2xl p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <Target className="w-4 h-4 text-blue-500" />
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Patrimoine médian dans {HORIZONS[horizonIdx].label}</span>
+              <div className="mt-4 flex items-center gap-2">
+                <div className="flex-1 bg-gray-100 rounded-full h-2">
+                  <div
+                    className="bg-amber-400 h-2 rounded-full transition-all"
+                    style={{ width: `${Math.min(100, result.pct_simulations_fire)}%` }}
+                  />
+                </div>
+                <span className="text-xs font-bold text-amber-600 whitespace-nowrap">
+                  {result.pct_simulations_fire.toFixed(0)}% des simulations atteignent le FIRE
+                </span>
               </div>
-              {(() => {
-                const last = result.monthly.at(-1)
-                return (
-                  <>
-                    <p className="text-xl font-black text-gray-900">{fmt(last?.networth_p50 ?? 0)}</p>
-                    <p className="text-xs text-gray-400">Fourchette: {fmt(last?.networth_p10 ?? 0)} – {fmt(last?.networth_p90 ?? 0)}</p>
-                  </>
-                )
-              })()}
             </div>
-
-            <div className="bg-white border border-gray-200 rounded-2xl p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <Sparkles className="w-4 h-4 text-purple-500" />
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Cash-flow moyen</span>
-              </div>
-              <p className={`text-xl font-black ${result.mu_monthly_cashflow >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                {result.mu_monthly_cashflow >= 0 ? '+' : ''}{fmt(result.mu_monthly_cashflow)}/mois
-              </p>
-              <p className="text-xs text-gray-400">σ = {fmt(result.sigma_monthly_cashflow)}</p>
-            </div>
-
-            <div className="bg-white border border-gray-200 rounded-2xl p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <AlertTriangle className="w-4 h-4 text-orange-500" />
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Solvabilité</span>
-              </div>
-              {(() => {
-                const last = result.monthly.at(-1)
-                const solvent = last ? (last.balance_p10 >= 0 ? 100 : last.balance_p25 >= 0 ? 75 : last.balance_p50 >= 0 ? 50 : 25) : 0
-                const color = solvent >= 75 ? 'text-emerald-600' : solvent >= 50 ? 'text-amber-500' : 'text-red-500'
-                return <p className={`text-xl font-black ${color}`}>{solvent}%</p>
-              })()}
-              <p className="text-xs text-gray-400">Prob. balance liquide ≥ 0</p>
-            </div>
-          </div>
-        </div>
-      )}
+          </>
+        )
+      })()}
 
       {/* Scenarios panel */}
       <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
@@ -628,7 +993,9 @@ export default function Futur() {
                 onChange={e => setScType(e.target.value as ScenarioItem['type'])}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
               >
-                {SCENARIO_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                {SCENARIO_TYPES
+                  .filter(t => contribMode !== 'auto' || t.value !== 'contribution_change')
+                  .map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
             </div>
 

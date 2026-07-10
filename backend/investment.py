@@ -21,12 +21,20 @@ KEY_ANNUAL_RATE      = "invest_annual_rate"        # float  e.g. 0.07
 KEY_INFLATION_RATE   = "invest_inflation_rate"     # float  e.g. 0.02
 KEY_MANUAL_PORTFOLIO = "invest_manual_portfolio"   # float | null
 KEY_MONTHLY_CONTRIB  = "invest_monthly_contrib"    # float | null  (null = auto)
+KEY_TARGET_LIQUID    = "invest_target_liquid"        # float | null (null = no target set)
+KEY_TARGET_INFLATION = "invest_target_inflation_adj" # bool
+KEY_TARGET_SET_DATE  = "invest_target_set_date"      # ISO date str | null
+KEY_CONTRIB_MODE     = "invest_contrib_mode"         # "manual" | "auto"
 
 DEFAULTS = {
     KEY_ANNUAL_RATE:      0.07,
     KEY_INFLATION_RATE:   0.02,
     KEY_MANUAL_PORTFOLIO: None,
     KEY_MONTHLY_CONTRIB:  None,
+    KEY_TARGET_LIQUID:    None,
+    KEY_TARGET_INFLATION: False,
+    KEY_TARGET_SET_DATE:  None,
+    KEY_CONTRIB_MODE:     "manual",
 }
 
 
@@ -131,6 +139,29 @@ def avg_monthly_contribution(db: Session, n_months: int = 6) -> float:
     return round(total / n_months, 2)
 
 
+# ── Liquid-balance target ─────────────────────────────────────────────────────
+
+def effective_target_liquid(db: Session, inflation_rate: float) -> Optional[float]:
+    """
+    The target liquid buffer, compounded forward from the day it was set if
+    inflation-adjustment is on (so "keep X liquid" keeps its purchasing
+    power rather than being eroded over a multi-year horizon).
+    """
+    target = _get(db, KEY_TARGET_LIQUID)
+    if target is None:
+        return None
+    if not _get(db, KEY_TARGET_INFLATION):
+        return round(target, 2)
+
+    set_date_str = _get(db, KEY_TARGET_SET_DATE)
+    if not set_date_str:
+        return round(target, 2)
+
+    set_date = datetime.date.fromisoformat(set_date_str)
+    years = (datetime.date.today() - set_date).days / 365.25
+    return round(target * (1 + inflation_rate) ** years, 2)
+
+
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def get_investment_settings(db: Session) -> dict:
@@ -138,6 +169,10 @@ def get_investment_settings(db: Session) -> dict:
     inflation_rate   = _get(db, KEY_INFLATION_RATE)
     manual_portfolio = _get(db, KEY_MANUAL_PORTFOLIO)
     monthly_contrib  = _get(db, KEY_MONTHLY_CONTRIB)
+    target_liquid    = _get(db, KEY_TARGET_LIQUID)
+    target_inflation = _get(db, KEY_TARGET_INFLATION)
+    target_set_date  = _get(db, KEY_TARGET_SET_DATE)
+    contrib_mode     = _get(db, KEY_CONTRIB_MODE)
 
     auto_portfolio = compute_auto_portfolio(db, annual_rate)
     auto_contrib   = avg_monthly_contribution(db)
@@ -152,6 +187,11 @@ def get_investment_settings(db: Session) -> dict:
         "monthly_contrib":       monthly_contrib,
         "auto_monthly_contrib":  auto_contrib,
         "effective_contrib":     monthly_contrib if monthly_contrib is not None else auto_contrib,
+        "target_liquid":            target_liquid,
+        "target_inflation_adjusted": target_inflation,
+        "target_set_date":          target_set_date,
+        "target_effective":         effective_target_liquid(db, inflation_rate),
+        "contrib_mode":             contrib_mode,
     }
 
 
@@ -161,6 +201,9 @@ def save_investment_settings(
     inflation_rate: Optional[float] = None,
     manual_portfolio: Optional[float] = None,   # pass -1 to clear
     monthly_contrib: Optional[float] = None,    # pass -1 to clear
+    target_liquid: Optional[float] = None,      # pass -1 to clear
+    target_inflation_adjusted: Optional[bool] = None,
+    contrib_mode: Optional[str] = None,         # "manual" | "auto"
 ) -> dict:
     if annual_rate is not None:
         _set(db, KEY_ANNUAL_RATE, annual_rate)
@@ -170,5 +213,16 @@ def save_investment_settings(
         _set(db, KEY_MANUAL_PORTFOLIO, None if manual_portfolio < 0 else manual_portfolio)
     if monthly_contrib is not None:
         _set(db, KEY_MONTHLY_CONTRIB, None if monthly_contrib < 0 else monthly_contrib)
+    if target_liquid is not None:
+        if target_liquid < 0:
+            _set(db, KEY_TARGET_LIQUID, None)
+            _set(db, KEY_TARGET_SET_DATE, None)
+        else:
+            _set(db, KEY_TARGET_LIQUID, target_liquid)
+            _set(db, KEY_TARGET_SET_DATE, datetime.date.today().isoformat())
+    if target_inflation_adjusted is not None:
+        _set(db, KEY_TARGET_INFLATION, target_inflation_adjusted)
+    if contrib_mode is not None:
+        _set(db, KEY_CONTRIB_MODE, contrib_mode)
 
     return get_investment_settings(db)
