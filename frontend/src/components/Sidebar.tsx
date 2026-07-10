@@ -38,9 +38,26 @@ export default function Sidebar() {
     applyTheme(theme)
   }, [theme])
 
+  // The theme applies instantly from localStorage above (avoids a flash of
+  // the default theme), then the server value — synced across devices —
+  // takes over once it arrives. A theme picked before ever loading the
+  // server value gets migrated up so it isn't lost.
+  useEffect(() => {
+    api.getTheme().then(serverTheme => {
+      if (serverTheme) {
+        setTheme(serverTheme)
+        localStorage.setItem(THEME_STORAGE_KEY, serverTheme)
+      } else {
+        const local = localStorage.getItem(THEME_STORAGE_KEY)
+        if (local) api.setTheme(local).catch(() => {})
+      }
+    })
+  }, [])
+
   function handleSelectTheme(id: string) {
     setTheme(id)
     localStorage.setItem(THEME_STORAGE_KEY, id)
+    api.setTheme(id).catch(() => {})
   }
 
   const activeThemeName = THEMES.find(t => t.id === theme)?.name ?? theme

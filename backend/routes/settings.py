@@ -11,6 +11,10 @@ class ThemeFavoritesBody(BaseModel):
     favorites: list[str]
 
 
+class ThemeBody(BaseModel):
+    theme: str
+
+
 @router.get("/theme-favorites")
 def get_theme_favorites(db: Session = Depends(get_db)):
     row = db.query(Setting).filter(Setting.key == "theme_favorites").first()
@@ -27,3 +31,21 @@ def set_theme_favorites(body: ThemeFavoritesBody, db: Session = Depends(get_db))
         db.add(row)
     db.commit()
     return {"favorites": body.favorites}
+
+
+@router.get("/theme")
+def get_theme(db: Session = Depends(get_db)):
+    row = db.query(Setting).filter(Setting.key == "theme").first()
+    return {"theme": row.value if row else None}
+
+
+@router.put("/theme")
+def set_theme(body: ThemeBody, db: Session = Depends(get_db)):
+    row = db.query(Setting).filter(Setting.key == "theme").first()
+    if row:
+        row.value = body.theme
+    else:
+        row = Setting(key="theme", value=body.theme)
+        db.add(row)
+    db.commit()
+    return {"theme": body.theme}

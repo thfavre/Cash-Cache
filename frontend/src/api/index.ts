@@ -307,4 +307,11 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ favorites }),
     }).then(r => r.favorites),
+  getTheme: (): Promise<string | null> =>
+    req<{ theme: string | null }>('/settings/theme').then(r => r.theme),
+  setTheme: (theme: string): Promise<string> =>
+    req<{ theme: string }>('/settings/theme', {
+      method: 'PUT',
+      body: JSON.stringify({ theme }),
+    }).then(r => r.theme),
 }
