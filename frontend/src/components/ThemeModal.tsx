@@ -124,6 +124,18 @@ export default function ThemeModal({ current, onSelect, onClose }: ThemeModalPro
             <p className="px-4 py-6 text-sm text-gray-400 text-center">Aucun thème trouvé</p>
           )}
         </div>
+        <p className="px-4 py-2 text-xs text-gray-400 text-center border-t border-gray-100 shrink-0">
+          La plupart de ces thèmes sont issus du projet{' '}
+          <a
+            href="https://monkeytype.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            className="underline hover:text-gray-600"
+          >
+            Monkeytype
+          </a>
+        </p>
       </div>
     </div>
   )
