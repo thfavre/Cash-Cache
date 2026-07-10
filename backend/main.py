@@ -72,7 +72,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Personal Finance API", lifespan=lifespan)
+app = FastAPI(title="Cash-Cache API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

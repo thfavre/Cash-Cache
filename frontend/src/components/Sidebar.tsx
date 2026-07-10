@@ -108,7 +108,7 @@ export default function Sidebar() {
           <div>
             <h1 className="text-lg font-bold text-gray-900 flex items-center gap-2 theme-fx-logo">
               <Wallet className="w-5 h-5 text-blue-600" />
-              <span>Finances</span>
+              <span>Cash-Cache</span>
             </h1>
           </div>
           <button

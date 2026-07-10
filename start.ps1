@@ -1,4 +1,4 @@
-# Start Finance Dashboard (backend + frontend)
+# Start Cash-Cache (backend + frontend)
 
 $root = $PSScriptRoot
 
@@ -13,7 +13,7 @@ $frontend = Start-Process -FilePath "cmd.exe" -ArgumentList "/c npm run dev" -Wo
 Write-Host "Frontend PID: $($frontend.Id)"
 
 Write-Host ""
-Write-Host "Finance Dashboard is running!"
+Write-Host "Cash-Cache is running!"
 Write-Host "  -> Open http://localhost:5173 in your browser"
 Write-Host ""
 Write-Host "Press CTRL+C or close this window to stop."
