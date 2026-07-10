@@ -624,8 +624,14 @@ function HistoryPanel({
 
   const [expandedId, setExpandedId] = useState<number | null>(null)
 
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onClose])
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/30" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/30 backdrop-blur-sm" onClick={onClose}>
       <div
         onClick={e => e.stopPropagation()}
         className="w-full max-w-lg max-h-[70vh] bg-white rounded-2xl shadow-2xl flex flex-col"
