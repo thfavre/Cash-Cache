@@ -13,14 +13,15 @@ function formatDateTime(iso: string): string {
 
 // Same floating "little helper" tooltip as the Futur tab's InfoTip: a dark
 // popover that fades/scales in on hover instead of the native title tooltip.
-function InfoTip({ text }: { text: string }) {
+function InfoTip({ text, wide }: { text: string; wide?: boolean }) {
   const [align, setAlign] = useState<'center' | 'left' | 'right'>('center')
   const iconRef = useRef<HTMLSpanElement>(null)
+  const widthClass = wide ? 'w-80' : 'w-56'
 
   function handleEnter() {
     const rect = iconRef.current?.getBoundingClientRect()
     if (!rect) return
-    const halfWidth = 130
+    const halfWidth = wide ? 170 : 130
     if (rect.left < halfWidth) setAlign('left')
     else if (window.innerWidth - rect.right < halfWidth) setAlign('right')
     else setAlign('center')
@@ -34,7 +35,7 @@ function InfoTip({ text }: { text: string }) {
   return (
     <span ref={iconRef} className="group relative inline-flex items-center" onMouseEnter={handleEnter}>
       <HelpCircle className="w-3.5 h-3.5 text-gray-300 hover:text-gray-500 cursor-help" />
-      <span className={`pointer-events-none absolute ${posClass} bottom-full mb-2 w-56 rounded-lg bg-gray-900 text-white text-xs normal-case tracking-normal font-normal leading-snug p-2.5 opacity-0 scale-95 origin-bottom group-hover:opacity-100 group-hover:scale-100 transition-all z-20 shadow-2xl`}>
+      <span className={`pointer-events-none absolute ${posClass} bottom-full mb-2 ${widthClass} rounded-lg bg-gray-900 text-white text-xs normal-case tracking-normal font-normal leading-snug whitespace-pre-line p-2.5 opacity-0 scale-95 origin-bottom group-hover:opacity-100 group-hover:scale-100 transition-all z-20 shadow-2xl`}>
         {text}
       </span>
     </span>
@@ -93,11 +94,11 @@ function CustomSelect({
   )
 }
 
-function FieldLabel({ children, hint }: { children: React.ReactNode; hint: string }) {
+function FieldLabel({ children, hint, wide }: { children: React.ReactNode; hint: string; wide?: boolean }) {
   return (
     <label className="text-xs text-gray-500 flex items-center gap-1">
       {children}
-      <InfoTip text={hint} />
+      <InfoTip text={hint} wide={wide} />
     </label>
   )
 }
@@ -559,7 +560,23 @@ export default function Import({ onContinueWithoutData, onDataChanged }: ImportP
                 </select>
               </div>
               <div>
-                <FieldLabel hint='Comment la date est écrite dans le fichier : %d = jour, %m = mois, %Y = année sur 4 chiffres, %y sur 2 chiffres. Ex : « 31.12.2026 » → %d.%m.%Y'>
+                <FieldLabel wide hint={
+                  'Comment la date est écrite dans le fichier :\n' +
+                  '%d jour\n' +
+                  '%m mois\n' +
+                  '%Y année (4 chiffres)\n' +
+                  '%y année (2 chiffres)\n' +
+                  '%H heures\n' +
+                  '%M minutes\n' +
+                  '%S secondes\n\n' +
+                  'Exemples :\n' +
+                  '« 31.12.2026 » → %d.%m.%Y\n' +
+                  '« 31/12/2026 » → %d/%m/%Y\n' +
+                  '« 2026-12-31 » → %Y-%m-%d\n' +
+                  '« 12/31/2026 » (format US) → %m/%d/%Y\n' +
+                  '« 31.12.2026 14:30 » → %d.%m.%Y %H:%M\n' +
+                  '« 2026-12-31 14:30:00 » → %Y-%m-%d %H:%M:%S'
+                }>
                   Format de date (ex. %d.%m.%Y)
                 </FieldLabel>
                 <input className={fieldCls('date_format')} value={mappingState.mapping.date_format}
