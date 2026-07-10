@@ -292,7 +292,7 @@ export default function Categorize() {
       {/* ── Header ────────────────────────────────────────────────────── */}
       <div className="px-6 py-4 border-b border-gray-100 bg-white flex items-center justify-between shrink-0">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Catégoriser</h1>
+          <h1 className="text-xl font-bold text-gray-900 theme-fx-logo">Catégoriser</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {showAll
               ? `${total} transactions au total`
