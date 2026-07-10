@@ -532,6 +532,12 @@ function RulePromptToast({
     const t = setTimeout(() => setVisible(true), 10)
     return () => clearTimeout(t)
   }, [])
+  useEffect(() => {
+    if (ruleStatus) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onDismiss() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [ruleStatus, onDismiss])
 
   return (
     <div

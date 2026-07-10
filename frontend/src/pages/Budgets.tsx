@@ -34,6 +34,13 @@ export default function Budgets() {
   const [newCatId, setNewCatId] = useState('')
   const [newLimit, setNewLimit] = useState('')
 
+  useEffect(() => {
+    if (!showForm) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowForm(false) }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [showForm])
+
   async function load() {
     setLoading(true)
     const [b, c] = await Promise.all([api.budgets(month), api.categories()])

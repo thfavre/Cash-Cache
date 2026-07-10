@@ -294,6 +294,13 @@ export default function Futur() {
   const [scFrequency, setScFrequency] = useState<NonNullable<ScenarioItem['frequency']>>('monthly')
   const [categories, setCategories] = useState<Category[]>([])
 
+  useEffect(() => {
+    if (!showScForm) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowScForm(false) }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [showScForm])
+
   // Settings panel open/close
   const [settingsOpen, setSettingsOpen] = useState(true)
   const [explainOpen, setExplainOpen]   = useState(false)
