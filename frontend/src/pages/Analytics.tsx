@@ -59,9 +59,9 @@ export default function Analytics() {
   }, [])
 
   useEffect(() => {
-    api.balanceHistory(accountId).then(setBalanceHistory).catch(() => {})
-    api.topMerchants({ account_id: accountId, limit: 10 }).then(setMerchants).catch(() => {})
-  }, [accountId])
+    api.balanceHistory({ account_id: accountId, period }).then(setBalanceHistory).catch(() => {})
+    api.topMerchants({ account_id: accountId, period, limit: 10 }).then(setMerchants).catch(() => {})
+  }, [accountId, period])
 
   useEffect(() => {
     setLoading(true)
@@ -423,7 +423,7 @@ export default function Analytics() {
           <div className="bg-white rounded-xl border border-gray-100 p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-semibold text-gray-700">Évolution du solde</h2>
-              <span className="text-[11px] text-gray-400">Historique complet</span>
+              <span className="text-[11px] text-gray-400">{PERIODS.find(p => p.id === period)?.label}</span>
             </div>
             <ResponsiveContainer width="100%" height={240}>
               <AreaChart data={balanceHistory}>
@@ -447,7 +447,7 @@ export default function Analytics() {
           <div className="bg-white rounded-xl border border-gray-100 p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-semibold text-gray-700">Top 10 marchands</h2>
-              <span className="text-[11px] text-gray-400">Historique complet</span>
+              <span className="text-[11px] text-gray-400">{PERIODS.find(p => p.id === period)?.label}</span>
             </div>
             <div className="space-y-2">
               {merchants.slice(0, 10).map((m, i) => (

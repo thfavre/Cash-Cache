@@ -60,13 +60,47 @@ def clean_merchant_name(raw_desc: str, cat_name: str) -> str:
     return s if not s.isupper() else s.title()
 
 
-def _expense_filter(q, account_id, year, month, exclude_internal=True):
+def _period_bounds(period, year=None, month=None):
+    """Return (start_date, end_date) inclusive for a named period, or None for no bound."""
+    today = datetime.date.today()
+    if period == "current_month":
+        return today.replace(day=1), today
+    if period == "last_month":
+        first_this = today.replace(day=1)
+        end = first_this - datetime.timedelta(days=1)
+        return end.replace(day=1), end
+    if period == "last_3_months":
+        return today - datetime.timedelta(days=90), today
+    if period == "last_6_months":
+        return today - datetime.timedelta(days=180), today
+    if period == "current_year":
+        return today.replace(month=1, day=1), today
+    if period == "last_year":
+        return datetime.date(today.year - 1, 1, 1), datetime.date(today.year - 1, 12, 31)
+    if period == "all":
+        return None
+    if year is not None:
+        if month is not None:
+            start = datetime.date(year, month, 1)
+            end_month = month + 1 if month < 12 else 1
+            end_year = year if month < 12 else year + 1
+            return start, datetime.date(end_year, end_month, 1) - datetime.timedelta(days=1)
+        return datetime.date(year, 1, 1), datetime.date(year, 12, 31)
+    return None
+
+
+def _apply_period_filter(q, period, year, month):
+    bounds = _period_bounds(period, year, month)
+    if bounds is not None:
+        start, end = bounds
+        q = q.filter(Transaction.date >= start, Transaction.date <= end)
+    return q
+
+
+def _expense_filter(q, account_id, year, month, exclude_internal=True, period=None):
     if account_id is not None:
         q = q.filter(Transaction.account_id == account_id)
-    if year is not None:
-        q = q.filter(extract("year", Transaction.date) == year)
-    if month is not None:
-        q = q.filter(extract("month", Transaction.date) == month)
+    q = _apply_period_filter(q, period, year, month)
     if exclude_internal:
         q = q.filter(Transaction.is_internal == False)
     q = q.filter(Transaction.is_reversal == False)
@@ -171,6 +205,7 @@ def top_merchants(
     account_id: Optional[int] = None,
     year: Optional[int] = None,
     month: Optional[int] = None,
+    period: Optional[str] = None,
     limit: int = Query(10, ge=1, le=50),
     db: Session = Depends(get_db),
 ):
@@ -181,7 +216,7 @@ def top_merchants(
     )
     q = q.filter(Transaction.is_credit == False, Transaction.is_internal == False, Transaction.is_reversal == False)
     q = q.filter(Transaction.counterparty != None)
-    q = _expense_filter(q, account_id, year, month)
+    q = _expense_filter(q, account_id, year, month, period=period)
     rows = (
         q.group_by(Transaction.counterparty)
         .order_by(func.sum(Transaction.amount).desc())
@@ -196,14 +231,24 @@ def top_merchants(
 
 
 @router.get("/balance-history")
-def balance_history(account_id: Optional[int] = None, db: Session = Depends(get_db)):
+def balance_history(
+    account_id: Optional[int] = None,
+    year: Optional[int] = None,
+    month: Optional[int] = None,
+    period: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
     """
     Return monthly closing balance for each account (or all combined).
-    Reconstructed from opening balance + cumulative transactions.
+    Reconstructed from opening balance + cumulative transactions, then
+    truncated to the requested date range (the running balance itself is
+    still computed from the full history so it stays accurate).
     """
     accounts = db.query(Account).all()
     if account_id is not None:
         accounts = [a for a in accounts if a.id == account_id]
+
+    bounds = _period_bounds(period, year, month)
 
     result: dict[str, float] = {}
 
@@ -224,8 +269,14 @@ def balance_history(account_id: Optional[int] = None, db: Session = Depends(get_
             month_key = f"{tx.date.year:04d}-{tx.date.month:02d}"
             month_balance[month_key] = round(balance, 2)
 
-        for month, bal in month_balance.items():
-            result[month] = round(result.get(month, 0) + bal, 2)
+        for month_key, bal in month_balance.items():
+            result[month_key] = round(result.get(month_key, 0) + bal, 2)
+
+    if bounds is not None:
+        start, end = bounds
+        start_key = f"{start.year:04d}-{start.month:02d}"
+        end_key = f"{end.year:04d}-{end.month:02d}"
+        result = {m: b for m, b in result.items() if start_key <= m <= end_key}
 
     return [{"month": m, "balance": b} for m, b in sorted(result.items())]
 
@@ -267,27 +318,7 @@ def get_cashflow(
     if account_id is not None:
         q = q.filter(Transaction.account_id == account_id)
 
-    # Date / Period filtering
-    today = datetime.date.today()
-    if period == "current_month":
-        q = q.filter(extract("year", Transaction.date) == today.year, extract("month", Transaction.date) == today.month)
-    elif period == "last_month":
-        lm_year = today.year if today.month > 1 else today.year - 1
-        lm_month = today.month - 1 if today.month > 1 else 12
-        q = q.filter(extract("year", Transaction.date) == lm_year, extract("month", Transaction.date) == lm_month)
-    elif period == "last_3_months":
-        q = q.filter(Transaction.date >= today - datetime.timedelta(days=90))
-    elif period == "last_6_months":
-        q = q.filter(Transaction.date >= today - datetime.timedelta(days=180))
-    elif period == "current_year":
-        q = q.filter(extract("year", Transaction.date) == today.year)
-    elif period == "last_year":
-        q = q.filter(extract("year", Transaction.date) == today.year - 1)
-    else:
-        if year is not None:
-            q = q.filter(extract("year", Transaction.date) == year)
-        if month is not None:
-            q = q.filter(extract("month", Transaction.date) == month)
+    q = _apply_period_filter(q, period, year, month)
 
     txs = q.all()
 

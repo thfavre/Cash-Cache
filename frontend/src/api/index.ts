@@ -245,17 +245,22 @@ export const api = {
     if (params?.month) qs.set('month', String(params.month))
     return req(`/stats/categories?${qs}`)
   },
-  topMerchants: (params?: { account_id?: number; year?: number; month?: number; limit?: number }): Promise<Merchant[]> => {
+  topMerchants: (params?: { account_id?: number; year?: number; month?: number; period?: string; limit?: number }): Promise<Merchant[]> => {
     const qs = new URLSearchParams()
     if (params?.account_id) qs.set('account_id', String(params.account_id))
     if (params?.year) qs.set('year', String(params.year))
     if (params?.month) qs.set('month', String(params.month))
+    if (params?.period) qs.set('period', params.period)
     if (params?.limit) qs.set('limit', String(params.limit))
     return req(`/stats/top-merchants?${qs}`)
   },
-  balanceHistory: (accountId?: number): Promise<BalanceHistory[]> => {
-    const qs = accountId ? `?account_id=${accountId}` : ''
-    return req(`/stats/balance-history${qs}`)
+  balanceHistory: (params?: { account_id?: number; year?: number; month?: number; period?: string }): Promise<BalanceHistory[]> => {
+    const qs = new URLSearchParams()
+    if (params?.account_id) qs.set('account_id', String(params.account_id))
+    if (params?.year) qs.set('year', String(params.year))
+    if (params?.month) qs.set('month', String(params.month))
+    if (params?.period) qs.set('period', params.period)
+    return req(`/stats/balance-history?${qs}`)
   },
   cashflow: (params?: { account_id?: number; year?: number; month?: number; period?: string }): Promise<CashflowData> => {
     const qs = new URLSearchParams()
