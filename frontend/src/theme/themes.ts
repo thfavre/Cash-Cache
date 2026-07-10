@@ -10,7 +10,7 @@ export interface Theme {
    */
   colors: [string, string, string]
   /** Set for themes with an animated CSS effect (see the theme-fx-* rules in index.css) */
-  effect?: 'rainbow' | 'rgb' | 'trance' | 'phantom' | 'shadow' | 'chaos' | 'matrix' | 'aurora' | 'nebula' | 'vaporwave'
+  effect?: 'rainbow' | 'rgb' | 'trance' | 'phantom' | 'shadow' | 'chaos' | 'matrix' | 'aurora' | 'nebula' | 'vaporwave' | 'fire'
 }
 
 // The themes below (everything except 'light') are generated from Monkeytype's
@@ -34,7 +34,7 @@ export const THEMES: Theme[] = [
   { id: 'blue_dolphin', name: 'blue dolphin', bg: '#003950', colors: ['#ffcefb', '#82eaff', '#00647c'] },
   { id: 'blueberry_dark', name: 'blueberry dark', bg: '#212b42', colors: ['#add7ff', '#91b4d5', '#30405b'] },
   { id: 'blueberry_light', name: 'blueberry light', bg: '#dae0f5', colors: ['#506477', '#678198', '#c8d1e7'] },
-  { id: 'botanical', name: 'botanical', bg: '#7b9c98', colors: ['#eaf1f3', '#eaf1f3', '#6f8b87'] },
+  { id: 'botanical', name: 'botanical', bg: '#7b9c98', colors: ['#3c4746', '#0b0d0d', '#6b8784'] },
   { id: 'bouquet', name: 'bouquet', bg: '#173f35', colors: ['#eaa09c', '#e9e0d2', '#215347'] },
   { id: 'breeze', name: 'breeze', bg: '#e8d5c4', colors: ['#7d67a9', '#1b4c5e', '#bdc6c1'] },
   { id: 'bushido', name: 'bushido', bg: '#242933', colors: ['#ec4c56', '#f6f0e9', '#313743'] },
@@ -47,17 +47,17 @@ export const THEMES: Theme[] = [
   { id: 'cherry_blossom', name: 'cherry blossom', bg: '#323437', colors: ['#d65ccc', '#d1d0c5', '#44464a'] },
   { id: 'comfy', name: 'comfy', bg: '#4a5b6e', colors: ['#f8cdc6', '#f5efee', '#5f7586'] },
   { id: 'copper', name: 'copper', bg: '#442f29', colors: ['#b46a55', '#e7e0de', '#53524c'] },
-  { id: 'creamsicle', name: 'creamsicle', bg: '#ff9869', colors: ['#fcfcf8', '#fcfcf8', '#ff8c57'] },
+  { id: 'creamsicle', name: 'creamsicle', bg: '#ff9869', colors: ['#d15419', '#260f05', '#f48755'] },
   { id: 'cy_red', name: 'cy red', bg: '#6e2626', colors: ['#e55050', '#ffaaaa', '#923535'] },
   { id: 'cyberspace', name: 'cyberspace', bg: '#181c18', colors: ['#00ce7c', '#c2fbe1', '#373347'] },
   { id: 'dark', name: 'dark', bg: '#111111', colors: ['#eee', '#eeeeee', '#1e1e1e'] },
   { id: 'dark_magic_girl', name: 'dark magic girl', bg: '#091f2c', colors: ['#f5b1cc', '#a288d9', '#2c5156'] },
   { id: 'dark_note', name: 'dark note', bg: '#1f1f1f', colors: ['#f2c17b', '#d2dff4', '#353b3d'] },
-  { id: 'darling', name: 'darling', bg: '#fec8cd', colors: ['#ffffff', '#ffffff', '#e7969a'] },
-  { id: 'deku', name: 'deku', bg: '#058b8c', colors: ['#b63530', '#f7f2ea', '#0d7d7f'] },
+  { id: 'darling', name: 'darling', bg: '#fec8cd', colors: ['#860000', '#180000', '#e0969a'] },
+  { id: 'deku', name: 'deku', bg: '#058b8c', colors: ['#b63530', '#f7f2ea', '#097576'] },
   { id: 'desert_oasis', name: 'desert oasis', bg: '#fff2d5', colors: ['#d19d01', '#332800', '#bfcedf'] },
   { id: 'dev', name: 'dev', bg: '#1b2028', colors: ['#23a9d5', '#ccccb5', '#272e3b'] },
-  { id: 'diner', name: 'diner', bg: '#537997', colors: ['#c3af5b', '#dfdbc8', '#4f7291'] },
+  { id: 'diner', name: 'diner', bg: '#537997', colors: ['#c3af5b', '#dfdbc8', '#476782'] },
   { id: 'dino', name: 'dino', bg: '#ffffff', colors: ['#40d672', '#1d221f', '#f5f5f5'] },
   { id: 'discord', name: 'discord', bg: '#313338', colors: ['#5a65ea', '#dcdee3', '#3a3c42'] },
   { id: 'dmg', name: 'dmg', bg: '#dadbdc', colors: ['#ae185e', '#414141', '#b2b6d1'] },
@@ -70,7 +70,7 @@ export const THEMES: Theme[] = [
   { id: 'everblush', name: 'everblush', bg: '#141b1e', colors: ['#8ccf7e', '#dadada', '#303638'] },
   { id: 'evil_eye', name: 'evil eye', bg: '#0084c2', colors: ['#f7f2ea', '#171718', '#0079b9'] },
   { id: 'ez_mode', name: 'ez mode', bg: '#0068c6', colors: ['#fa62d5', '#ffffff', '#0571d2'] },
-  { id: 'fire', name: 'fire', bg: '#0f0000', colors: ['#b31313', '#ffffff', '#250d0d'] },
+  { id: 'fire', name: 'fire', bg: '#170502', colors: ['#ff5a1f', '#ffe0b8', '#300d06'], effect: 'fire' },
   { id: 'fledgling', name: 'fledgling', bg: '#3b363f', colors: ['#fc6e83', '#e6d5d3', '#503e49'] },
   { id: 'fleuriste', name: 'fleuriste', bg: '#c6b294', colors: ['#405a52', '#091914', '#ae9382'] },
   { id: 'floret', name: 'floret', bg: '#00272c', colors: ['#ffdd6d', '#e5e5e5', '#1e4147'] },
@@ -115,7 +115,7 @@ export const THEMES: Theme[] = [
   { id: 'menthol', name: 'menthol', bg: '#00c18c', colors: ['#ffffff', '#ffffff', '#06aa7a'] },
   { id: 'metaverse', name: 'metaverse', bg: '#232323', colors: ['#d82934', '#e8e8e8', '#323232'] },
   { id: 'metropolis', name: 'metropolis', bg: '#0f1f2c', colors: ['#56c3b7', '#e4edf1', '#183242'] },
-  { id: 'mexican', name: 'mexican', bg: '#f8ad34', colors: ['#b12189', '#eeeeee', '#c78f34'] },
+  { id: 'mexican', name: 'mexican', bg: '#f8ad34', colors: ['#b12189', '#090909', '#c78f34'] },
   { id: 'miami', name: 'miami', bg: '#f35588', colors: ['#05dfd7', '#f0e9ec', '#db4a79'] },
   { id: 'miami_nights', name: 'miami nights', bg: '#18181a', colors: ['#e4609b', '#ffffff', '#244144'] },
   { id: 'midnight', name: 'midnight', bg: '#0b0e13', colors: ['#60759f', '#9fadc6', '#171c26'] },

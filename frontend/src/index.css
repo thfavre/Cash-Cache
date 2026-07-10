@@ -437,27 +437,27 @@
 
 :root[data-theme='botanical'] {
   color-scheme: light;
-  --color-white: #72908d;
+  --color-white: #ced8d7;
   --color-black: #0c100f;
   --gray-50: #7b9c98;
-  --gray-100: #6f8b87;
-  --gray-200: #627a77;
-  --gray-300: #566866;
-  --gray-400: #495755;
-  --gray-500: #697675;
-  --gray-600: #899594;
-  --gray-700: #aab3b4;
-  --gray-800: #cad2d3;
-  --gray-900: #eaf1f3;
-  --blue-50: #88a6a3;
-  --blue-100: #91adaa;
-  --blue-200: #9fb7b5;
-  --blue-300: #f1f6f7;
-  --blue-400: #eef4f5;
-  --blue-500: #ecf2f4;
-  --blue-600: #eaf1f3;
-  --blue-700: #c0c6c7;
-  --blue-800: #989d9e;
+  --gray-100: #6b8784;
+  --gray-200: #5c726f;
+  --gray-300: #4c5c5b;
+  --gray-400: #3c4746;
+  --gray-500: #323b3b;
+  --gray-600: #28302f;
+  --gray-700: #1f2424;
+  --gray-800: #151918;
+  --gray-900: #0b0d0d;
+  --blue-50: #e8e9e9;
+  --blue-100: #d8dada;
+  --blue-200: #c1c4c4;
+  --blue-300: #808787;
+  --blue-400: #636c6b;
+  --blue-500: #4c5655;
+  --blue-600: #3c4746;
+  --blue-700: #2a3231;
+  --blue-800: #1e2423;
 }
 
 :root[data-theme='bouquet'] {
@@ -762,27 +762,27 @@
 
 :root[data-theme='creamsicle'] {
   color-scheme: light;
-  --color-white: #fe8954;
+  --color-white: #ffdccc;
   --color-black: #1a0f0b;
   --gray-50: #ff9869;
-  --gray-100: #ff8c57;
-  --gray-200: #ff7f44;
-  --gray-300: #ff7332;
-  --gray-400: #ff661f;
-  --gray-500: #fe844a;
-  --gray-600: #fea276;
-  --gray-700: #fdc0a1;
-  --gray-800: #fddecd;
-  --gray-900: #fcfcf8;
-  --blue-50: #ffa47a;
-  --blue-100: #feac86;
-  --blue-200: #feb897;
-  --blue-300: #fdfdfa;
-  --blue-400: #fdfdf9;
-  --blue-500: #fcfcf9;
-  --blue-600: #fcfcf8;
-  --blue-700: #cfcfcb;
-  --blue-800: #a4a4a1;
+  --gray-100: #f48755;
+  --gray-200: #e87641;
+  --gray-300: #dd652d;
+  --gray-400: #d15419;
+  --gray-500: #af4615;
+  --gray-600: #8d3811;
+  --gray-700: #6a2b0d;
+  --gray-800: #481d09;
+  --gray-900: #260f05;
+  --blue-50: #f9eae3;
+  --blue-100: #f6ddd1;
+  --blue-200: #f0c8b5;
+  --blue-300: #e1906a;
+  --blue-400: #da7647;
+  --blue-500: #d5622b;
+  --blue-600: #d15419;
+  --blue-700: #923b12;
+  --blue-800: #692a0d;
 }
 
 :root[data-theme='cy_red'] {
@@ -912,42 +912,42 @@
 
 :root[data-theme='darling'] {
   color-scheme: light;
-  --color-white: #f2babd;
+  --color-white: #fbeaeb;
   --color-black: #191415;
   --gray-50: #fec8cd;
-  --gray-100: #e7969a;
-  --gray-200: #d16467;
-  --gray-300: #ba3233;
-  --gray-400: #a30000;
-  --gray-500: #b53333;
-  --gray-600: #c86666;
-  --gray-700: #da9999;
-  --gray-800: #edcccc;
-  --gray-900: #ffffff;
-  --blue-50: #fecfd3;
-  --blue-100: #fed3d7;
-  --blue-200: #fedadd;
-  --blue-300: #ffffff;
-  --blue-400: #ffffff;
-  --blue-500: #ffffff;
-  --blue-600: #ffffff;
-  --blue-700: #d1d1d1;
-  --blue-800: #a6a6a6;
+  --gray-100: #e0969a;
+  --gray-200: #c26467;
+  --gray-300: #a43233;
+  --gray-400: #860000;
+  --gray-500: #700000;
+  --gray-600: #5a0000;
+  --gray-700: #440000;
+  --gray-800: #2e0000;
+  --gray-900: #180000;
+  --blue-50: #f0e0e0;
+  --blue-100: #e7cccc;
+  --blue-200: #d8adad;
+  --blue-300: #b05959;
+  --blue-400: #9e3333;
+  --blue-500: #901414;
+  --blue-600: #860000;
+  --blue-700: #5e0000;
+  --blue-800: #430000;
 }
 
 :root[data-theme='deku'] {
   color-scheme: dark;
-  --color-white: #0e7d7e;
+  --color-white: #6eb1b2;
   --color-black: #035a5b;
   --gray-50: #058b8c;
-  --gray-100: #0d7d7f;
-  --gray-200: #157072;
-  --gray-300: #1d6265;
-  --gray-400: #255458;
-  --gray-500: #4f7475;
-  --gray-600: #799392;
-  --gray-700: #a3b3b0;
-  --gray-800: #cdd2cd;
+  --gray-100: #097576;
+  --gray-200: #0e5f61;
+  --gray-300: #12484b;
+  --gray-400: #163235;
+  --gray-500: #435859;
+  --gray-600: #707f7d;
+  --gray-700: #9da5a2;
+  --gray-800: #caccc6;
   --gray-900: #f7f2ea;
   --blue-50: #1a8181;
   --blue-100: #287a7a;
@@ -1012,17 +1012,17 @@
 
 :root[data-theme='diner'] {
   color-scheme: dark;
-  --color-white: #4d6f8b;
+  --color-white: #9db0bf;
   --color-black: #364f62;
   --gray-50: #537997;
-  --gray-100: #4f7291;
-  --gray-200: #4c6b8b;
-  --gray-300: #486385;
-  --gray-400: #445c7f;
-  --gray-500: #63758e;
-  --gray-600: #828f9c;
-  --gray-700: #a1a8ab;
-  --gray-800: #c0c2b9;
+  --gray-100: #476782;
+  --gray-200: #3b556d;
+  --gray-300: #2f4257;
+  --gray-400: #233042;
+  --gray-500: #49525d;
+  --gray-600: #6e7478;
+  --gray-700: #949792;
+  --gray-800: #b9b9ad;
   --gray-900: #dfdbc8;
   --blue-50: #607f90;
   --blue-100: #69848b;
@@ -1337,27 +1337,27 @@
 
 :root[data-theme='fire'] {
   color-scheme: dark;
-  --color-white: #200a0a;
-  --color-black: #0a0000;
-  --gray-50: #0f0000;
-  --gray-100: #250d0d;
-  --gray-200: #3c1a1a;
-  --gray-300: #522727;
-  --gray-400: #683434;
-  --gray-500: #865d5d;
-  --gray-600: #a48585;
-  --gray-700: #c3aeae;
-  --gray-800: #e1d6d6;
-  --gray-900: #ffffff;
-  --blue-50: #230202;
-  --blue-100: #300404;
-  --blue-200: #430606;
-  --blue-300: #ce6666;
-  --blue-400: #c24242;
-  --blue-500: #b92626;
-  --blue-600: #b31313;
-  --blue-700: #931010;
-  --blue-800: #740c0c;
+  --color-white: #3a1006;
+  --color-black: #0f0301;
+  --gray-50: #170502;
+  --gray-100: #300d06;
+  --gray-200: #491509;
+  --gray-300: #611c0d;
+  --gray-400: #7a2410;
+  --gray-500: #954a32;
+  --gray-600: #af6f53;
+  --gray-700: #ca9575;
+  --gray-800: #e4ba96;
+  --gray-900: #ffe0b8;
+  --blue-50: #330f05;
+  --blue-100: #451608;
+  --blue-200: #61200b;
+  --blue-300: #ff946d;
+  --blue-400: #ff7b4c;
+  --blue-500: #ff6731;
+  --blue-600: #ff5a1f;
+  --blue-700: #d14a19;
+  --blue-800: #a63b14;
 }
 
 :root[data-theme='fledgling'] {
@@ -2462,18 +2462,18 @@
 
 :root[data-theme='mexican'] {
   color-scheme: light;
-  --color-white: #f9b951;
+  --color-white: #fdeacb;
   --color-black: #191105;
   --gray-50: #f8ad34;
   --gray-100: #c78f34;
   --gray-200: #967034;
   --gray-300: #645233;
   --gray-400: #333333;
-  --gray-500: #585858;
-  --gray-600: #7e7e7e;
-  --gray-700: #a3a3a3;
-  --gray-800: #c9c9c9;
-  --gray-900: #eeeeee;
+  --gray-500: #2b2b2b;
+  --gray-600: #222222;
+  --gray-700: #1a1a1a;
+  --gray-800: #111111;
+  --gray-900: #090909;
   --blue-50: #ef9c3e;
   --blue-100: #ea9145;
   --blue-200: #e1804f;
@@ -4749,6 +4749,33 @@
 }
 
 /*
+ * `appearance-none` range inputs drop the native thumb entirely, so on some
+ * themes the slider becomes just a bare track with nothing visibly grabbable.
+ * A fixed white ring around the thumb keeps it legible regardless of how
+ * close the active theme's accent and track colors happen to sit.
+ */
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: var(--blue-600);
+  border: 2px solid var(--color-white);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.25);
+  cursor: pointer;
+}
+input[type='range']::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: var(--blue-600);
+  border: 2px solid var(--color-white);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.25);
+  cursor: pointer;
+}
+
+/*
  * Animated "prank theme" effects, adapted from Monkeytype's rainbow_trail,
  * rgb, trance, phantom and shadow themes. Applied via .theme-fx-logo and
  * .theme-fx-nav-active, which are inert unless the matching theme is active.
@@ -4821,4 +4848,17 @@
 [data-theme='chaos_theory'] .theme-fx-logo:hover,
 [data-theme='chaos_theory'] .theme-fx-nav-active:hover {
   transform: scaleX(1);
+}
+
+@keyframes theme-fx-fire {
+  0% { color: #ff8a00; text-shadow: 0 0 4px #ff4500, 0 0 10px #ff8c00, 0 0 18px #ffae00; }
+  20% { color: #ffae00; text-shadow: 0 0 5px #ff6a00, 0 0 12px #ffdd00, 0 0 16px #ff3d00; }
+  40% { color: #ff5e00; text-shadow: 0 0 6px #ff2200, 0 0 14px #ff6a00, 0 0 22px #ffcf00; }
+  60% { color: #ff3d00; text-shadow: 0 0 7px #ff0000, 0 0 15px #ff8800, 0 0 20px #ffcc00; }
+  80% { color: #ffcc00; text-shadow: 0 0 5px #ff8800, 0 0 11px #ff4500, 0 0 17px #ff6a00; }
+  100% { color: #ff8a00; text-shadow: 0 0 4px #ff4500, 0 0 10px #ff8c00, 0 0 18px #ffae00; }
+}
+[data-theme='fire'] .theme-fx-logo,
+[data-theme='fire'] .theme-fx-nav-active {
+  animation: theme-fx-fire 1.3s ease-in-out infinite;
 }
