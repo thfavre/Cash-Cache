@@ -166,6 +166,20 @@ def simulate(
     one_time_events: dict[int, float] = {}   # month_offset -> amount delta
 
     if scenarios:
+        # contribution_change scenarios *overwrite* the tail of contrib_path
+        # (rather than adding to it), so applying them out of chronological
+        # order would let an earlier-starting change wipe out a later-starting
+        # one just because it was added to the UI second. Apply them by
+        # start_month ascending so each change always wins for its own
+        # window, regardless of creation order.
+        for sc in sorted(
+            (s for s in scenarios if s.get("type") == "contribution_change"),
+            key=lambda s: int(s.get("start_month", 1)),
+        ):
+            start_m = max(1, int(sc.get("start_month", 1)))
+            start_idx = min(start_m - 1, months)
+            contrib_path[start_idx:] = float(sc.get("amount", monthly_contrib))
+
         for sc in scenarios:
             sc_type = sc.get("type", "")
             start_m = max(1, int(sc.get("start_month", 1)))
@@ -192,8 +206,7 @@ def simulate(
                 delta_path[start_idx:] += amount * occurrences_per_month
             elif sc_type == "one_time_event":
                 one_time_events[start_m] = one_time_events.get(start_m, 0) + float(sc.get("amount", 0))
-            elif sc_type == "contribution_change":
-                contrib_path[start_idx:] = float(sc.get("amount", monthly_contrib))
+            # contribution_change already applied above, in chronological order
 
     effective_mu_path = np.array(mu_path) + delta_path   # (months,)
 

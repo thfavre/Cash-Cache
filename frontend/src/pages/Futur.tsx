@@ -358,7 +358,12 @@ export default function Futur() {
           portfolio_value: portfolioValue,
           monthly_contrib: monthlyContrib,
           contrib_mode:    contribMode,
-          target_liquid:   contribMode === 'auto' ? targetLiquidValue : undefined,
+          // Only send a target once the user has actually set one — otherwise
+          // targetLiquidValue defaults to 0, which the backend treats as a
+          // real target and sweeps the entire liquid balance into the
+          // portfolio every month (including going negative, since there's
+          // no buffer left to protect).
+          target_liquid:   contribMode === 'auto' && targetLiquidInput !== '' ? targetLiquidValue : undefined,
         }
         // When what-if scenarios are active, also run a no-scenario baseline
         // in parallel so the chart can show their impact by comparison.
@@ -366,16 +371,19 @@ export default function Futur() {
         // computed over the full 50-year horizon, independent of the
         // chart's own horizon selector — otherwise picking a short horizon
         // would make FIRE look unreachable just because the window is short.
+        // Skip the extra request when the chart horizon already IS 50 years
+        // — it would be an identical call to the main one.
+        const alreadyMax = baseParams.months === 600
         const [res, baseRes, fireRes] = await Promise.all([
           api.simulate({ ...baseParams, scenarios }),
           scenarios.length > 0 ? api.simulate({ ...baseParams, scenarios: [] }) : Promise.resolve(null),
-          api.simulate({ ...baseParams, months: 600, scenarios }),
+          alreadyMax ? Promise.resolve(null) : api.simulate({ ...baseParams, months: 600, scenarios }),
         ])
         // Drop stale responses from a superseded request (out-of-order network replies).
         if (requestId === requestIdRef.current) {
           setResult(res)
           setBaselineResult(baseRes)
-          setFireResult(fireRes)
+          setFireResult(alreadyMax ? res : fireRes)
         }
       } finally {
         if (requestId === requestIdRef.current) setLoading(false)
@@ -458,12 +466,14 @@ export default function Futur() {
       target_inflation_adjusted:  targetInflationAdjusted,
     })
     setSettings(updated)
+    setTargetLiquidValue(updated.target_effective ?? updated.target_liquid ?? 0)
   }
 
   async function clearTargetLiquid() {
     const updated = await api.saveInvestmentSettings({ target_liquid: -1 })
     setSettings(updated)
     setTargetLiquidInput('')
+    setTargetLiquidValue(0)
   }
 
   // ── Reset monthly contribution back to the auto-computed average ─────────
@@ -898,6 +908,8 @@ export default function Futur() {
                 stroke="none"
                 fill="#bfdbfe"
                 fillOpacity={0.35}
+                dot={false}
+                activeDot={false}
               />
               <Area
                 type="monotone"
@@ -906,6 +918,8 @@ export default function Futur() {
                 stroke="none"
                 fill="var(--color-white)"
                 fillOpacity={1}
+                dot={false}
+                activeDot={false}
               />
 
               {/* p25–p75 inner band */}
@@ -916,6 +930,8 @@ export default function Futur() {
                 stroke="none"
                 fill="#93c5fd"
                 fillOpacity={0.45}
+                dot={false}
+                activeDot={false}
               />
               <Area
                 type="monotone"
@@ -924,9 +940,11 @@ export default function Futur() {
                 stroke="none"
                 fill="var(--color-white)"
                 fillOpacity={1}
+                dot={false}
+                activeDot={false}
               />
 
-              {/* Median line */}
+              {/* Median line — the only series that shows a hover dot */}
               <Line
                 type="monotone"
                 dataKey={`${view}_p50`}
@@ -934,6 +952,7 @@ export default function Futur() {
                 stroke="#2563eb"
                 strokeWidth={2.5}
                 dot={false}
+                activeDot={{ r: 4 }}
               />
 
               {/* Baseline (no what-if scenarios) median, for comparison */}
@@ -946,6 +965,7 @@ export default function Futur() {
                   strokeWidth={1.5}
                   strokeDasharray="5 3"
                   dot={false}
+                  activeDot={false}
                 />
               )}
 
@@ -1190,17 +1210,31 @@ export default function Futur() {
         {/* Active scenarios */}
         {scenarios.length > 0 ? (
           <div className="space-y-2">
-            {scenarios.map((sc, i) => (
-              <div key={i} className="flex items-center justify-between bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5">
-                <span className="text-sm text-gray-700">{scenarioLabel(sc)}</span>
-                <button
-                  onClick={() => setScenarios(prev => prev.filter((_, j) => j !== i))}
-                  className="text-gray-400 hover:text-red-500 transition-colors ml-3"
+            {scenarios.map((sc, i) => {
+              // contribution_change scenarios have no effect once switched to
+              // auto mode (contribution isn't a fixed amount there) — flag
+              // them as inactive instead of silently ignoring them.
+              const inactive = sc.type === 'contribution_change' && contribMode === 'auto'
+              return (
+                <div
+                  key={i}
+                  className={`flex items-center justify-between rounded-xl px-4 py-2.5 border ${
+                    inactive ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-100'
+                  }`}
                 >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
+                  <span className={`text-sm ${inactive ? 'text-gray-400' : 'text-gray-700'}`}>
+                    {scenarioLabel(sc)}
+                    {inactive && ' — sans effet en mode Automatique'}
+                  </span>
+                  <button
+                    onClick={() => setScenarios(prev => prev.filter((_, j) => j !== i))}
+                    className="text-gray-400 hover:text-red-500 transition-colors ml-3"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )
+            })}
           </div>
         ) : (
           <p className="text-sm text-gray-400 text-center py-4">
