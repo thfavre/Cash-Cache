@@ -5,7 +5,7 @@ import {
 } from 'recharts'
 import {
   TrendingUp, Flame, Settings2, Plus, X, ChevronDown, ChevronUp,
-  Target, AlertTriangle, Sparkles, HelpCircle, PiggyBank, CheckCircle2,
+  Target, AlertTriangle, Sparkles, HelpCircle, PiggyBank, CheckCircle2, Pencil,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import {
@@ -323,6 +323,7 @@ export default function Futur() {
   const [scenarios, setScenarios]   = useState<ScenarioItem[]>(loadScenariosFromCookie)
   useEffect(() => { saveScenariosToCookie(scenarios) }, [scenarios])
   const [showScForm, setShowScForm] = useState(false)
+  const [editingScIndex, setEditingScIndex] = useState<number | null>(null)
   const [scType, setScType]         = useState<ScenarioItem['type']>('expense_reduction')
   const [scAmount, setScAmount]     = useState('')
   const [scPct, setScPct]           = useState('-20')
@@ -334,7 +335,7 @@ export default function Futur() {
 
   useEffect(() => {
     if (!showScForm) return
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowScForm(false) }
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') closeScForm() }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [showScForm])
@@ -503,7 +504,12 @@ export default function Futur() {
     const maxPoints = 120
     if (data.length <= maxPoints) return data
     const step = Math.ceil(data.length / maxPoints)
-    return data.filter((_, i) => i % step === 0 || i === data.length - 1)
+    // Always keep each scenario's start month even if thinning would
+    // otherwise drop it — its ReferenceLine marker below only renders when
+    // an exact matching month is present in the (categorical) x-axis data,
+    // so whether it survived was previously down to chance based on horizon.
+    const scenarioMonths = new Set(scenarios.map(sc => sc.start_month))
+    return data.filter((_, i) => i % step === 0 || i === data.length - 1 || scenarioMonths.has(i))
   })()
 
   // FIRE target as a single horizontal line only makes sense in real terms
@@ -584,7 +590,7 @@ export default function Futur() {
     setMonthlyContrib(updated.auto_monthly_contrib)
   }
 
-  // ── Add scenario ──────────────────────────────────────────────────────────
+  // ── Add / edit scenario ────────────────────────────────────────────────────
   function addScenario() {
     const sc: ScenarioItem = {
       type: scType,
@@ -595,9 +601,31 @@ export default function Futur() {
     if (scType === 'one_time_event')      { sc.amount = Number(scAmount); sc.target = scTarget }
     if (scType === 'contribution_change') sc.amount = Number(scAmount)
 
-    setScenarios(prev => [...prev, sc])
+    if (editingScIndex !== null) {
+      setScenarios(prev => prev.map((s, j) => j === editingScIndex ? sc : s))
+    } else {
+      setScenarios(prev => [...prev, sc])
+    }
+    closeScForm()
+  }
+
+  function closeScForm() {
     setShowScForm(false)
+    setEditingScIndex(null)
     setScAmount(''); setScPct('-20'); setScMonth('1'); setScCategory(''); setScFrequency('monthly'); setScTarget('bank')
+  }
+
+  function startEditScenario(i: number) {
+    const sc = scenarios[i]
+    setEditingScIndex(i)
+    setScType(sc.type)
+    setScAmount(sc.amount !== undefined ? String(sc.amount) : '')
+    setScPct(sc.percent_change !== undefined ? String(sc.percent_change) : '-20')
+    setScMonth(String(sc.start_month))
+    setScCategory(sc.category ?? '')
+    setScFrequency(sc.frequency ?? 'monthly')
+    setScTarget(sc.target ?? 'bank')
+    setShowScForm(true)
   }
 
   // ── FIRE labels ───────────────────────────────────────────────────────────
@@ -1094,7 +1122,16 @@ export default function Futur() {
                     stroke="#c084fc"
                     strokeDasharray="2 3"
                     strokeWidth={1.5}
-                    label={{ value: icon, position: 'insideBottom', fontSize: 13 }}
+                    label={(props: { viewBox?: { x: number; y: number; height: number } }) => {
+                      const vb = props.viewBox
+                      if (!vb) return <></>
+                      return (
+                        <text x={vb.x} y={vb.y + vb.height - 5} textAnchor="middle" fontSize={13} style={{ cursor: 'default' }}>
+                          {icon}
+                          <title>{scenarioLabel(sc)}</title>
+                        </text>
+                      )
+                    }}
                   />
                 )
               })}
@@ -1200,7 +1237,7 @@ export default function Futur() {
             Scénarios What-If
           </h2>
           <button
-            onClick={() => setShowScForm(f => !f)}
+            onClick={() => { if (showScForm) closeScForm(); else setShowScForm(true) }}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition-colors"
           >
             <Plus className="w-3.5 h-3.5" /> Ajouter
@@ -1307,7 +1344,7 @@ export default function Futur() {
 
             <div className="flex gap-2 justify-end">
               <button
-                onClick={() => setShowScForm(false)}
+                onClick={closeScForm}
                 className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 Annuler
@@ -1316,7 +1353,7 @@ export default function Futur() {
                 onClick={addScenario}
                 className="px-4 py-1.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors"
               >
-                Ajouter
+                {editingScIndex !== null ? 'Enregistrer' : 'Ajouter'}
               </button>
             </div>
           </div>
@@ -1341,12 +1378,22 @@ export default function Futur() {
                     {scenarioLabel(sc)}
                     {inactive && ' — sans effet en mode Automatique'}
                   </span>
-                  <button
-                    onClick={() => setScenarios(prev => prev.filter((_, j) => j !== i))}
-                    className="text-gray-400 hover:text-red-500 transition-colors ml-3"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1 ml-3 shrink-0">
+                    <button
+                      onClick={() => startEditScenario(i)}
+                      className="text-gray-400 hover:text-blue-600 transition-colors p-1"
+                      title="Modifier"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setScenarios(prev => prev.filter((_, j) => j !== i))}
+                      className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                      title="Supprimer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               )
             })}
