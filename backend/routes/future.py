@@ -41,6 +41,7 @@ class ScenarioItem(BaseModel):
     frequency: Optional[str] = None     # daily | weekly | monthly | yearly (recurring_cashflow only)
     start_month: int = 1
     duration_months: Optional[int] = None
+    target: Optional[str] = None        # bank | investment (one_time_event / recurring_cashflow only)
 
 
 class SimulateBody(BaseModel):
@@ -54,6 +55,9 @@ class SimulateBody(BaseModel):
     monthly_contrib:  Optional[float] = None
     contrib_mode:     Optional[str] = None    # "manual" | "auto"
     target_liquid:    Optional[float] = None
+    seed:             Optional[int] = None    # shared across paired calls so a scenario-only
+                                               # vs. baseline comparison isn't polluted by
+                                               # independently-drawn cashflow noise
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -109,6 +113,7 @@ def run_simulation(body: SimulateBody, db: Session = Depends(get_db)):
         scenarios      = scenarios_dicts if scenarios_dicts else None,
         contrib_mode   = contrib_mode,
         target_liquid  = target_liquid,
+        seed           = body.seed,
     )
 
     return result

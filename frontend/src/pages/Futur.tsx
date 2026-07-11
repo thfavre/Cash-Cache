@@ -12,6 +12,38 @@ import {
   api, InvestmentSettings, MonthlySimPoint, SimulationResult, ScenarioItem, CashflowSummary, Category,
 } from '../api'
 
+// ── Scenario persistence (cookie) ─────────────────────────────────────────────
+
+const SCENARIOS_COOKIE = 'futur_scenarios'
+
+function loadScenariosFromCookie(): ScenarioItem[] {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${SCENARIOS_COOKIE}=([^;]*)`))
+  if (!match) return []
+  try {
+    return JSON.parse(decodeURIComponent(match[1]))
+  } catch {
+    return []
+  }
+}
+
+function saveScenariosToCookie(scenarios: ScenarioItem[]) {
+  const value = encodeURIComponent(JSON.stringify(scenarios))
+  document.cookie = `${SCENARIOS_COOKIE}=${value}; max-age=31536000; path=/; samesite=lax`
+}
+
+// ── Chart value-mode persistence (cookie) — no backend field for this display-only toggle ──
+
+const VALUE_MODE_COOKIE = 'futur_value_mode'
+
+function loadValueModeFromCookie(): 'real' | 'nominal' {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${VALUE_MODE_COOKIE}=([^;]*)`))
+  return match?.[1] === 'nominal' ? 'nominal' : 'real'
+}
+
+function saveValueModeToCookie(mode: 'real' | 'nominal') {
+  document.cookie = `${VALUE_MODE_COOKIE}=${mode}; max-age=31536000; path=/; samesite=lax`
+}
+
 // ── Formatters ────────────────────────────────────────────────────────────────
 
 const fmt   = (n: number) => new Intl.NumberFormat('fr-CH', { style: 'currency', currency: 'CHF', maximumFractionDigits: 0 }).format(n)
@@ -93,7 +125,7 @@ const MONEY_FIELDS = [
 // ── Scenario helpers ──────────────────────────────────────────────────────────
 
 const SCENARIO_TYPES = [
-  { value: 'expense_reduction',  label: '📉 Réduire une dépense' },
+  { value: 'expense_reduction',  label: '📉 Ajuster une dépense' },
   { value: 'recurring_cashflow', label: '🔁 Revenu/dépense récurrent(e)' },
   { value: 'one_time_event',     label: '🎯 Événement ponctuel' },
   { value: 'contribution_change',label: '📈 Changer la contribution mensuelle' },
@@ -109,13 +141,16 @@ const FREQUENCIES = [
 function scenarioLabel(sc: ScenarioItem): string {
   const from = `dès ${monthsToLabel(sc.start_month)}`
   switch (sc.type) {
-    case 'expense_reduction':   return `📉 Réduction dépenses −${sc.percent_change ?? 0}%${sc.category ? ` (${sc.category})` : ''} (${from})`
+    case 'expense_reduction': {
+      const pct = sc.percent_change ?? 0
+      return `📉 Dépenses ${pct >= 0 ? '+' : ''}${pct}%${sc.category ? ` (${sc.category})` : ''} (${from})`
+    }
     case 'recurring_cashflow': {
       const freq = FREQUENCIES.find(f => f.value === sc.frequency) ?? FREQUENCIES[2]
       const amt = sc.amount ?? 0
-      return `🔁 ${amt >= 0 ? '+' : ''}${fmt(amt)}${freq.perMonth} (${from})`
+      return `🔁 ${amt >= 0 ? '+' : ''}${fmt(amt)}${freq.perMonth} (${from}) → ${sc.target === 'investment' ? 'investissement' : 'compte bancaire'}`
     }
-    case 'one_time_event':      return `🎯 Événement: ${(sc.amount ?? 0) >= 0 ? '+' : ''}${fmt(sc.amount ?? 0)} au mois ${sc.start_month}`
+    case 'one_time_event':      return `🎯 Événement: ${(sc.amount ?? 0) >= 0 ? '+' : ''}${fmt(sc.amount ?? 0)} au mois ${sc.start_month} → ${sc.target === 'investment' ? 'investissement' : 'compte bancaire'}`
     case 'contribution_change': return `📈 Contribution → ${fmt(sc.amount ?? 0)}/mois (${from})`
     default: return sc.type
   }
@@ -281,17 +316,20 @@ export default function Futur() {
   const [view, setView]         = useState<ViewMode>('networth')
   // 'real' = today's purchasing power (what the engine computes natively);
   // 'nominal' = inflated back up to the actual future CHF amount, display-only.
-  const [valueMode, setValueMode] = useState<'real' | 'nominal'>('real')
+  const [valueMode, setValueMode] = useState<'real' | 'nominal'>(loadValueModeFromCookie)
+  useEffect(() => { saveValueModeToCookie(valueMode) }, [valueMode])
 
-  // Scenarios
-  const [scenarios, setScenarios]   = useState<ScenarioItem[]>([])
+  // Scenarios (persisted to a cookie so they survive page reloads)
+  const [scenarios, setScenarios]   = useState<ScenarioItem[]>(loadScenariosFromCookie)
+  useEffect(() => { saveScenariosToCookie(scenarios) }, [scenarios])
   const [showScForm, setShowScForm] = useState(false)
   const [scType, setScType]         = useState<ScenarioItem['type']>('expense_reduction')
   const [scAmount, setScAmount]     = useState('')
-  const [scPct, setScPct]           = useState('20')
+  const [scPct, setScPct]           = useState('-20')
   const [scMonth, setScMonth]       = useState('1')
   const [scCategory, setScCategory] = useState('')
   const [scFrequency, setScFrequency] = useState<NonNullable<ScenarioItem['frequency']>>('monthly')
+  const [scTarget, setScTarget]     = useState<NonNullable<ScenarioItem['target']>>('bank')
   const [categories, setCategories] = useState<Category[]>([])
 
   useEffect(() => {
@@ -307,6 +345,8 @@ export default function Futur() {
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const requestIdRef = useRef(0)
+  const settingsLoadedRef = useRef(false)
+  const settingsSaveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // ── Load settings on mount ────────────────────────────────────────────────
   useEffect(() => {
@@ -322,9 +362,27 @@ export default function Futur() {
       setTargetLiquidInput(s.target_liquid != null ? String(s.target_liquid) : '')
       setTargetLiquidValue(s.target_effective ?? s.target_liquid ?? 0)
       setTargetInflationAdjusted(s.target_inflation_adjusted)
+      settingsLoadedRef.current = true
     })
     api.categories().then(setCategories)
   }, [])
+
+  // ── Auto-save rendement/inflation/contribution mensuelle (debounced) so
+  // slider tweaks aren't lost on reload without requiring an explicit save —
+  // skipped until the initial load above completes, so we don't overwrite
+  // stored settings with the sliders' default values first.
+  useEffect(() => {
+    if (!settingsLoadedRef.current) return
+    if (settingsSaveDebounceRef.current) clearTimeout(settingsSaveDebounceRef.current)
+    settingsSaveDebounceRef.current = setTimeout(() => {
+      api.saveInvestmentSettings({
+        annual_rate:    annualRate,
+        inflation_rate: inflationRate,
+        ...(contribManuallySet ? { monthly_contrib: monthlyContrib } : {}),
+      }).then(setSettings)
+    }, 600)
+    return () => { if (settingsSaveDebounceRef.current) clearTimeout(settingsSaveDebounceRef.current) }
+  }, [annualRate, inflationRate, monthlyContrib, contribManuallySet])
 
   // ── Cleanup debounce on unmount ───────────────────────────────────────────
   useEffect(() => {
@@ -376,6 +434,13 @@ export default function Futur() {
           // portfolio every month (including going negative, since there's
           // no buffer left to protect).
           target_liquid:   contribMode === 'auto' && targetLiquidInput !== '' ? targetLiquidValue : undefined,
+          // Shared across this run's calls so the scenario vs. baseline
+          // comparison isolates the scenario's real effect instead of being
+          // polluted by independently-drawn cashflow noise (each would
+          // otherwise sample its own random future, making even a
+          // scenario with zero effect on a given view show a nonzero
+          // "Impact scénarios" purely by chance).
+          seed:            Math.floor(Math.random() * 2 ** 31),
         }
         // When what-if scenarios are active, also run a no-scenario baseline
         // in parallel so the chart can show their impact by comparison.
@@ -451,29 +516,42 @@ export default function Futur() {
 
   // ── Save settings to DB ───────────────────────────────────────────────────
   async function saveSettings() {
-    const body: {
-      annual_rate: number
-      inflation_rate: number
-      manual_portfolio?: number
-      monthly_contrib?: number
-    } = {
-      annual_rate:    annualRate,
-      inflation_rate: inflationRate,
-    }
-    if (manualPortfolio !== '') body.manual_portfolio = Number(manualPortfolio)
-    if (contribManuallySet) body.monthly_contrib = monthlyContrib
-    const updated = await api.saveInvestmentSettings(body)
+    if (manualPortfolio === '') return
+    const updated = await api.saveInvestmentSettings({ manual_portfolio: Number(manualPortfolio) })
     setSettings(updated)
     setPortfolioValue(updated.effective_portfolio)
-    setMonthlyContrib(updated.effective_contrib)
+  }
+
+  // ── Reset "Paramètres de simulation" to their defaults ────────────────────
+  // Deliberately leaves "Valeur réelle (saisie manuelle)" (manualPortfolio)
+  // untouched — that's a separate override the user asked to keep.
+  async function resetSimulationParams() {
+    setAnnualRate(0.07)
+    setInflationRate(0.02)
+    setValueMode('real')
+    setContribMode('manual')
+    const updated = await api.saveInvestmentSettings({
+      annual_rate:     0.07,
+      inflation_rate:  0.02,
+      contrib_mode:    'manual',
+      monthly_contrib: -1,
+    })
+    setSettings(updated)
+    setContribManuallySet(false)
+    setMonthlyContrib(updated.auto_monthly_contrib)
   }
 
   // ── Move the detected leftover into the monthly contribution ─────────────
+  // Sets contribution to invested_per_month + leftover_per_month (i.e. average
+  // net cashflow) rather than adding leftover on top of whatever's currently
+  // saved — leftover is a historical figure that doesn't shrink after being
+  // applied once, so adding it would let repeated clicks stack indefinitely.
   async function addLeftoverToContrib() {
-    if (!cashflowSummary || !settings) return
+    if (!cashflowSummary) return
     const amount = cashflowSummary.leftover_per_month
+    const target = cashflowSummary.invested_per_month + amount
     const updated = await api.saveInvestmentSettings({
-      monthly_contrib: settings.effective_contrib + amount,
+      monthly_contrib: target,
     })
     setSettings(updated)
     setMonthlyContrib(updated.effective_contrib)
@@ -513,13 +591,13 @@ export default function Futur() {
       start_month: Number(scMonth) || 1,
     }
     if (scType === 'expense_reduction')   { sc.percent_change = Number(scPct); if (scCategory) sc.category = scCategory }
-    if (scType === 'recurring_cashflow')  { sc.amount = Number(scAmount); sc.frequency = scFrequency }
-    if (scType === 'one_time_event')      sc.amount = Number(scAmount)
+    if (scType === 'recurring_cashflow')  { sc.amount = Number(scAmount); sc.frequency = scFrequency; sc.target = scTarget }
+    if (scType === 'one_time_event')      { sc.amount = Number(scAmount); sc.target = scTarget }
     if (scType === 'contribution_change') sc.amount = Number(scAmount)
 
     setScenarios(prev => [...prev, sc])
     setShowScForm(false)
-    setScAmount(''); setScPct('20'); setScMonth('1'); setScCategory(''); setScFrequency('monthly')
+    setScAmount(''); setScPct('-20'); setScMonth('1'); setScCategory(''); setScFrequency('monthly'); setScTarget('bank')
   }
 
   // ── FIRE labels ───────────────────────────────────────────────────────────
@@ -606,7 +684,7 @@ export default function Futur() {
               </div>
             </div>
 
-            {cashflowSummary.target_effective !== null && (
+            {contribMode === 'auto' && cashflowSummary.target_effective !== null && (
               <p className="text-xs text-gray-500">
                 Solde actuel <strong className="text-gray-700">{fmt(cashflowSummary.current_liquid_balance)}</strong>
                 {' '}—{' '}
@@ -644,7 +722,15 @@ export default function Futur() {
 
             {/* Left: sliders */}
             <div className="space-y-5">
-              <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Paramètres de simulation</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Paramètres de simulation</h2>
+                <button
+                  onClick={resetSimulationParams}
+                  className="text-xs text-gray-400 hover:text-red-500 underline"
+                >
+                  Réinitialiser
+                </button>
+              </div>
               <Slider
                 label="Rendement annuel"
                 value={annualRate}
@@ -686,7 +772,10 @@ export default function Futur() {
               </div>
 
               <div>
-                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide block mb-1.5">Mode de contribution</span>
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                  Mode de contribution
+                  <InfoTip text="Manuel : vous fixez vous-même le montant investi chaque mois. Automatique : le montant à toujours garder en liquide est défini ci-dessous ; tout ce qui le dépasse est automatiquement investi chaque mois." />
+                </span>
                 <div className="flex gap-1 bg-gray-50 border border-gray-200 rounded-xl p-1 w-fit">
                   {([
                     ['manual', 'Manuel'],
@@ -720,19 +809,19 @@ export default function Futur() {
                     onChange={v => { setMonthlyContrib(v); setContribManuallySet(true) }}
                   />
                   {contribManuallySet && (
-                    <button
-                      onClick={clearContribOverride}
-                      className="text-xs text-gray-400 hover:text-red-500 mt-1 underline"
-                    >
-                      Revenir à la moyenne auto ({fmt(settings?.auto_monthly_contrib ?? 0)})
-                    </button>
+                    <span className="inline-flex items-center gap-1 mt-1">
+                      <button
+                        onClick={clearContribOverride}
+                        className="text-xs text-gray-400 hover:text-red-500 underline"
+                      >
+                        Revenir à la valeur calculée automatiquement ({fmt(settings?.auto_monthly_contrib ?? 0)})
+                      </button>
+                      <InfoTip text="Moyenne historique de ce qui a été effectivement investi chaque mois (catégorie Investissements), calculée sur tout votre historique de transactions." />
+                    </span>
                   )}
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <p className="text-xs text-gray-400">
-                    Le montant à toujours garder en liquide. Tout ce qui dépasse cet objectif est automatiquement investi chaque mois.
-                  </p>
                   <div className="flex flex-wrap items-end gap-3">
                     <div>
                       <label className="text-xs font-medium text-gray-500 uppercase tracking-wide block mb-1">
@@ -1138,11 +1227,11 @@ export default function Futur() {
               {scType === 'expense_reduction' && (
                 <>
                   <div>
-                    <label className="text-xs font-medium text-gray-500 block mb-1">Réduction (%)</label>
+                    <label className="text-xs font-medium text-gray-500 block mb-1">Variation (%, + ou −)</label>
                     <input
-                      type="number" value={scPct} onChange={e => setScPct(e.target.value)} min={0} max={100}
+                      type="number" value={scPct} onChange={e => setScPct(e.target.value)} min={-100}
                       className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                      placeholder="20"
+                      placeholder="-20 (baisse) ou 20 (hausse)"
                     />
                   </div>
                   <div>
@@ -1190,6 +1279,19 @@ export default function Futur() {
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
                     placeholder={scType === 'one_time_event' ? '-5000' : '500'}
                   />
+                </div>
+              )}
+
+              {(scType === 'one_time_event' || scType === 'recurring_cashflow') && (
+                <div>
+                  <label className="text-xs font-medium text-gray-500 block mb-1">Destination</label>
+                  <select
+                    value={scTarget} onChange={e => setScTarget(e.target.value as NonNullable<ScenarioItem['target']>)}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  >
+                    <option value="bank">🏦 Compte bancaire</option>
+                    <option value="investment">📈 Investissement</option>
+                  </select>
                 </div>
               )}
 

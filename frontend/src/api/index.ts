@@ -172,6 +172,7 @@ export interface ScenarioItem {
   frequency?: 'daily' | 'weekly' | 'monthly' | 'yearly'
   start_month: number
   duration_months?: number
+  target?: 'bank' | 'investment'
 }
 
 export interface Merchant {
@@ -410,6 +411,7 @@ export const api = {
     monthly_contrib?: number
     contrib_mode?: 'manual' | 'auto'
     target_liquid?: number
+    seed?: number
   }): Promise<SimulationResult> =>
     req('/future/simulate', { method: 'POST', body: JSON.stringify(body) }),
   cashflowSummary: (windowMonths?: number | null): Promise<CashflowSummary> => {

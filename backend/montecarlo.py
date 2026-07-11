@@ -129,6 +129,7 @@ def simulate(
     scenarios: list[dict] | None = None,
     contrib_mode: str = "manual",
     target_liquid: float | None = None,
+    seed: int | None = None,
 ) -> dict[str, Any]:
     """
     Run Monte Carlo simulation.
@@ -139,7 +140,11 @@ def simulate(
       - fire_months: {p10, p50, p90} (months from now, or null if not reached)
       - annual_expenses_median: float
     """
-    rng = np.random.default_rng()  # no fixed seed — each call produces genuinely different futures
+    # A shared seed lets a scenario-vs-baseline comparison isolate the scenario's
+    # real effect: both calls then draw identical cashflow noise, so any diff
+    # left over is only the scenario, not sampling luck. Without one, each call
+    # produces genuinely different futures.
+    rng = np.random.default_rng(seed)
 
     cashflow_history, expenses_history, _ = _monthly_cashflow_series(db)
     liquid_start = current_liquid_balance(db)
@@ -162,8 +167,10 @@ def simulate(
     # per-month arrays so "starts at month X" is actually true, not just a
     # label.
     delta_path = np.zeros(months)
+    recurring_portfolio_path = np.zeros(months)   # recurring_cashflow scenarios routed to investment
     contrib_path = np.full(months, monthly_contrib)
-    one_time_events: dict[int, float] = {}   # month_offset -> amount delta
+    one_time_events: dict[int, float] = {}             # month_offset -> amount delta (bank/liquid)
+    one_time_events_portfolio: dict[int, float] = {}   # month_offset -> amount delta (investment)
 
     if scenarios:
         # contribution_change scenarios *overwrite* the tail of contrib_path
@@ -187,9 +194,10 @@ def simulate(
             dur     = sc.get("duration_months")  # reserved for future use
 
             if sc_type == "expense_reduction":
+                # percent_change: positive = spending increases (cashflow falls),
+                # negative = spending decreases (cashflow rises).
                 pct = float(sc.get("percent_change", 0)) / 100
-                # Spending falls → net cashflow rises by mean_expenses × pct
-                delta_path[start_idx:] += mean_expenses_hist * pct
+                delta_path[start_idx:] -= mean_expenses_hist * pct
             elif sc_type == "recurring_cashflow":
                 # A recurring amount (+ income / − expense) at an arbitrary
                 # frequency, converted to its monthly-equivalent average and
@@ -203,9 +211,17 @@ def simulate(
                     "monthly": 1.0,
                     "yearly":  1 / 12,
                 }.get(sc.get("frequency", "monthly"), 1.0)
-                delta_path[start_idx:] += amount * occurrences_per_month
+                monthly_equivalent = amount * occurrences_per_month
+                if sc.get("target") == "investment":
+                    recurring_portfolio_path[start_idx:] += monthly_equivalent
+                else:
+                    delta_path[start_idx:] += monthly_equivalent
             elif sc_type == "one_time_event":
-                one_time_events[start_m] = one_time_events.get(start_m, 0) + float(sc.get("amount", 0))
+                amount = float(sc.get("amount", 0))
+                if sc.get("target") == "investment":
+                    one_time_events_portfolio[start_m] = one_time_events_portfolio.get(start_m, 0) + amount
+                else:
+                    one_time_events[start_m] = one_time_events.get(start_m, 0) + amount
             # contribution_change already applied above, in chronological order
 
     effective_mu_path = np.array(mu_path) + delta_path   # (months,)
@@ -252,6 +268,11 @@ def simulate(
             contrib = contrib_path[m - 1]
             balance_mat[:, m]   = balance_mat[:, m - 1] + cf - contrib
             portfolio_mat[:, m] = portfolio_mat[:, m - 1] * (1 + monthly_real_rate) + contrib
+
+        portfolio_mat[:, m] = portfolio_mat[:, m] + recurring_portfolio_path[m - 1]
+
+        if m in one_time_events_portfolio:
+            portfolio_mat[:, m] = portfolio_mat[:, m] + one_time_events_portfolio[m]
 
     networth_mat = balance_mat + portfolio_mat
 
