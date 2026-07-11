@@ -412,6 +412,7 @@ export const api = {
     contrib_mode?: 'manual' | 'auto'
     target_liquid?: number
     seed?: number
+    fire_monthly_expenses?: number
   }): Promise<SimulationResult> =>
     req('/future/simulate', { method: 'POST', body: JSON.stringify(body) }),
   cashflowSummary: (windowMonths?: number | null): Promise<CashflowSummary> => {

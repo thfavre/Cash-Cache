@@ -58,6 +58,7 @@ class SimulateBody(BaseModel):
     seed:             Optional[int] = None    # shared across paired calls so a scenario-only
                                                # vs. baseline comparison isn't polluted by
                                                # independently-drawn cashflow noise
+    fire_monthly_expenses: Optional[float] = None  # override the FIRE target's monthly expense assumption
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -114,6 +115,7 @@ def run_simulation(body: SimulateBody, db: Session = Depends(get_db)):
         contrib_mode   = contrib_mode,
         target_liquid  = target_liquid,
         seed           = body.seed,
+        fire_monthly_expenses = body.fire_monthly_expenses,
     )
 
     return result

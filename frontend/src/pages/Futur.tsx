@@ -319,6 +319,11 @@ export default function Futur() {
   const [valueMode, setValueMode] = useState<'real' | 'nominal'>(loadValueModeFromCookie)
   useEffect(() => { saveValueModeToCookie(valueMode) }, [valueMode])
 
+  // FIRE target's monthly expense assumption — '' means "use the auto-computed
+  // historical median" (the backend's default); set once the user drags the
+  // slider, so it starts at the right place instead of some arbitrary default.
+  const [fireMonthlyExpensesInput, setFireMonthlyExpensesInput] = useState('')
+
   // Scenarios (persisted to a cookie so they survive page reloads)
   const [scenarios, setScenarios]   = useState<ScenarioItem[]>(loadScenariosFromCookie)
   useEffect(() => { saveScenariosToCookie(scenarios) }, [scenarios])
@@ -435,6 +440,7 @@ export default function Futur() {
           // portfolio every month (including going negative, since there's
           // no buffer left to protect).
           target_liquid:   contribMode === 'auto' && targetLiquidInput !== '' ? targetLiquidValue : undefined,
+          fire_monthly_expenses: fireMonthlyExpensesInput !== '' ? Number(fireMonthlyExpensesInput) : undefined,
           // Shared across this run's calls so the scenario vs. baseline
           // comparison isolates the scenario's real effect instead of being
           // polluted by independently-drawn cashflow noise (each would
@@ -467,11 +473,11 @@ export default function Futur() {
         if (requestId === requestIdRef.current) setLoading(false)
       }
     }, 400)
-  }, [annualRate, inflationRate, portfolioValue, monthlyContrib, horizonIdx, scenarios, contribMode, targetLiquidValue])
+  }, [annualRate, inflationRate, portfolioValue, monthlyContrib, horizonIdx, scenarios, contribMode, targetLiquidValue, fireMonthlyExpensesInput])
 
   useEffect(() => {
     if (settings !== null) runSim()
-  }, [annualRate, inflationRate, portfolioValue, monthlyContrib, horizonIdx, scenarios, settings, contribMode, targetLiquidValue])
+  }, [annualRate, inflationRate, portfolioValue, monthlyContrib, horizonIdx, scenarios, settings, contribMode, targetLiquidValue, fireMonthlyExpensesInput])
 
   // Real-terms → nominal (actual future CHF) factor for a given month offset
   const nominalFactor = (monthOffset: number) => (1 + inflationRate) ** (monthOffset / 12)
@@ -1151,6 +1157,8 @@ export default function Futur() {
       {result && (() => {
         const last = result.monthly.at(-1)
         const lastFactor = valueMode === 'nominal' ? nominalFactor(horizonMonths) : 1
+        const fireMonthlyExpensesDefault = result.annual_expenses_median / 12
+        const fireMonthlyExpensesValue = fireMonthlyExpensesInput !== '' ? Number(fireMonthlyExpensesInput) : fireMonthlyExpensesDefault
         const solvent = result.pct_solvent_final
         const solventValueClass = solvent >= 90 ? 'text-emerald-600' : solvent >= 60 ? 'text-amber-500' : 'text-red-500'
         const solventIconClass  = solvent >= 60 ? 'text-orange-500' : 'text-red-500'
@@ -1162,7 +1170,7 @@ export default function Futur() {
                 label="Capital FIRE"
                 value={fmt(result.fire_number)}
                 valueColorClass="text-amber-600"
-                caption={`= ${fmt(result.annual_expenses_median)} dépenses/an × 25`}
+                caption={`= ${fmt(result.annual_expenses_median)} dépenses/an × 25 (${fmt(fireMonthlyExpensesDefault)}/mois)`}
                 info="La règle des 4% : une fois votre portefeuille égal à 25× vos dépenses annuelles, vous pouvez théoriquement en retirer 4%/an indéfiniment. C'est le capital visé pour l'indépendance financière (FIRE)."
               />
               <StatCard
@@ -1223,6 +1231,29 @@ export default function Futur() {
                 <span className="text-xs font-bold text-amber-600 whitespace-nowrap">
                   {(fireResult?.pct_simulations_fire ?? 0).toFixed(0)}% des simulations atteignent le FIRE (sur 50 ans)
                 </span>
+              </div>
+
+              <div className="mt-5 pt-4 border-t border-gray-100">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                    Dépenses visées à la retraite
+                  </span>
+                  {fireMonthlyExpensesInput !== '' && (
+                    <button
+                      onClick={() => setFireMonthlyExpensesInput('')}
+                      className="text-xs text-gray-400 hover:text-red-500 underline"
+                    >
+                      Réinitialiser
+                    </button>
+                  )}
+                </div>
+                <Slider
+                  label="Dépenses mensuelles"
+                  value={fireMonthlyExpensesValue}
+                  min={0} max={20000} step={50}
+                  format={v => `${fmt(v)}/mois`}
+                  onChange={v => setFireMonthlyExpensesInput(String(v))}
+                />
               </div>
             </div>
           </>

@@ -130,6 +130,7 @@ def simulate(
     contrib_mode: str = "manual",
     target_liquid: float | None = None,
     seed: int | None = None,
+    fire_monthly_expenses: float | None = None,
 ) -> dict[str, Any]:
     """
     Run Monte Carlo simulation.
@@ -311,9 +312,13 @@ def simulate(
         })
 
     # FIRE number = 25 × annual expenses (4% rule)
-    # Use last 12 months of expenses history
-    recent_exp = expenses_history[-12:] if len(expenses_history) >= 12 else expenses_history
-    annual_expenses_median = float(np.median(recent_exp)) * 12 if recent_exp else 12000.0
+    # Use last 12 months of expenses history, unless the user overrides the
+    # target monthly expense to plan for (e.g. a different lifestyle in FIRE).
+    if fire_monthly_expenses is not None:
+        annual_expenses_median = fire_monthly_expenses * 12
+    else:
+        recent_exp = expenses_history[-12:] if len(expenses_history) >= 12 else expenses_history
+        annual_expenses_median = float(np.median(recent_exp)) * 12 if recent_exp else 12000.0
     fire_number = round(annual_expenses_median * 25, 0)
 
     # FIRE date: vectorised — avoid O(n_sims × months) Python loop
