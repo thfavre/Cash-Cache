@@ -122,7 +122,7 @@ export default function Analytics() {
     )
   }
 
-  if (loading || !data) {
+  if (!data) {
     return (
       <div className="flex flex-col items-center justify-center h-full min-h-[400px] space-y-3 text-gray-400 font-medium">
         <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
@@ -232,7 +232,24 @@ export default function Analytics() {
         })}
       </div>
 
-      {tab === 'overview' && (
+      {/* Tab Content Container with Smooth Transitions */}
+      <div className="relative min-h-[400px] w-full">
+        {/* Loading Overlay */}
+        <div
+          className={`absolute inset-0 bg-white/30 backdrop-blur-[1px] z-10 flex items-center justify-center rounded-2xl transition-all duration-300 pointer-events-none ${
+            loading ? 'opacity-100' : 'opacity-0'
+          }`}
+        >
+          {loading && (
+            <div className="flex flex-col items-center space-y-3 bg-white/90 shadow-lg border border-gray-100 rounded-2xl p-5 pointer-events-auto animate-in fade-in zoom-in-95 duration-200">
+              <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-xs font-semibold text-gray-700">Mise à jour...</p>
+            </div>
+          )}
+        </div>
+
+        <div className={`transition-all duration-500 ease-in-out ${loading ? 'opacity-50 blur-[0.5px] pointer-events-none' : 'opacity-100'}`}>
+          {tab === 'overview' && (
         <div className="space-y-6">
           <div className="flex items-center justify-end">
             <div className="bg-gray-100 p-0.5 rounded-lg flex items-center text-[11px] font-medium">
@@ -522,6 +539,8 @@ export default function Analytics() {
           </div>
         </div>
       )}
+        </div>
+      </div>
 
       {/* Drill-down slide over modal */}
       {selectedCategory && (

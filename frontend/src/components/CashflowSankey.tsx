@@ -478,7 +478,10 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                 d={pathD}
                 fill={`url(#${gradId})`}
                 opacity={opacity}
-                className="transition-opacity duration-200 cursor-pointer"
+                className="cursor-pointer"
+                style={{
+                  transition: 'd 600ms cubic-bezier(0.4, 0, 0.2, 1), opacity 600ms cubic-bezier(0.4, 0, 0.2, 1), fill 600ms ease'
+                }}
                 onMouseEnter={() => setHoveredLinkId(link.id)}
                 onMouseLeave={() => setHoveredLinkId(null)}
                 onClick={() => handleNodeClick(tNode.col === 1 ? sNode : tNode)}
@@ -499,7 +502,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
             return (
               <g
                 key={`bar-${node.id}`}
-                className="cursor-pointer transition-transform duration-200"
+                className="cursor-pointer transition-transform duration-600 ease-in-out"
                 onMouseEnter={() => setHoveredNodeId(node.id)}
                 onMouseLeave={() => setHoveredNodeId(null)}
                 onClick={() => handleNodeClick(node)}
@@ -513,7 +516,10 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                   rx={5}
                   fill={node.color}
                   opacity={isDimmed ? 0.2 : 1}
-                  className="transition-all duration-200 drop-shadow-sm"
+                  className="drop-shadow-sm"
+                  style={{
+                    transition: 'x 600ms cubic-bezier(0.4, 0, 0.2, 1), y 600ms cubic-bezier(0.4, 0, 0.2, 1), width 600ms cubic-bezier(0.4, 0, 0.2, 1), height 600ms cubic-bezier(0.4, 0, 0.2, 1), fill 600ms ease, opacity 600ms ease'
+                  }}
                 >
                   {node.detail && node.detail.length > 0 && (
                     <title>
@@ -543,7 +549,7 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
             return (
               <g
                 key={`label-${node.id}`}
-                className="cursor-pointer transition-transform duration-200"
+                className="cursor-pointer transition-transform duration-600 ease-in-out"
                 onMouseEnter={() => setHoveredNodeId(node.id)}
                 onMouseLeave={() => setHoveredNodeId(null)}
                 onClick={() => handleNodeClick(node)}
@@ -562,6 +568,9 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                         ? 'text-[13px] opacity-30 fill-gray-400 font-semibold'
                         : 'text-[13px] fill-gray-800 font-semibold'
                     }`}
+                    style={{
+                      transition: 'x 600ms cubic-bezier(0.4, 0, 0.2, 1), y 600ms cubic-bezier(0.4, 0, 0.2, 1), fill 600ms ease, opacity 600ms ease'
+                    }}
                   >
                     <title>{node.name}: {fmtAmt(node.amount)}</title>
                     {node.icon ? `${node.icon} ` : ''}{trunc(node.name, 22)}: {fmtAmt(node.amount)}
@@ -582,6 +591,9 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                         ? 'text-[13px] opacity-30 fill-gray-400 font-semibold'
                         : 'text-[13px] fill-gray-800 font-semibold'
                     }`}
+                    style={{
+                      transition: 'x 600ms cubic-bezier(0.4, 0, 0.2, 1), y 600ms cubic-bezier(0.4, 0, 0.2, 1), fill 600ms ease, opacity 600ms ease'
+                    }}
                   >
                     <title>{node.name}: {fmtAmt(node.amount)}</title>
                     {trunc(node.name, 22)}: {fmtAmt(node.amount)}
@@ -602,6 +614,9 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                         ? 'text-[13px] opacity-30 fill-gray-400 font-semibold'
                         : 'text-[13px] fill-gray-800 font-semibold'
                     }`}
+                    style={{
+                      transition: 'x 600ms cubic-bezier(0.4, 0, 0.2, 1), y 600ms cubic-bezier(0.4, 0, 0.2, 1), fill 600ms ease, opacity 600ms ease'
+                    }}
                   >
                     <title>{node.name}: {fmtAmt(node.amount)}</title>
                     {trunc(node.name, 22)}: {fmtAmt(node.amount)}
@@ -622,6 +637,9 @@ export default function CashflowSankey({ data, onSelectCategory }: Props) {
                         ? 'text-[12px] opacity-30 fill-gray-400 font-medium'
                         : 'text-[12px] fill-gray-800 font-medium'
                     }`}
+                    style={{
+                      transition: 'x 600ms cubic-bezier(0.4, 0, 0.2, 1), y 600ms cubic-bezier(0.4, 0, 0.2, 1), fill 600ms ease, opacity 600ms ease'
+                    }}
                   >
                     <title>{node.name}: {fmtAmt(node.amount)}</title>
                     {trunc(node.name, 22)}: {fmtAmt(node.amount)}
