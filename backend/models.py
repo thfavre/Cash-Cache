@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import (
-    Column, Integer, String, Float, Boolean, Date, DateTime, ForeignKey, JSON, UniqueConstraint
+    Column, Integer, String, Float, Boolean, Date, DateTime, ForeignKey, JSON
 )
 from sqlalchemy.orm import relationship
 from .database import Base
@@ -32,7 +32,6 @@ class Category(Base):
     is_ignored = Column(Boolean, default=False, nullable=False)
 
     transactions = relationship("Transaction", back_populates="category")
-    budgets = relationship("Budget", back_populates="category")
 
 
 class Transaction(Base):
@@ -88,14 +87,19 @@ class Setting(Base):
 
 class Budget(Base):
     __tablename__ = "budgets"
-    __table_args__ = (UniqueConstraint("category_id", "month", name="uq_budget_cat_month"),)
 
     id = Column(Integer, primary_key=True, index=True)
-    category_id = Column(Integer, ForeignKey("categories.id"), nullable=False)
-    month = Column(String, nullable=False)   # YYYY-MM
+    name = Column(String, nullable=True)              # optional label shown on the card
     amount_limit = Column(Float, nullable=False)
 
-    category = relationship("Category", back_populates="budgets")
+    period_type = Column(String, nullable=False, default="monthly")   # daily|weekly|monthly|annual|custom
+    period_days = Column(Integer, nullable=True)        # only used when period_type == "custom"
+    start_date = Column(Date, nullable=False)           # anchor date the period(s) are computed from
+    recurring = Column(Boolean, default=True, nullable=False)
+
+    target_type = Column(String, nullable=False, default="category")  # category|merchant
+    category_ids = Column(JSON, default=list)          # 1-2 category ids, used when target_type == "category"
+    merchant_patterns = Column(JSON, default=list)      # 1-2 free-text patterns, used when target_type == "merchant"
 
 
 class ImportBatch(Base):

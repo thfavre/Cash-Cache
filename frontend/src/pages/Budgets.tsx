@@ -1,78 +1,169 @@
-import { useEffect, useState } from 'react'
-import { api, Budget, Category } from '../api'
-import { Plus, Pencil, Trash2, X, Check, AlertTriangle } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { api, Budget, BudgetInput, BudgetPeriodType, BudgetTargetType, Category } from '../api'
+import { Plus, Pencil, Trash2, AlertTriangle, TriangleAlert } from 'lucide-react'
 import clsx from 'clsx'
 
 const fmt = (n: number) => new Intl.NumberFormat('fr-CH', { style: 'currency', currency: 'CHF' }).format(n)
 
-function monthLabel(m: string) {
-  const [y, mo] = m.split('-')
-  return new Date(+y, +mo - 1).toLocaleDateString('fr-CH', { month: 'long', year: 'numeric' })
+const PERIOD_LABELS: Record<BudgetPeriodType, string> = {
+  daily: 'Jour',
+  weekly: 'Semaine',
+  monthly: 'Mois',
+  annual: 'Année',
+  custom: 'Personnalisé',
 }
 
-function currentMonth() {
+function dateLabel(d: string) {
+  return new Date(d).toLocaleDateString('fr-CH', { day: '2-digit', month: 'short' })
+}
+
+function periodLabel(b: Budget) {
+  if (b.period_type === 'monthly' && b.recurring) {
+    return new Date(b.period_start).toLocaleDateString('fr-CH', { month: 'long', year: 'numeric' })
+  }
+  return `${dateLabel(b.period_start)} – ${dateLabel(b.period_end)}`
+}
+
+function todayIso() {
   const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-function adjMonth(m: string, delta: number) {
-  let [y, mo] = m.split('-').map(Number)
-  mo += delta
-  if (mo > 12) { mo = 1; y++ }
-  if (mo < 1) { mo = 12; y-- }
-  return `${y}-${String(mo).padStart(2, '0')}`
+function firstOfLastMonthIso() {
+  const d = new Date()
+  d.setDate(1)
+  d.setMonth(d.getMonth() - 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
 }
+
+function firstOfThisMonthIso() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+}
+
+interface Toast { id: number; message: string; type: 'error' | 'success' }
+
+const emptyForm = (): BudgetInput => ({
+  name: '',
+  amount_limit: 0,
+  period_type: 'monthly',
+  period_days: null,
+  start_date: firstOfLastMonthIso(),
+  recurring: true,
+  target_type: 'category',
+  category_ids: [],
+  merchant_patterns: [],
+})
 
 export default function Budgets() {
-  const [month, setMonth] = useState(currentMonth())
   const [budgets, setBudgets] = useState<Budget[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editId, setEditId] = useState<number | null>(null)
-  const [editVal, setEditVal] = useState('')
-  const [newCatId, setNewCatId] = useState('')
-  const [newLimit, setNewLimit] = useState('')
+  const [form, setForm] = useState<BudgetInput>(emptyForm())
+  const [deleteTarget, setDeleteTarget] = useState<Budget | null>(null)
+  const [toasts, setToasts] = useState<Toast[]>([])
+
+  function pushToast(message: string, type: Toast['type'] = 'error') {
+    const id = Date.now() + Math.random()
+    setToasts(t => [...t, { id, message, type }])
+    setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 4000)
+  }
 
   useEffect(() => {
-    if (!showForm) return
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowForm(false) }
+    if (!showForm && !deleteTarget) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      setShowForm(false)
+      setDeleteTarget(null)
+    }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [showForm])
+  }, [showForm, deleteTarget])
 
   async function load() {
     setLoading(true)
-    const [b, c] = await Promise.all([api.budgets(month), api.categories()])
-    setBudgets(b)
-    setCategories(c)
-    setLoading(false)
+    try {
+      const [b, c] = await Promise.all([api.budgets(), api.categories()])
+      setBudgets(b)
+      setCategories(c)
+    } catch {
+      pushToast('Impossible de charger les budgets.')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  useEffect(() => { load() }, [month])
+  useEffect(() => { load() }, [])
 
-  async function handleAdd() {
-    if (!newCatId || !newLimit) return
-    await api.createBudget({ category_id: +newCatId, month, amount_limit: +newLimit })
-    setShowForm(false); setNewCatId(''); setNewLimit('')
-    load()
+  function openCreate() {
+    setForm(emptyForm())
+    setEditId(null)
+    setShowForm(true)
   }
 
-  async function handleEdit(id: number) {
-    if (!editVal) return
-    await api.updateBudget(id, +editVal)
-    setEditId(null); setEditVal('')
-    load()
+  function openEdit(b: Budget) {
+    setForm({
+      name: b.name ?? '',
+      amount_limit: b.amount_limit,
+      period_type: b.period_type,
+      period_days: b.period_days,
+      start_date: b.start_date,
+      recurring: b.recurring,
+      target_type: b.target_type,
+      category_ids: b.category_ids,
+      merchant_patterns: b.merchant_patterns,
+    })
+    setEditId(b.id)
+    setShowForm(true)
   }
 
-  async function handleDelete(id: number) {
-    if (!confirm('Supprimer ce budget ?')) return
-    await api.deleteBudget(id)
-    load()
+  function validateForm(): string | null {
+    if (!form.amount_limit || form.amount_limit <= 0) return 'Le montant limite doit être positif.'
+    if (form.period_type === 'custom' && !form.period_days) return 'Indiquez un nombre de jours.'
+    if (form.target_type === 'category' && form.category_ids.length === 0) return 'Choisissez au moins une catégorie.'
+    if (form.target_type === 'merchant' && form.merchant_patterns.filter(p => p.trim()).length === 0)
+      return 'Indiquez au moins un événement personnalisé.'
+    return null
   }
 
-  const usedCategoryIds = new Set(budgets.map(b => b.category_id))
-  const availableCategories = categories.filter(c => !usedCategoryIds.has(c.id) && c.name !== 'Non catégorisé')
+  async function handleSave() {
+    const error = validateForm()
+    if (error) { pushToast(error); return }
+    const body: BudgetInput = {
+      ...form,
+      merchant_patterns: form.merchant_patterns.map(p => p.trim()).filter(Boolean),
+      name: form.name?.trim() || null,
+    }
+    try {
+      if (editId) await api.updateBudget(editId, body)
+      else await api.createBudget(body)
+      setShowForm(false)
+      setEditId(null)
+      load()
+    } catch {
+      pushToast(editId ? "Impossible de modifier ce budget." : 'Impossible de créer ce budget.')
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return
+    try {
+      await api.deleteBudget(deleteTarget.id)
+      setDeleteTarget(null)
+      load()
+    } catch {
+      pushToast('Impossible de supprimer ce budget.')
+    }
+  }
+
+  const availableCategories = categories.filter(c => c.name !== 'Non catégorisé')
+
+  const sortedBudgets = useMemo(() => {
+    const rank = (b: Budget) => (b.percent >= 100 ? 0 : b.projected_over ? 1 : 2)
+    return [...budgets].sort((a, b) => rank(a) - rank(b) || b.percent - a.percent)
+  }, [budgets])
 
   const overBudget = budgets.filter(b => b.percent >= 100)
   const total_limit = budgets.reduce((s, b) => s + b.amount_limit, 0)
@@ -80,14 +171,7 @@ export default function Budgets() {
 
   return (
     <div className="p-6 pt-4 space-y-6">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">Limites de dépenses par catégorie</p>
-        <div className="flex items-center gap-3">
-          <button onClick={() => setMonth(m => adjMonth(m, -1))} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500">‹</button>
-          <span className="text-sm font-medium text-gray-700 min-w-32 text-center capitalize">{monthLabel(month)}</span>
-          <button onClick={() => setMonth(m => adjMonth(m, 1))} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500">›</button>
-        </div>
-      </div>
+      <p className="text-sm text-gray-500">Limites de dépenses par catégorie ou événement</p>
 
       {/* Summary */}
       {budgets.length > 0 && (
@@ -112,50 +196,43 @@ export default function Budgets() {
       {overBudget.length > 0 && (
         <div className="bg-red-50 border border-red-100 rounded-xl p-4 flex items-center gap-2">
           <AlertTriangle className="w-4 h-4 text-red-700 shrink-0" />
-          <p className="text-sm font-medium text-red-700">Dépassements : {overBudget.map(b => b.category_name).join(', ')}</p>
+          <p className="text-sm font-medium text-red-700">
+            Dépassements : {overBudget.map(b => b.name || b.category_labels[0] || b.merchant_patterns[0]).join(', ')}
+          </p>
         </div>
       )}
 
       {/* Budget cards */}
       {loading ? (
         <div className="text-center py-12 text-gray-400">Chargement...</div>
-      ) : budgets.length === 0 ? (
-        <div className="text-center py-12 text-gray-400">Aucun budget pour ce mois.</div>
+      ) : sortedBudgets.length === 0 ? (
+        <div className="text-center py-12 text-gray-400">Aucun budget pour le moment.</div>
       ) : (
         <div className="space-y-3">
-          {budgets.map(b => {
+          {sortedBudgets.map(b => {
             const pct = Math.min(b.percent, 100)
             const color = b.percent < 75 ? 'bg-green-500' : b.percent < 100 ? 'bg-orange-400' : 'bg-red-500'
+            const label = b.name || (b.target_type === 'category' ? b.category_labels.join(' + ') : b.merchant_patterns.join(' + '))
             return (
               <div key={b.id} className="bg-white border border-gray-100 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <span>{b.category_icon}</span>
-                    <span className="font-medium text-gray-800">{b.category_name}</span>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-gray-800">{label}</span>
+                    <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{PERIOD_LABELS[b.period_type]}</span>
                     {b.percent >= 100 && <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">Dépassé</span>}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {editId === b.id ? (
-                      <>
-                        <input
-                          type="number"
-                          className="w-24 text-sm border border-gray-200 rounded px-2 py-1"
-                          value={editVal}
-                          onChange={e => setEditVal(e.target.value)}
-                          autoFocus
-                        />
-                        <button onClick={() => handleEdit(b.id)} className="p-1 text-green-600 hover:bg-green-50 rounded"><Check size={14} /></button>
-                        <button onClick={() => setEditId(null)} className="p-1 text-gray-400 hover:bg-gray-100 rounded"><X size={14} /></button>
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-sm text-gray-500">{fmt(b.spent)} / {fmt(b.amount_limit)}</span>
-                        <button onClick={() => { setEditId(b.id); setEditVal(String(b.amount_limit)) }} className="p-1 text-gray-400 hover:bg-gray-100 rounded"><Pencil size={14} /></button>
-                        <button onClick={() => handleDelete(b.id)} className="p-1 text-red-400 hover:bg-red-50 rounded"><Trash2 size={14} /></button>
-                      </>
+                    {b.percent < 100 && b.projected_over && (
+                      <span className="flex items-center gap-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                        <TriangleAlert size={11} /> Tendance : {fmt(b.projected_total)}
+                      </span>
                     )}
                   </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-sm text-gray-500">{fmt(b.spent)} / {fmt(b.amount_limit)}</span>
+                    <button onClick={() => openEdit(b)} className="p-1 text-gray-400 hover:bg-gray-100 rounded"><Pencil size={14} /></button>
+                    <button onClick={() => setDeleteTarget(b)} className="p-1 text-red-400 hover:bg-red-50 rounded"><Trash2 size={14} /></button>
+                  </div>
                 </div>
+                <p className="text-xs text-gray-400 mb-2">{periodLabel(b)}</p>
                 <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                   <div className={`h-2 rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
                 </div>
@@ -168,40 +245,235 @@ export default function Budgets() {
 
       {/* Add budget */}
       {showForm ? (
-        <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
-          <p className="text-sm font-medium text-gray-700">Nouveau budget</p>
-          <select
-            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2"
-            value={newCatId}
-            onChange={e => setNewCatId(e.target.value)}
-          >
-            <option value="">Sélectionner une catégorie</option>
-            {availableCategories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
-          </select>
-          <div className="flex gap-2">
-            <input
-              type="number"
-              placeholder="Montant limite (CHF)"
-              className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2"
-              value={newLimit}
-              onChange={e => setNewLimit(e.target.value)}
-            />
-            <button onClick={handleAdd} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors">
-              Ajouter
-            </button>
-            <button onClick={() => setShowForm(false)} className="px-4 py-2 bg-gray-100 text-gray-600 text-sm rounded-lg hover:bg-gray-200 transition-colors">
-              Annuler
-            </button>
-          </div>
-        </div>
+        <BudgetForm
+          form={form}
+          setForm={setForm}
+          categories={availableCategories}
+          isEdit={editId !== null}
+          onSave={handleSave}
+          onCancel={() => { setShowForm(false); setEditId(null) }}
+        />
       ) : (
         <button
-          onClick={() => setShowForm(true)}
+          onClick={openCreate}
           className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-200 text-gray-500 text-sm rounded-xl w-full justify-center hover:border-blue-300 hover:text-blue-500 transition-colors"
         >
           <Plus size={16} /> Ajouter un budget
         </button>
       )}
+
+      {deleteTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/30"
+          onClick={() => setDeleteTarget(null)}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-5 space-y-4"
+          >
+            <p className="text-sm font-medium text-gray-800">
+              Supprimer le budget « {deleteTarget.name || deleteTarget.category_labels.join(' + ') || deleteTarget.merchant_patterns.join(' + ')} » ?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 bg-gray-100 text-gray-600 text-sm rounded-lg hover:bg-gray-200 transition-colors">
+                Annuler
+              </button>
+              <button onClick={handleDelete} className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors">
+                Supprimer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="fixed bottom-4 right-4 z-50 space-y-2">
+        {toasts.map(t => (
+          <div
+            key={t.id}
+            className={clsx(
+              'px-4 py-2 rounded-lg shadow-lg text-sm text-white',
+              t.type === 'error' ? 'bg-red-600' : 'bg-green-600'
+            )}
+          >
+            {t.message}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function BudgetForm({
+  form, setForm, categories, isEdit, onSave, onCancel,
+}: {
+  form: BudgetInput
+  setForm: (f: BudgetInput | ((prev: BudgetInput) => BudgetInput)) => void
+  categories: Category[]
+  isEdit: boolean
+  onSave: () => void
+  onCancel: () => void
+}) {
+  // Always show one trailing empty slot after the filled ones — filling it
+  // grows the list, clearing a slot shrinks it back.
+  const catSlots: string[] = [...form.category_ids.map(String), '']
+  const merchantSlots: string[] = [...form.merchant_patterns, '']
+
+  function setCatSlot(i: number, value: string) {
+    setForm(f => {
+      const ids = [...f.category_ids]
+      if (value === '') ids.splice(i, 1)
+      else if (i < ids.length) ids[i] = +value
+      else ids.push(+value)
+      return { ...f, category_ids: ids }
+    })
+  }
+
+  function setMerchantSlot(i: number, value: string) {
+    setForm(f => {
+      const patterns = [...f.merchant_patterns]
+      if (value === '' && i < patterns.length) patterns.splice(i, 1)
+      else if (i < patterns.length) patterns[i] = value
+      else if (value !== '') patterns.push(value)
+      return { ...f, merchant_patterns: patterns }
+    })
+  }
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+      <p className="text-sm font-medium text-gray-700">{isEdit ? 'Modifier le budget' : 'Nouveau budget'}</p>
+
+      <input
+        type="text"
+        placeholder="Nom (optionnel)"
+        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2"
+        value={form.name ?? ''}
+        onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+      />
+
+      <div>
+        <p className="text-xs text-gray-500 mb-1">Période</p>
+        <div className="flex flex-wrap gap-1">
+          {(Object.keys(PERIOD_LABELS) as BudgetPeriodType[]).map(pt => (
+            <button
+              key={pt}
+              type="button"
+              onClick={() => setForm(f => ({ ...f, period_type: pt }))}
+              className={clsx(
+                'px-3 py-1.5 text-xs rounded-lg border transition-colors',
+                form.period_type === pt ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 text-gray-600 hover:border-blue-300'
+              )}
+            >
+              {PERIOD_LABELS[pt]}
+            </button>
+          ))}
+        </div>
+        {form.period_type === 'custom' && (
+          <input
+            type="number"
+            min={1}
+            placeholder="Nombre de jours"
+            className="mt-2 w-full text-sm border border-gray-200 rounded-lg px-3 py-2"
+            value={form.period_days ?? ''}
+            onChange={e => setForm(f => ({ ...f, period_days: e.target.value ? +e.target.value : null }))}
+          />
+        )}
+      </div>
+
+      <div className="flex items-center gap-4">
+        <label className="flex items-center gap-2 text-sm text-gray-600">
+          <span className="text-xs text-gray-500">Débute le</span>
+          <div className="flex items-stretch">
+            <input
+              type="date"
+              className="text-sm border border-gray-200 rounded-l-lg px-2 py-1.5"
+              value={form.start_date}
+              onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))}
+            />
+            <button
+              type="button"
+              onClick={() => setForm(f => ({ ...f, start_date: f.start_date === todayIso() ? firstOfThisMonthIso() : todayIso() }))}
+              className="px-2.5 py-1.5 text-xs border border-l-0 border-gray-200 text-gray-500 rounded-r-lg hover:border-blue-300 hover:text-blue-500 transition-colors"
+            >
+              {form.start_date === todayIso() ? '1er du mois' : "Aujourd'hui"}
+            </button>
+          </div>
+        </label>
+        <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={form.recurring}
+            onChange={e => setForm(f => ({ ...f, recurring: e.target.checked }))}
+          />
+          Se renouvelle automatiquement
+        </label>
+      </div>
+
+      <div>
+        <p className="text-xs text-gray-500 mb-1">Cible</p>
+        <div className="flex gap-1 mb-2">
+          {(['category', 'merchant'] as BudgetTargetType[]).map(tt => (
+            <button
+              key={tt}
+              type="button"
+              onClick={() => setForm(f => ({ ...f, target_type: tt }))}
+              className={clsx(
+                'px-3 py-1.5 text-xs rounded-lg border transition-colors',
+                form.target_type === tt ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 text-gray-600 hover:border-blue-300'
+              )}
+            >
+              {tt === 'category' ? 'Catégorie(s)' : 'Événement personnalisé'}
+            </button>
+          ))}
+        </div>
+
+        {form.target_type === 'category' ? (
+          <div className="space-y-2">
+            {catSlots.map((slot, i) => (
+              <select
+                key={i}
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2"
+                value={slot}
+                onChange={e => setCatSlot(i, e.target.value)}
+              >
+                <option value="">{i === 0 ? 'Sélectionner une catégorie' : 'Catégorie supplémentaire (optionnel)'}</option>
+                {categories
+                  .filter(c => String(c.id) === slot || !catSlots.includes(String(c.id)))
+                  .map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+              </select>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {merchantSlots.map((slot, i) => (
+              <input
+                key={i}
+                type="text"
+                placeholder={i === 0 ? 'Ex : Migros' : 'Événement supplémentaire (optionnel), ex : Coop'}
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2"
+                value={slot}
+                onChange={e => setMerchantSlot(i, e.target.value)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <input
+        type="number"
+        placeholder="Montant limite (CHF)"
+        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2"
+        value={form.amount_limit || ''}
+        onChange={e => setForm(f => ({ ...f, amount_limit: e.target.value ? +e.target.value : 0 }))}
+      />
+
+      <div className="flex gap-2">
+        <button onClick={onSave} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors">
+          {isEdit ? 'Enregistrer' : 'Ajouter'}
+        </button>
+        <button onClick={onCancel} className="px-4 py-2 bg-gray-100 text-gray-600 text-sm rounded-lg hover:bg-gray-200 transition-colors">
+          Annuler
+        </button>
+      </div>
     </div>
   )
 }

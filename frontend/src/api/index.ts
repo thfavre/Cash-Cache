@@ -88,16 +88,39 @@ export interface BalanceHistory {
   balance: number
 }
 
+export type BudgetPeriodType = 'daily' | 'weekly' | 'monthly' | 'annual' | 'custom'
+export type BudgetTargetType = 'category' | 'merchant'
+
 export interface Budget {
   id: number
-  category_id: number
-  category_name: string
-  category_color: string
-  category_icon: string
-  month: string
+  name: string | null
   amount_limit: number
+  period_type: BudgetPeriodType
+  period_days: number | null
+  start_date: string
+  recurring: boolean
+  target_type: BudgetTargetType
+  category_ids: number[]
+  category_labels: string[]
+  merchant_patterns: string[]
+  period_start: string
+  period_end: string
   spent: number
   percent: number
+  projected_total: number
+  projected_over: boolean
+}
+
+export interface BudgetInput {
+  name?: string | null
+  amount_limit: number
+  period_type: BudgetPeriodType
+  period_days?: number | null
+  start_date: string
+  recurring: boolean
+  target_type: BudgetTargetType
+  category_ids: number[]
+  merchant_patterns: string[]
 }
 
 export interface InvestmentSettings {
@@ -377,14 +400,11 @@ export const api = {
   },
 
   // Budgets
-  budgets: (month?: string): Promise<Budget[]> => {
-    const qs = month ? `?month=${month}` : ''
-    return req(`/budgets${qs}`)
-  },
-  createBudget: (body: { category_id: number; month: string; amount_limit: number }): Promise<Budget> =>
+  budgets: (): Promise<Budget[]> => req('/budgets'),
+  createBudget: (body: BudgetInput): Promise<Budget> =>
     req('/budgets', { method: 'POST', body: JSON.stringify(body) }),
-  updateBudget: (id: number, amount_limit: number): Promise<Budget> =>
-    req(`/budgets/${id}`, { method: 'PUT', body: JSON.stringify({ amount_limit }) }),
+  updateBudget: (id: number, body: BudgetInput): Promise<Budget> =>
+    req(`/budgets/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteBudget: (id: number): Promise<{ ok: boolean }> =>
     req(`/budgets/${id}`, { method: 'DELETE' }),
 
