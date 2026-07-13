@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { api, Budget, BudgetDetail, BudgetInput, BudgetPeriodType, BudgetTargetType, Category } from '../api'
-import { Plus, Pencil, Trash2, AlertTriangle, TriangleAlert, Repeat, CalendarClock, ChevronRight, ChevronLeft } from 'lucide-react'
+import { Plus, Pencil, Trash2, AlertTriangle, TriangleAlert, Repeat, CalendarClock, ChevronRight, ChevronLeft, RotateCcw } from 'lucide-react'
 import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts'
 import clsx from 'clsx'
 
@@ -239,20 +239,19 @@ export default function Budgets() {
       ) : sortedBudgets.length === 0 ? (
         <div className="text-center py-12 text-gray-400">Aucun budget pour le moment.</div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 items-start">
+        <div className="space-y-3">
           {sortedBudgets.map(b => {
             if (b.id === editId) {
               return (
-                <div key={b.id} className="col-span-full">
-                  <BudgetForm
-                    form={form}
-                    setForm={setForm}
-                    categories={availableCategories}
-                    isEdit
-                    onSave={handleSave}
-                    onCancel={() => setEditId(null)}
-                  />
-                </div>
+                <BudgetForm
+                  key={b.id}
+                  form={form}
+                  setForm={setForm}
+                  categories={availableCategories}
+                  isEdit
+                  onSave={handleSave}
+                  onCancel={() => setEditId(null)}
+                />
               )
             }
             const pct = Math.min(b.percent, 100)
@@ -275,15 +274,6 @@ export default function Budgets() {
                       {b.recurring ? <Repeat size={11} /> : <CalendarClock size={11} />}
                       {PERIOD_LABELS[b.period_type]}
                     </span>
-                    {b.percent >= 100 && <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full whitespace-nowrap">Dépassé</span>}
-                    {b.percent < 100 && b.projected_over && (
-                      <span
-                        className="flex items-center gap-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full whitespace-nowrap"
-                        title={`Au rythme actuel, vous devriez dépenser environ ${fmt(b.projected_total)} d'ici la fin de la période, soit ${fmt(b.projected_total - b.amount_limit)} de plus que la limite.`}
-                      >
-                        <TriangleAlert size={11} className="shrink-0" /> +{fmt(b.projected_total - b.amount_limit)} prévus
-                      </span>
-                    )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-sm text-gray-500">{fmt(b.spent)} / {fmt(b.amount_limit)}</span>
@@ -292,7 +282,18 @@ export default function Budgets() {
                     <ChevronRight size={16} className="text-gray-300 opacity-0 group-hover:opacity-100 -ml-1 transition-opacity" />
                   </div>
                 </div>
-                <p className="text-xs text-gray-400 mb-2">{periodLabel(b)}</p>
+                <div className="flex items-center gap-2 flex-wrap mb-2">
+                  <p className="text-xs text-gray-400">{periodLabel(b)}</p>
+                  {b.percent >= 100 && <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full whitespace-nowrap">Dépassé</span>}
+                  {b.percent < 100 && b.projected_over && (
+                    <span
+                      className="flex items-center gap-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full whitespace-nowrap"
+                      title={`Au rythme actuel, vous devriez dépenser environ ${fmt(b.projected_total)} d'ici la fin de la période, soit ${fmt(b.projected_total - b.amount_limit)} de plus que la limite.`}
+                    >
+                      <TriangleAlert size={11} className="shrink-0" /> +{fmt(b.projected_total - b.amount_limit)} prévus
+                    </span>
+                  )}
+                </div>
                 <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                   <div className={`h-2 rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
                 </div>
@@ -607,6 +608,8 @@ function shiftDateIso(iso: string, days: number) {
 
 const DEFAULT_HISTORY_COUNT = 6
 const EXPANDED_HISTORY_COUNT = 60
+const HISTORY_BAR_WIDTH = 38
+const HISTORY_CHART_MIN_WIDTH = 320
 
 function BudgetDetailPanel({ budget, onClose, onEdit }: { budget: Budget; onClose: () => void; onEdit: () => void }) {
   const [detail, setDetail] = useState<BudgetDetail | null>(null)
@@ -657,14 +660,33 @@ function BudgetDetailPanel({ budget, onClose, onEdit }: { budget: Budget; onClos
       spent: h.spent,
       percent: detail.budget.amount_limit > 0 ? Math.round((h.spent / detail.budget.amount_limit) * 100) : 0,
       color: statusColor(h.spent, detail.budget.amount_limit),
+      periodStart: h.period_start,
+      isCurrent: h.period_start === detail.budget.period_start,
     }))
   }, [detail])
 
-  // History is oldest-first; keep the view scrolled to the most recent period
-  // whenever the data changes (e.g. expanding "Voir toute l'évolution").
+  // History is oldest-first and anchored to today, not the period being
+  // viewed — scroll to keep the highlighted (viewed) bar in view rather than
+  // always jumping to the most recent one, so browsing the past doesn't lose
+  // its place whenever the data refetches (e.g. expanding "Voir toute
+  // l'évolution"). Uses the same width formula as the chart's own inline
+  // style rather than reading el.scrollWidth, which can still reflect the
+  // previous render's (wider) chart for a frame — ResponsiveContainer
+  // resizes its SVG asynchronously via ResizeObserver, so measuring the DOM
+  // directly here is a race that left scrollLeft pointing past the new,
+  // narrower content after collapsing "Voir toute l'évolution".
   useEffect(() => {
     const el = historyScrollRef.current
-    if (el) el.scrollLeft = el.scrollWidth
+    if (!el || historyData.length === 0) return
+    const contentWidth = Math.max(HISTORY_CHART_MIN_WIDTH, historyData.length * HISTORY_BAR_WIDTH)
+    const index = historyData.findIndex(h => h.isCurrent)
+    const maxScrollLeft = Math.max(0, contentWidth - el.clientWidth)
+    if (index === -1) {
+      el.scrollLeft = maxScrollLeft
+      return
+    }
+    const target = HISTORY_BAR_WIDTH * index - el.clientWidth / 2 + HISTORY_BAR_WIDTH / 2
+    el.scrollLeft = Math.min(maxScrollLeft, Math.max(0, target))
   }, [historyData])
 
   const today = new Date()
@@ -704,6 +726,15 @@ function BudgetDetailPanel({ budget, onClose, onEdit }: { budget: Budget; onClos
                   title="Période suivante"
                 >
                   <ChevronRight size={14} />
+                </button>
+              )}
+              {onDate !== undefined && (
+                <button
+                  onClick={() => setOnDate(undefined)}
+                  className="flex items-center gap-1 text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 px-2 py-1 rounded-full whitespace-nowrap transition-colors"
+                  title="Revenir à la période actuelle"
+                >
+                  <RotateCcw size={11} /> Aujourd'hui
                 </button>
               )}
             </div>
@@ -803,9 +834,17 @@ function BudgetDetailPanel({ budget, onClose, onEdit }: { budget: Budget; onClos
                   </p>
                 ) : (
                   <div ref={historyScrollRef} className="overflow-x-auto">
-                    <div style={{ width: Math.max(320, historyData.length * 38) }}>
+                    <div style={{ width: Math.max(HISTORY_CHART_MIN_WIDTH, historyData.length * HISTORY_BAR_WIDTH) }}>
                       <ResponsiveContainer width="100%" height={190}>
-                        <BarChart data={historyData} margin={{ top: 4, right: 8, left: 0, bottom: 24 }}>
+                        <BarChart
+                          data={historyData}
+                          margin={{ top: 4, right: 8, left: 0, bottom: 24 }}
+                          style={{ cursor: 'pointer' }}
+                          onClick={(state: { activePayload?: { payload: { periodStart: string; isCurrent: boolean } }[] }) => {
+                            const d = state?.activePayload?.[0]?.payload
+                            if (d) setOnDate(d.isCurrent ? undefined : d.periodStart)
+                          }}
+                        >
                           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                           <XAxis
                             dataKey="label"
@@ -824,7 +863,7 @@ function BudgetDetailPanel({ budget, onClose, onEdit }: { budget: Budget; onClos
                             strokeDasharray="6 3"
                           />
                           <Bar dataKey="spent" radius={[4, 4, 0, 0]}>
-                            {historyData.map((h, i) => <Cell key={i} fill={h.color} />)}
+                            {historyData.map((h, i) => <Cell key={i} fill={h.color} stroke={h.isCurrent ? '#2563eb' : 'none'} strokeWidth={2} />)}
                           </Bar>
                         </BarChart>
                       </ResponsiveContainer>

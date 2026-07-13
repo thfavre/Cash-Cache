@@ -339,11 +339,29 @@ def budget_detail(
 
     earliest_tx_date = db.query(func.min(Transaction.date)).scalar()
 
+    # History is always anchored to the real "now" period, not the one being
+    # viewed via on_date — otherwise browsing back in time would keep chopping
+    # off the more recent periods from the history chart. But make sure the
+    # viewed period itself is always included, even if that means requesting
+    # more periods than history_count — otherwise browsing further back than
+    # the default window makes the viewed bar (and its highlight) vanish.
+    effective_history_count = history_count
+    if b.recurring:
+        today_period_start, _ = compute_period(b)
+        if period_start < today_period_start:
+            steps_back = 1
+            probe_date = today_period_start - timedelta(days=1)
+            while steps_back < 500:
+                probe_start, _ = compute_period(b, probe_date)
+                if probe_start <= period_start:
+                    break
+                steps_back += 1
+                probe_date = probe_start - timedelta(days=1)
+            effective_history_count = max(history_count, steps_back + 1)
+
     history = [
         HistoryPeriod(period_start=ps, period_end=pe, spent=_spent_for_budget(db, b, ps, pe))
-        for ps, pe in compute_history_periods(
-            b, count=history_count, current=(period_start, period_end), floor_date=earliest_tx_date
-        )
+        for ps, pe in compute_history_periods(b, count=effective_history_count, floor_date=earliest_tx_date)
     ]
 
     return BudgetDetail(
