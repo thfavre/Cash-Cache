@@ -665,19 +665,22 @@ function BudgetDetailPanel({ budget, onClose, onEdit }: { budget: Budget; onClos
     }))
   }, [detail])
 
-  // History is oldest-first and anchored to today, not the period being
-  // viewed — scroll to keep the highlighted (viewed) bar in view rather than
-  // always jumping to the most recent one, so browsing the past doesn't lose
-  // its place whenever the data refetches (e.g. expanding "Voir toute
-  // l'évolution"). Uses the same width formula as the chart's own inline
-  // style rather than reading el.scrollWidth, which can still reflect the
-  // previous render's (wider) chart for a frame — ResponsiveContainer
-  // resizes its SVG asynchronously via ResizeObserver, so measuring the DOM
-  // directly here is a race that left scrollLeft pointing past the new,
-  // narrower content after collapsing "Voir toute l'évolution".
+  // Auto-position the scroll only when the history window itself changes
+  // (expanding/collapsing "Voir toute l'évolution", or the initial load) —
+  // not on every period navigation, since clicking a bar or using the arrows
+  // should leave the user's own scroll position alone. `pendingAutoScroll`
+  // is armed by the toggle button and consumed here once the *actual*
+  // refetched data arrives (historyData only changes when `detail` updates,
+  // i.e. once the fetch resolves) — arming it via historyCount directly was
+  // racy: clicking the toggle re-runs this effect immediately, before the
+  // new data lands, consuming the guard against the still-stale (narrower)
+  // chart and then skipping the real scroll once the wider one arrived.
+  const pendingAutoScroll = useRef(true)
   useEffect(() => {
     const el = historyScrollRef.current
-    if (!el || historyData.length === 0) return
+    if (!el || historyData.length === 0 || !pendingAutoScroll.current) return
+    pendingAutoScroll.current = false
+
     const contentWidth = Math.max(HISTORY_CHART_MIN_WIDTH, historyData.length * HISTORY_BAR_WIDTH)
     const index = historyData.findIndex(h => h.isCurrent)
     const maxScrollLeft = Math.max(0, contentWidth - el.clientWidth)
@@ -728,7 +731,7 @@ function BudgetDetailPanel({ budget, onClose, onEdit }: { budget: Budget; onClos
                   <ChevronRight size={14} />
                 </button>
               )}
-              {onDate !== undefined && (
+              {detail?.can_go_next && (
                 <button
                   onClick={() => setOnDate(undefined)}
                   className="flex items-center gap-1 text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 px-2 py-1 rounded-full whitespace-nowrap transition-colors"
@@ -819,7 +822,10 @@ function BudgetDetailPanel({ budget, onClose, onEdit }: { budget: Budget; onClos
                   </div>
                   {detail.budget.recurring && (
                     <button
-                      onClick={() => setHistoryCount(c => c === DEFAULT_HISTORY_COUNT ? EXPANDED_HISTORY_COUNT : DEFAULT_HISTORY_COUNT)}
+                      onClick={() => {
+                        pendingAutoScroll.current = true
+                        setHistoryCount(c => c === DEFAULT_HISTORY_COUNT ? EXPANDED_HISTORY_COUNT : DEFAULT_HISTORY_COUNT)
+                      }}
                       className="text-xs text-blue-600 hover:text-blue-700 transition-colors"
                     >
                       {historyCount === DEFAULT_HISTORY_COUNT ? "Voir toute l'évolution" : 'Réduire'}
