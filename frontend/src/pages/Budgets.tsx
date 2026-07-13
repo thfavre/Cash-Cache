@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { api, Budget, BudgetDetail, BudgetInput, BudgetPeriodType, BudgetTargetType, Category } from '../api'
-import { Plus, Pencil, Trash2, AlertTriangle, TriangleAlert, Repeat, CalendarClock, ChevronRight, ChevronLeft, RotateCcw } from 'lucide-react'
+import { Plus, Pencil, Trash2, AlertTriangle, TriangleAlert, Repeat, CalendarClock, ChevronRight, ChevronLeft, RotateCcw, Archive } from 'lucide-react'
 import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts'
 import clsx from 'clsx'
 
@@ -92,6 +92,7 @@ export default function Budgets() {
   const [form, setForm] = useState<BudgetInput>(emptyForm())
   const [deleteTarget, setDeleteTarget] = useState<Budget | null>(null)
   const [detailTarget, setDetailTarget] = useState<Budget | null>(null)
+  const [showArchive, setShowArchive] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
 
   function pushToast(message: string, type: Toast['type'] = 'error') {
@@ -191,14 +192,92 @@ export default function Budgets() {
 
   const availableCategories = categories.filter(c => c.name !== 'Non catégorisé')
 
+  function isFinished(b: Budget) {
+    return !b.recurring && b.period_end < todayIso()
+  }
+
+  const activeBudgets = useMemo(() => budgets.filter(b => !isFinished(b)), [budgets])
+  const finishedBudgets = useMemo(() => budgets.filter(isFinished), [budgets])
+
   const sortedBudgets = useMemo(() => {
     const rank = (b: Budget) => (b.percent >= 100 ? 0 : b.projected_over ? 1 : 2)
-    return [...budgets].sort((a, b) => rank(a) - rank(b) || b.percent - a.percent)
-  }, [budgets])
+    return [...activeBudgets].sort((a, b) => rank(a) - rank(b) || b.percent - a.percent)
+  }, [activeBudgets])
 
-  const overBudget = budgets.filter(b => b.percent >= 100)
-  const total_limit = budgets.reduce((s, b) => s + b.amount_limit, 0)
-  const total_spent = budgets.reduce((s, b) => s + b.spent, 0)
+  const overBudget = activeBudgets.filter(b => b.percent >= 100)
+  const total_limit = activeBudgets.reduce((s, b) => s + b.amount_limit, 0)
+  const total_spent = activeBudgets.reduce((s, b) => s + b.spent, 0)
+
+  function renderBudgetCard(b: Budget) {
+    if (b.id === editId) {
+      return (
+        <BudgetForm
+          key={b.id}
+          form={form}
+          setForm={setForm}
+          categories={availableCategories}
+          isEdit
+          onSave={handleSave}
+          onCancel={() => setEditId(null)}
+        />
+      )
+    }
+    const finished = isFinished(b)
+    const pct = Math.min(b.percent, 100)
+    const color = finished ? 'bg-gray-400' : b.percent < 75 ? 'bg-green-500' : b.percent < 100 ? 'bg-orange-400' : 'bg-red-500'
+    const label = b.name || (b.target_type === 'category' ? b.category_labels.join(' + ') : b.merchant_patterns.join(' + '))
+    return (
+      <div
+        key={b.id}
+        onClick={() => setDetailTarget(b)}
+        title="Voir les détails"
+        className={clsx(
+          'group border rounded-xl p-4 cursor-pointer transition-all',
+          finished
+            ? 'bg-gray-50 border-gray-100 hover:border-gray-200 hover:shadow-sm'
+            : 'bg-white border-gray-100 hover:border-blue-200 hover:shadow-sm hover:bg-blue-50/20'
+        )}
+      >
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={clsx('font-medium', finished ? 'text-gray-500' : 'text-gray-800')}>{label}</span>
+            <span
+              className="flex items-center gap-1 text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full whitespace-nowrap"
+              title={b.recurring ? 'Se renouvelle automatiquement' : 'Événement ponctuel'}
+            >
+              {b.recurring ? <Repeat size={11} /> : <CalendarClock size={11} />}
+              {PERIOD_LABELS[b.period_type]}
+            </span>
+            {finished && (
+              <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full whitespace-nowrap">Terminé</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-sm text-gray-500">{fmt(b.spent)} / {fmt(b.amount_limit)}</span>
+            <button onClick={e => { e.stopPropagation(); openEdit(b) }} className="p-1 text-gray-400 hover:bg-gray-100 rounded"><Pencil size={14} /></button>
+            <button onClick={e => { e.stopPropagation(); setDeleteTarget(b) }} className="p-1 text-red-400 hover:bg-red-50 rounded"><Trash2 size={14} /></button>
+            <ChevronRight size={16} className="text-gray-300 opacity-0 group-hover:opacity-100 -ml-1 transition-opacity" />
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap mb-2">
+          <p className="text-xs text-gray-400">{periodLabel(b)}</p>
+          {!finished && b.percent >= 100 && <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full whitespace-nowrap">Dépassé</span>}
+          {!finished && b.percent < 100 && b.projected_over && (
+            <span
+              className="flex items-center gap-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full whitespace-nowrap"
+              title={`Au rythme actuel, vous devriez dépenser environ ${fmt(b.projected_total)} d'ici la fin de la période, soit ${fmt(b.projected_total - b.amount_limit)} de plus que la limite.`}
+            >
+              <TriangleAlert size={11} className="shrink-0" /> +{fmt(b.projected_total - b.amount_limit)} prévus
+            </span>
+          )}
+        </div>
+        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div className={`h-2 rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
+        </div>
+        <p className="text-xs text-gray-400 mt-1">{b.percent.toFixed(0)}% utilisé</p>
+      </div>
+    )
+  }
 
   return (
     <div className="p-6 pt-4 space-y-6">
@@ -240,67 +319,25 @@ export default function Budgets() {
         <div className="text-center py-12 text-gray-400">Aucun budget pour le moment.</div>
       ) : (
         <div className="space-y-3">
-          {sortedBudgets.map(b => {
-            if (b.id === editId) {
-              return (
-                <BudgetForm
-                  key={b.id}
-                  form={form}
-                  setForm={setForm}
-                  categories={availableCategories}
-                  isEdit
-                  onSave={handleSave}
-                  onCancel={() => setEditId(null)}
-                />
-              )
-            }
-            const pct = Math.min(b.percent, 100)
-            const color = b.percent < 75 ? 'bg-green-500' : b.percent < 100 ? 'bg-orange-400' : 'bg-red-500'
-            const label = b.name || (b.target_type === 'category' ? b.category_labels.join(' + ') : b.merchant_patterns.join(' + '))
-            return (
-              <div
-                key={b.id}
-                onClick={() => setDetailTarget(b)}
-                title="Voir les détails"
-                className="group bg-white border border-gray-100 rounded-xl p-4 cursor-pointer hover:border-blue-200 hover:shadow-sm hover:bg-blue-50/20 transition-all"
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-gray-800">{label}</span>
-                    <span
-                      className="flex items-center gap-1 text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full whitespace-nowrap"
-                      title={b.recurring ? 'Se renouvelle automatiquement' : 'Événement ponctuel'}
-                    >
-                      {b.recurring ? <Repeat size={11} /> : <CalendarClock size={11} />}
-                      {PERIOD_LABELS[b.period_type]}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-sm text-gray-500">{fmt(b.spent)} / {fmt(b.amount_limit)}</span>
-                    <button onClick={e => { e.stopPropagation(); openEdit(b) }} className="p-1 text-gray-400 hover:bg-gray-100 rounded"><Pencil size={14} /></button>
-                    <button onClick={e => { e.stopPropagation(); setDeleteTarget(b) }} className="p-1 text-red-400 hover:bg-red-50 rounded"><Trash2 size={14} /></button>
-                    <ChevronRight size={16} className="text-gray-300 opacity-0 group-hover:opacity-100 -ml-1 transition-opacity" />
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 flex-wrap mb-2">
-                  <p className="text-xs text-gray-400">{periodLabel(b)}</p>
-                  {b.percent >= 100 && <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full whitespace-nowrap">Dépassé</span>}
-                  {b.percent < 100 && b.projected_over && (
-                    <span
-                      className="flex items-center gap-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full whitespace-nowrap"
-                      title={`Au rythme actuel, vous devriez dépenser environ ${fmt(b.projected_total)} d'ici la fin de la période, soit ${fmt(b.projected_total - b.amount_limit)} de plus que la limite.`}
-                    >
-                      <TriangleAlert size={11} className="shrink-0" /> +{fmt(b.projected_total - b.amount_limit)} prévus
-                    </span>
-                  )}
-                </div>
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div className={`h-2 rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
-                </div>
-                <p className="text-xs text-gray-400 mt-1">{b.percent.toFixed(0)}% utilisé</p>
-              </div>
-            )
-          })}
+          {sortedBudgets.map(renderBudgetCard)}
+        </div>
+      )}
+
+      {/* Archive */}
+      {finishedBudgets.length > 0 && (
+        <div>
+          <button
+            onClick={() => setShowArchive(s => !s)}
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            <Archive size={14} />
+            {showArchive ? 'Masquer' : 'Voir'} les événements terminés ({finishedBudgets.length})
+          </button>
+          {showArchive && (
+            <div className="space-y-3 mt-3">
+              {finishedBudgets.map(renderBudgetCard)}
+            </div>
+          )}
         </div>
       )}
 
@@ -834,9 +871,11 @@ function BudgetDetailPanel({ budget, onClose, onEdit }: { budget: Budget; onClos
                 </div>
                 {historyData.length < 2 ? (
                   <p className="text-xs text-gray-400">
-                    {detail.budget.recurring && !detail.can_go_prev
-                      ? "Aucune période antérieure : c'est la plus ancienne pour laquelle des données existent."
-                      : 'Pas encore d\'historique (budget récent).'}
+                    {!detail.budget.recurring
+                      ? "Événement ponctuel : une seule période, pas d'historique à afficher."
+                      : !detail.can_go_prev
+                        ? "Aucune période antérieure : c'est la plus ancienne pour laquelle des données existent."
+                        : 'Pas encore d\'historique.'}
                   </p>
                 ) : (
                   <div ref={historyScrollRef} className="overflow-x-auto">
