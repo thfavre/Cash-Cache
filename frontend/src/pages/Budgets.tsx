@@ -796,7 +796,11 @@ function BudgetDetailPanel({ budget, onClose, onEdit }: { budget: Budget; onClos
                   )}
                 </div>
                 {historyData.length < 2 ? (
-                  <p className="text-xs text-gray-400">Pas encore d'historique (budget récent).</p>
+                  <p className="text-xs text-gray-400">
+                    {detail.budget.recurring && !detail.can_go_prev
+                      ? "Aucune période antérieure : c'est la plus ancienne pour laquelle des données existent."
+                      : 'Pas encore d\'historique (budget récent).'}
+                  </p>
                 ) : (
                   <div ref={historyScrollRef} className="overflow-x-auto">
                     <div style={{ width: Math.max(320, historyData.length * 38) }}>
