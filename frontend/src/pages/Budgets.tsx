@@ -239,19 +239,20 @@ export default function Budgets() {
       ) : sortedBudgets.length === 0 ? (
         <div className="text-center py-12 text-gray-400">Aucun budget pour le moment.</div>
       ) : (
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 items-start">
           {sortedBudgets.map(b => {
             if (b.id === editId) {
               return (
-                <BudgetForm
-                  key={b.id}
-                  form={form}
-                  setForm={setForm}
-                  categories={availableCategories}
-                  isEdit
-                  onSave={handleSave}
-                  onCancel={() => setEditId(null)}
-                />
+                <div key={b.id} className="col-span-full">
+                  <BudgetForm
+                    form={form}
+                    setForm={setForm}
+                    categories={availableCategories}
+                    isEdit
+                    onSave={handleSave}
+                    onCancel={() => setEditId(null)}
+                  />
+                </div>
               )
             }
             const pct = Math.min(b.percent, 100)
@@ -268,19 +269,19 @@ export default function Budgets() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-gray-800">{label}</span>
                     <span
-                      className="flex items-center gap-1 text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full"
+                      className="flex items-center gap-1 text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full whitespace-nowrap"
                       title={b.recurring ? 'Se renouvelle automatiquement' : 'Événement ponctuel'}
                     >
                       {b.recurring ? <Repeat size={11} /> : <CalendarClock size={11} />}
                       {PERIOD_LABELS[b.period_type]}
                     </span>
-                    {b.percent >= 100 && <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">Dépassé</span>}
+                    {b.percent >= 100 && <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full whitespace-nowrap">Dépassé</span>}
                     {b.percent < 100 && b.projected_over && (
                       <span
-                        className="flex items-center gap-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full"
+                        className="flex items-center gap-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full whitespace-nowrap"
                         title={`Au rythme actuel, vous devriez dépenser environ ${fmt(b.projected_total)} d'ici la fin de la période, soit ${fmt(b.projected_total - b.amount_limit)} de plus que la limite.`}
                       >
-                        <TriangleAlert size={11} /> Dépassement prévu : +{fmt(b.projected_total - b.amount_limit)}
+                        <TriangleAlert size={11} className="shrink-0" /> +{fmt(b.projected_total - b.amount_limit)} prévus
                       </span>
                     )}
                   </div>
@@ -574,6 +575,30 @@ function statusColor(spent: number, limit: number) {
   return '#22c55e' // green-500
 }
 
+function HistoryTooltip({ active, payload }: { active?: boolean; payload?: { payload: { label: string; spent: number; percent: number } }[] }) {
+  if (!active || !payload?.length) return null
+  const { label, spent, percent } = payload[0].payload
+  return (
+    <div className="bg-white rounded-lg shadow-lg px-3 py-2 text-xs">
+      <p className="font-semibold text-gray-900 capitalize">{label}</p>
+      <p className="text-gray-600 mt-0.5">Dépensé : {fmt(spent)}</p>
+      <p className="text-gray-600">{percent}% de la limite</p>
+    </div>
+  )
+}
+
+function PaceTooltip({ active, payload }: { active?: boolean; payload?: { payload: { date: string; actual: number; pace: number } }[] }) {
+  if (!active || !payload?.length) return null
+  const { date, actual, pace } = payload[0].payload
+  return (
+    <div className="bg-white rounded-lg shadow-lg px-3 py-2 text-xs">
+      <p className="font-semibold text-gray-900">{date}</p>
+      <p className="mt-0.5" style={{ color: '#2563eb' }}>Dépensé : {fmt(actual)}</p>
+      <p style={{ color: '#94a3b8' }}>Rythme cible : {fmt(pace)}</p>
+    </div>
+  )
+}
+
 function shiftDateIso(iso: string, days: number) {
   const d = new Date(iso)
   d.setDate(d.getDate() + days)
@@ -630,6 +655,7 @@ function BudgetDetailPanel({ budget, onClose, onEdit }: { budget: Budget; onClos
     return detail.history.map(h => ({
       label: historyLabel(h, detail.budget.period_type),
       spent: h.spent,
+      percent: detail.budget.amount_limit > 0 ? Math.round((h.spent / detail.budget.amount_limit) * 100) : 0,
       color: statusColor(h.spent, detail.budget.amount_limit),
     }))
   }, [detail])
@@ -742,7 +768,7 @@ function BudgetDetailPanel({ budget, onClose, onEdit }: { budget: Budget; onClos
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                       <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} minTickGap={20} />
                       <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} width={40} />
-                      <Tooltip formatter={(v: number) => fmt(v)} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                      <Tooltip content={<PaceTooltip />} />
                       <Line type="monotone" dataKey="pace" name="Rythme cible" stroke="#94a3b8" strokeDasharray="4 3" dot={false} strokeWidth={2} />
                       <Line type="monotone" dataKey="actual" name="Dépensé" stroke="#2563eb" dot={false} strokeWidth={2} />
                     </LineChart>
@@ -786,7 +812,7 @@ function BudgetDetailPanel({ budget, onClose, onEdit }: { budget: Budget; onClos
                             height={45}
                           />
                           <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} width={40} />
-                          <Tooltip formatter={(v: number) => fmt(v)} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                          <Tooltip content={<HistoryTooltip />} />
                           <ReferenceLine
                             y={detail.budget.amount_limit}
                             stroke="#f59e0b"

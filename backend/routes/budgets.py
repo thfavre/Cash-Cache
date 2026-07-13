@@ -176,11 +176,13 @@ def _safe_date(year: int, month: int, day: int) -> date:
 
 
 def compute_history_periods(
-    budget: Budget, count: int = 6, current: tuple[date, date] = None
+    budget: Budget, count: int = 6, current: tuple[date, date] = None, floor_date: date = None
 ) -> list[tuple[date, date]]:
     """Returns up to `count` periods ending with (and including) `current` (defaults
-    to today's period), oldest first. A non-recurring budget only ever has its
-    single fixed period."""
+    to today's period), oldest first. Stops once a period reaching back to
+    `floor_date` (e.g. the earliest transaction ever) has been included, so an
+    annual/weekly budget's "show all" doesn't manufacture decades of empty
+    periods. A non-recurring budget only ever has its single fixed period."""
     current = current or compute_period(budget)
     if not budget.recurring:
         return [current]
@@ -188,6 +190,8 @@ def compute_history_periods(
     periods = [current]
     on_date = current[0] - timedelta(days=1)
     while len(periods) < count:
+        if floor_date is not None and periods[-1][0] <= floor_date:
+            break
         period = compute_period(budget, on_date)
         periods.append(period)
         on_date = period[0] - timedelta(days=1)
@@ -333,9 +337,13 @@ def budget_detail(
         daily_spend.append(DailySpendPoint(date=d, cumulative=round(running, 2)))
         d += timedelta(days=1)
 
+    earliest_tx_date = db.query(func.min(Transaction.date)).scalar()
+
     history = [
         HistoryPeriod(period_start=ps, period_end=pe, spent=_spent_for_budget(db, b, ps, pe))
-        for ps, pe in compute_history_periods(b, count=history_count, current=(period_start, period_end))
+        for ps, pe in compute_history_periods(
+            b, count=history_count, current=(period_start, period_end), floor_date=earliest_tx_date
+        )
     ]
 
     return BudgetDetail(
@@ -343,7 +351,7 @@ def budget_detail(
         daily_spend=daily_spend,
         transactions=transactions_out,
         history=history,
-        can_go_prev=b.recurring,
+        can_go_prev=b.recurring and (earliest_tx_date is None or period_start > earliest_tx_date),
         can_go_next=b.recurring and period_end < today,
     )
 
