@@ -91,6 +91,8 @@ class BudgetDetail(BaseModel):
     daily_spend: list[DailySpendPoint]
     transactions: list[BudgetTransactionOut]
     history: list[HistoryPeriod]
+    can_go_prev: bool
+    can_go_next: bool
 
 
 def _validate_targets(body: BudgetCreate):
@@ -132,16 +134,14 @@ def compute_period(budget: Budget, on_date: date = None) -> tuple[date, date]:
         return start, period_end
 
     if budget.period_type == "monthly":
-        if on_date < start:
-            on_date = start
-        # calendar month containing on_date
+        # calendar month containing on_date — works for any date, past or future,
+        # regardless of start_date: the category/merchant's spending history is
+        # what matters, not when this budget row happened to be created.
         period_start = date(on_date.year, on_date.month, 1)
         period_end = _last_day_of_month(on_date.year, on_date.month)
         return period_start, period_end
 
     if budget.period_type == "annual":
-        if on_date < start:
-            on_date = start
         anniversary_year = on_date.year
         anchor = _safe_date(anniversary_year, start.month, start.day)
         if anchor > on_date:
@@ -149,10 +149,9 @@ def compute_period(budget: Budget, on_date: date = None) -> tuple[date, date]:
         next_anchor = _safe_date(anchor.year + 1, start.month, start.day)
         return anchor, next_anchor - timedelta(days=1)
 
-    # daily / weekly / custom: fixed-length windows anchored to start_date, rolled forward
+    # daily / weekly / custom: fixed-length windows anchored to start_date's phase,
+    # rolled forward or backward — floor division handles dates before start_date too.
     length = _period_length_days(budget)
-    if on_date < start:
-        return start, start + timedelta(days=length - 1)
     days_since_start = (on_date - start).days
     periods_elapsed = days_since_start // length
     period_start = start + timedelta(days=periods_elapsed * length)
@@ -176,16 +175,19 @@ def _safe_date(year: int, month: int, day: int) -> date:
         return _last_day_of_month(year, month)
 
 
-def compute_history_periods(budget: Budget, count: int = 6) -> list[tuple[date, date]]:
-    """Returns up to `count` periods ending with (and including) the current one,
-    oldest first. A non-recurring budget only ever has its single fixed period."""
-    current = compute_period(budget)
+def compute_history_periods(
+    budget: Budget, count: int = 6, current: tuple[date, date] = None
+) -> list[tuple[date, date]]:
+    """Returns up to `count` periods ending with (and including) `current` (defaults
+    to today's period), oldest first. A non-recurring budget only ever has its
+    single fixed period."""
+    current = current or compute_period(budget)
     if not budget.recurring:
         return [current]
 
     periods = [current]
     on_date = current[0] - timedelta(days=1)
-    while len(periods) < count and on_date >= budget.start_date:
+    while len(periods) < count:
         period = compute_period(budget, on_date)
         periods.append(period)
         on_date = period[0] - timedelta(days=1)
@@ -242,8 +244,8 @@ def _spent_for_budget(db: Session, budget: Budget, period_start: date, period_en
     return round(db.query(func.sum(Transaction.amount)).filter(*filters).scalar() or 0.0, 2)
 
 
-def _to_out(db: Session, b: Budget) -> BudgetOut:
-    period_start, period_end = compute_period(b)
+def _to_out(db: Session, b: Budget, period: tuple[date, date] = None) -> BudgetOut:
+    period_start, period_end = period or compute_period(b)
     spent = _spent_for_budget(db, b, period_start, period_end)
     percent = round(min((spent / b.amount_limit * 100) if b.amount_limit > 0 else 0.0, 999), 1)
 
@@ -289,12 +291,18 @@ def list_budgets(db: Session = Depends(get_db)):
 
 
 @router.get("/{budget_id}/detail", response_model=BudgetDetail)
-def budget_detail(budget_id: int, db: Session = Depends(get_db)):
+def budget_detail(
+    budget_id: int,
+    on_date: Optional[date] = None,
+    history_count: int = 6,
+    db: Session = Depends(get_db),
+):
     b = db.query(Budget).filter(Budget.id == budget_id).first()
     if not b:
         raise HTTPException(status_code=404, detail="Budget not found")
 
-    period_start, period_end = compute_period(b)
+    history_count = max(1, min(history_count, 120))
+    period_start, period_end = compute_period(b, on_date)
     transactions = _period_transactions(db, b, period_start, period_end)
 
     transactions_out = []
@@ -327,14 +335,16 @@ def budget_detail(budget_id: int, db: Session = Depends(get_db)):
 
     history = [
         HistoryPeriod(period_start=ps, period_end=pe, spent=_spent_for_budget(db, b, ps, pe))
-        for ps, pe in compute_history_periods(b)
+        for ps, pe in compute_history_periods(b, count=history_count, current=(period_start, period_end))
     ]
 
     return BudgetDetail(
-        budget=_to_out(db, b),
+        budget=_to_out(db, b, period=(period_start, period_end)),
         daily_spend=daily_spend,
         transactions=transactions_out,
         history=history,
+        can_go_prev=b.recurring,
+        can_go_next=b.recurring and period_end < today,
     )
 
 

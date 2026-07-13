@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { api, Budget, BudgetDetail, BudgetInput, BudgetPeriodType, BudgetTargetType, Category } from '../api'
-import { Plus, Pencil, Trash2, AlertTriangle, TriangleAlert, Repeat, CalendarClock, ChevronRight } from 'lucide-react'
+import { Plus, Pencil, Trash2, AlertTriangle, TriangleAlert, Repeat, CalendarClock, ChevronRight, ChevronLeft } from 'lucide-react'
 import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts'
 import clsx from 'clsx'
 
@@ -44,6 +45,28 @@ function firstOfLastMonthIso() {
 function firstOfThisMonthIso() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+}
+
+function firstOfThisYearIso() {
+  return `${new Date().getFullYear()}-01-01`
+}
+
+function startOfThisWeekIso() {
+  const d = new Date()
+  const day = d.getDay() // 0=Sunday..6=Saturday
+  const diffToMonday = day === 0 ? -6 : 1 - day
+  d.setDate(d.getDate() + diffToMonday)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// The alternate anchor date offered by the toggle button, and its label,
+// depend on the selected period type — there's no "1st of the period" concept
+// for daily/custom periods, so the toggle collapses to "today" only there.
+function periodAnchor(periodType: BudgetPeriodType): { value: string; label: string } | null {
+  if (periodType === 'monthly') return { value: firstOfThisMonthIso(), label: '1er du mois' }
+  if (periodType === 'annual') return { value: firstOfThisYearIso(), label: "1er de l'année" }
+  if (periodType === 'weekly') return { value: startOfThisWeekIso(), label: 'Début de semaine' }
+  return null
 }
 
 interface Toast { id: number; message: string; type: 'error' | 'success' }
@@ -298,7 +321,7 @@ export default function Budgets() {
         </button>
       )}
 
-      {deleteTarget && (
+      {deleteTarget && createPortal(
         <div
           className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/30"
           onClick={() => setDeleteTarget(null)}
@@ -319,11 +342,17 @@ export default function Budgets() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {detailTarget && (
-        <BudgetDetailPanel budget={detailTarget} onClose={() => setDetailTarget(null)} />
+        <BudgetDetailPanel
+          key={detailTarget.id}
+          budget={detailTarget}
+          onClose={() => setDetailTarget(null)}
+          onEdit={() => { setDetailTarget(null); openEdit(detailTarget) }}
+        />
       )}
 
       <div className="fixed bottom-4 right-4 z-50 space-y-2">
@@ -397,7 +426,7 @@ function BudgetForm({
             <button
               key={pt}
               type="button"
-              onClick={() => setForm(f => ({ ...f, period_type: pt }))}
+              onClick={() => setForm(f => ({ ...f, period_type: pt, start_date: periodAnchor(pt)?.value ?? todayIso() }))}
               className={clsx(
                 'px-3 py-1.5 text-xs rounded-lg border transition-colors',
                 form.period_type === pt ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 text-gray-600 hover:border-blue-300'
@@ -429,13 +458,19 @@ function BudgetForm({
               value={form.start_date}
               onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))}
             />
-            <button
-              type="button"
-              onClick={() => setForm(f => ({ ...f, start_date: f.start_date === todayIso() ? firstOfThisMonthIso() : todayIso() }))}
-              className="px-2.5 py-1.5 text-xs border border-l-0 border-gray-200 text-gray-500 rounded-r-lg hover:border-blue-300 hover:text-blue-500 transition-colors"
-            >
-              {form.start_date === todayIso() ? '1er du mois' : "Aujourd'hui"}
-            </button>
+            {(() => {
+              const anchor = periodAnchor(form.period_type)
+              const isToday = form.start_date === todayIso()
+              return (
+                <button
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, start_date: isToday && anchor ? anchor.value : todayIso() }))}
+                  className="px-2.5 py-1.5 text-xs border border-l-0 border-gray-200 text-gray-500 rounded-r-lg hover:border-blue-300 hover:text-blue-500 transition-colors"
+                >
+                  {isToday && anchor ? anchor.label : "Aujourd'hui"}
+                </button>
+              )
+            })()}
           </div>
         </label>
         <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
@@ -524,7 +559,12 @@ function historyLabel(h: { period_start: string; period_end: string }, periodTyp
     const includeYear = date.getFullYear() !== new Date().getFullYear()
     return date.toLocaleDateString('fr-CH', { month: 'short', ...(includeYear ? { year: '2-digit' } : {}) })
   }
-  return dateLabel(h.period_start)
+  if (periodType === 'annual') {
+    return String(new Date(h.period_start).getFullYear())
+  }
+  const date = new Date(h.period_start)
+  const includeYear = date.getFullYear() !== new Date().getFullYear()
+  return date.toLocaleDateString('fr-CH', { day: '2-digit', month: 'short', ...(includeYear ? { year: '2-digit' } : {}) })
 }
 
 function statusColor(spent: number, limit: number) {
@@ -534,16 +574,42 @@ function statusColor(spent: number, limit: number) {
   return '#22c55e' // green-500
 }
 
-function BudgetDetailPanel({ budget, onClose }: { budget: Budget; onClose: () => void }) {
+function shiftDateIso(iso: string, days: number) {
+  const d = new Date(iso)
+  d.setDate(d.getDate() + days)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+const DEFAULT_HISTORY_COUNT = 6
+const EXPANDED_HISTORY_COUNT = 60
+
+function BudgetDetailPanel({ budget, onClose, onEdit }: { budget: Budget; onClose: () => void; onEdit: () => void }) {
   const [detail, setDetail] = useState<BudgetDetail | null>(null)
   const [loading, setLoading] = useState(true)
+  const [onDate, setOnDate] = useState<string | undefined>(undefined)
+  const [historyCount, setHistoryCount] = useState(DEFAULT_HISTORY_COUNT)
+  const historyScrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    setLoading(true)
-    api.budgetDetail(budget.id)
+    // Only show the full loading state for the initial fetch — subsequent
+    // refetches (period nav, history toggle) update in place so charts don't
+    // unmount and replay their entry animation on every click.
+    if (!detail) setLoading(true)
+    api.budgetDetail(budget.id, { onDate, historyCount })
       .then(setDetail)
       .finally(() => setLoading(false))
-  }, [budget.id])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [budget.id, onDate, historyCount])
+
+  function goPrev() {
+    if (!detail?.can_go_prev) return
+    setOnDate(shiftDateIso(detail.budget.period_start, -1))
+  }
+
+  function goNext() {
+    if (!detail?.can_go_next) return
+    setOnDate(shiftDateIso(detail.budget.period_end, 1))
+  }
 
   const label = budget.name || (budget.target_type === 'category' ? budget.category_labels.join(' + ') : budget.merchant_patterns.join(' + '))
 
@@ -568,11 +634,18 @@ function BudgetDetailPanel({ budget, onClose }: { budget: Budget; onClose: () =>
     }))
   }, [detail])
 
+  // History is oldest-first; keep the view scrolled to the most recent period
+  // whenever the data changes (e.g. expanding "Voir toute l'évolution").
+  useEffect(() => {
+    const el = historyScrollRef.current
+    if (el) el.scrollLeft = el.scrollWidth
+  }, [historyData])
+
   const today = new Date()
   const periodEnd = detail ? new Date(detail.budget.period_end) : null
   const daysLeft = periodEnd ? Math.max(0, Math.ceil((periodEnd.getTime() - today.getTime()) / 86400000)) : 0
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/40 backdrop-blur-sm" onClick={onClose}>
       <div
         onClick={e => e.stopPropagation()}
@@ -581,18 +654,49 @@ function BudgetDetailPanel({ budget, onClose }: { budget: Budget; onClose: () =>
         <div className="p-5 border-b border-gray-200 flex items-center justify-between">
           <div>
             <h3 className="text-lg font-bold text-gray-900">{label}</h3>
-            <p className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
-              {detail && (detail.budget.recurring ? <Repeat size={11} /> : <CalendarClock size={11} />)}
-              {detail ? periodLabel(detail.budget) : ''}
-              {detail && !detail.budget.recurring && ' (ponctuel)'}
-            </p>
+            <div className="flex items-center gap-1.5 mt-1">
+              {detail?.budget.recurring && (
+                <button
+                  onClick={goPrev}
+                  disabled={!detail.can_go_prev}
+                  className="w-6 h-6 shrink-0 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 hover:text-blue-600 disabled:opacity-30 disabled:hover:bg-gray-100 disabled:hover:text-gray-600 transition-colors"
+                  title="Période précédente"
+                >
+                  <ChevronLeft size={14} />
+                </button>
+              )}
+              <p className="flex items-center justify-center gap-1 text-sm font-medium text-gray-600 min-w-[11rem] whitespace-nowrap">
+                {detail && (detail.budget.recurring ? <Repeat size={12} /> : <CalendarClock size={12} />)}
+                {detail ? periodLabel(detail.budget) : ''}
+                {detail && !detail.budget.recurring && ' (ponctuel)'}
+              </p>
+              {detail?.budget.recurring && (
+                <button
+                  onClick={goNext}
+                  disabled={!detail.can_go_next}
+                  className="w-6 h-6 shrink-0 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 hover:text-blue-600 disabled:opacity-30 disabled:hover:bg-gray-100 disabled:hover:text-gray-600 transition-colors"
+                  title="Période suivante"
+                >
+                  <ChevronRight size={14} />
+                </button>
+              )}
+            </div>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 font-bold"
-          >
-            ✕
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={onEdit}
+              className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500"
+              title="Modifier ce budget"
+            >
+              <Pencil size={14} />
+            </button>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 font-bold"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-6">
@@ -648,22 +752,54 @@ function BudgetDetailPanel({ budget, onClose }: { budget: Budget; onClose: () =>
 
               {/* History chart */}
               <div>
-                <p className="text-sm font-medium text-gray-700 mb-2">Historique</p>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-3">
+                    <p className="text-sm font-medium text-gray-700">Historique</p>
+                    <span className="flex items-center gap-1.5 text-xs text-gray-500">
+                      <span className="w-2.5 h-0 border-t-2 border-dashed" style={{ borderColor: '#f59e0b' }} />
+                      Limite {fmt(detail.budget.amount_limit)}
+                    </span>
+                  </div>
+                  {detail.budget.recurring && (
+                    <button
+                      onClick={() => setHistoryCount(c => c === DEFAULT_HISTORY_COUNT ? EXPANDED_HISTORY_COUNT : DEFAULT_HISTORY_COUNT)}
+                      className="text-xs text-blue-600 hover:text-blue-700 transition-colors"
+                    >
+                      {historyCount === DEFAULT_HISTORY_COUNT ? "Voir toute l'évolution" : 'Réduire'}
+                    </button>
+                  )}
+                </div>
                 {historyData.length < 2 ? (
                   <p className="text-xs text-gray-400">Pas encore d'historique (budget récent).</p>
                 ) : (
-                  <ResponsiveContainer width="100%" height={160}>
-                    <BarChart data={historyData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                      <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94a3b8' }} />
-                      <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} width={40} />
-                      <Tooltip formatter={(v: number) => fmt(v)} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                      <ReferenceLine y={detail.budget.amount_limit} stroke="#94a3b8" strokeDasharray="4 3" />
-                      <Bar dataKey="spent" radius={[4, 4, 0, 0]}>
-                        {historyData.map((h, i) => <Cell key={i} fill={h.color} />)}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <div ref={historyScrollRef} className="overflow-x-auto">
+                    <div style={{ width: Math.max(320, historyData.length * 38) }}>
+                      <ResponsiveContainer width="100%" height={190}>
+                        <BarChart data={historyData} margin={{ top: 4, right: 8, left: 0, bottom: 24 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                          <XAxis
+                            dataKey="label"
+                            tick={{ fontSize: 10, fill: '#94a3b8' }}
+                            interval={0}
+                            angle={-45}
+                            textAnchor="end"
+                            height={45}
+                          />
+                          <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} width={40} />
+                          <Tooltip formatter={(v: number) => fmt(v)} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                          <ReferenceLine
+                            y={detail.budget.amount_limit}
+                            stroke="#f59e0b"
+                            strokeWidth={2}
+                            strokeDasharray="6 3"
+                          />
+                          <Bar dataKey="spent" radius={[4, 4, 0, 0]}>
+                            {historyData.map((h, i) => <Cell key={i} fill={h.color} />)}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
                 )}
               </div>
 
@@ -695,6 +831,7 @@ function BudgetDetailPanel({ budget, onClose }: { budget: Budget; onClose: () =>
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

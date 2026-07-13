@@ -149,6 +149,8 @@ export interface BudgetDetail {
   daily_spend: DailySpendPoint[]
   transactions: BudgetTransaction[]
   history: HistoryPeriod[]
+  can_go_prev: boolean
+  can_go_next: boolean
 }
 
 export interface InvestmentSettings {
@@ -429,7 +431,13 @@ export const api = {
 
   // Budgets
   budgets: (): Promise<Budget[]> => req('/budgets'),
-  budgetDetail: (id: number): Promise<BudgetDetail> => req(`/budgets/${id}/detail`),
+  budgetDetail: (id: number, opts?: { onDate?: string; historyCount?: number }): Promise<BudgetDetail> => {
+    const qs = new URLSearchParams()
+    if (opts?.onDate) qs.set('on_date', opts.onDate)
+    if (opts?.historyCount) qs.set('history_count', String(opts.historyCount))
+    const q = qs.toString()
+    return req(`/budgets/${id}/detail${q ? `?${q}` : ''}`)
+  },
   createBudget: (body: BudgetInput): Promise<Budget> =>
     req('/budgets', { method: 'POST', body: JSON.stringify(body) }),
   updateBudget: (id: number, body: BudgetInput): Promise<Budget> =>
