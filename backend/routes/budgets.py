@@ -65,6 +65,34 @@ class BudgetOut(BaseModel):
     projected_over: bool
 
 
+class DailySpendPoint(BaseModel):
+    date: date
+    cumulative: float
+
+
+class BudgetTransactionOut(BaseModel):
+    id: int
+    date: date
+    description: Optional[str]
+    counterparty: Optional[str]
+    category_name: Optional[str]
+    category_icon: Optional[str]
+    amount: float
+
+
+class HistoryPeriod(BaseModel):
+    period_start: date
+    period_end: date
+    spent: float
+
+
+class BudgetDetail(BaseModel):
+    budget: BudgetOut
+    daily_spend: list[DailySpendPoint]
+    transactions: list[BudgetTransactionOut]
+    history: list[HistoryPeriod]
+
+
 def _validate_targets(body: BudgetCreate):
     if body.target_type == "category":
         if len(body.category_ids) < 1:
@@ -148,33 +176,70 @@ def _safe_date(year: int, month: int, day: int) -> date:
         return _last_day_of_month(year, month)
 
 
-def _spent_for_budget(db: Session, budget: Budget, period_start: date, period_end: date) -> float:
-    base_filters = [
+def compute_history_periods(budget: Budget, count: int = 6) -> list[tuple[date, date]]:
+    """Returns up to `count` periods ending with (and including) the current one,
+    oldest first. A non-recurring budget only ever has its single fixed period."""
+    current = compute_period(budget)
+    if not budget.recurring:
+        return [current]
+
+    periods = [current]
+    on_date = current[0] - timedelta(days=1)
+    while len(periods) < count and on_date >= budget.start_date:
+        period = compute_period(budget, on_date)
+        periods.append(period)
+        on_date = period[0] - timedelta(days=1)
+
+    periods.reverse()
+    return periods
+
+
+def _target_filter(budget: Budget):
+    """Returns a SQLAlchemy filter expression matching this budget's target, or
+    None if the budget has no valid target (nothing to match)."""
+    if budget.target_type == "category":
+        cat_ids = budget.category_ids or []
+        if not cat_ids:
+            return None
+        return Transaction.category_id.in_(cat_ids)
+    patterns = budget.merchant_patterns or []
+    if not patterns:
+        return None
+    merchant_clauses = []
+    for p in patterns:
+        like = f"%{p}%"
+        merchant_clauses.append(Transaction.counterparty.ilike(like))
+        merchant_clauses.append(Transaction.description.ilike(like))
+    return or_(*merchant_clauses)
+
+
+def _period_base_filters(budget: Budget, period_start: date, period_end: date):
+    """Common filters plus the target filter, or None if the budget has no valid target."""
+    target = _target_filter(budget)
+    if target is None:
+        return None
+    return [
         Transaction.is_credit == False,  # noqa: E712
         Transaction.is_internal == False,  # noqa: E712
         Transaction.is_reversal == False,  # noqa: E712
         Transaction.date >= period_start,
         Transaction.date <= period_end,
+        target,
     ]
-    if budget.target_type == "category":
-        cat_ids = budget.category_ids or []
-        if not cat_ids:
-            return 0.0
-        query = db.query(func.sum(Transaction.amount)).filter(
-            *base_filters, Transaction.category_id.in_(cat_ids)
-        )
-    else:
-        patterns = budget.merchant_patterns or []
-        if not patterns:
-            return 0.0
-        merchant_clauses = []
-        for p in patterns:
-            like = f"%{p}%"
-            merchant_clauses.append(Transaction.counterparty.ilike(like))
-            merchant_clauses.append(Transaction.description.ilike(like))
-        query = db.query(func.sum(Transaction.amount)).filter(*base_filters, or_(*merchant_clauses))
 
-    return round(query.scalar() or 0.0, 2)
+
+def _period_transactions(db: Session, budget: Budget, period_start: date, period_end: date):
+    filters = _period_base_filters(budget, period_start, period_end)
+    if filters is None:
+        return []
+    return db.query(Transaction).filter(*filters).order_by(Transaction.date.desc()).all()
+
+
+def _spent_for_budget(db: Session, budget: Budget, period_start: date, period_end: date) -> float:
+    filters = _period_base_filters(budget, period_start, period_end)
+    if filters is None:
+        return 0.0
+    return round(db.query(func.sum(Transaction.amount)).filter(*filters).scalar() or 0.0, 2)
 
 
 def _to_out(db: Session, b: Budget) -> BudgetOut:
@@ -221,6 +286,56 @@ def list_budgets(db: Session = Depends(get_db)):
     # start_date is only null for legacy rows that predate the startup backfill migration.
     budgets = db.query(Budget).filter(Budget.start_date.isnot(None)).all()
     return [_to_out(db, b) for b in budgets]
+
+
+@router.get("/{budget_id}/detail", response_model=BudgetDetail)
+def budget_detail(budget_id: int, db: Session = Depends(get_db)):
+    b = db.query(Budget).filter(Budget.id == budget_id).first()
+    if not b:
+        raise HTTPException(status_code=404, detail="Budget not found")
+
+    period_start, period_end = compute_period(b)
+    transactions = _period_transactions(db, b, period_start, period_end)
+
+    transactions_out = []
+    for tx in transactions:
+        cat = db.query(Category).filter(Category.id == tx.category_id).first() if tx.category_id else None
+        transactions_out.append(BudgetTransactionOut(
+            id=tx.id,
+            date=tx.date,
+            description=tx.description,
+            counterparty=tx.counterparty,
+            category_name=cat.name if cat else None,
+            category_icon=cat.icon if cat else None,
+            amount=tx.amount,
+        ))
+
+    today = date.today()
+    chart_end = min(today, period_end)
+    daily_totals: dict[date, float] = {}
+    for tx in transactions:
+        if tx.date <= chart_end:
+            daily_totals[tx.date] = daily_totals.get(tx.date, 0.0) + tx.amount
+
+    daily_spend = []
+    running = 0.0
+    d = period_start
+    while d <= chart_end:
+        running += daily_totals.get(d, 0.0)
+        daily_spend.append(DailySpendPoint(date=d, cumulative=round(running, 2)))
+        d += timedelta(days=1)
+
+    history = [
+        HistoryPeriod(period_start=ps, period_end=pe, spent=_spent_for_budget(db, b, ps, pe))
+        for ps, pe in compute_history_periods(b)
+    ]
+
+    return BudgetDetail(
+        budget=_to_out(db, b),
+        daily_spend=daily_spend,
+        transactions=transactions_out,
+        history=history,
+    )
 
 
 @router.post("", response_model=BudgetOut)

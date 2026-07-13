@@ -123,6 +123,34 @@ export interface BudgetInput {
   merchant_patterns: string[]
 }
 
+export interface DailySpendPoint {
+  date: string
+  cumulative: number
+}
+
+export interface BudgetTransaction {
+  id: number
+  date: string
+  description: string | null
+  counterparty: string | null
+  category_name: string | null
+  category_icon: string | null
+  amount: number
+}
+
+export interface HistoryPeriod {
+  period_start: string
+  period_end: string
+  spent: number
+}
+
+export interface BudgetDetail {
+  budget: Budget
+  daily_spend: DailySpendPoint[]
+  transactions: BudgetTransaction[]
+  history: HistoryPeriod[]
+}
+
 export interface InvestmentSettings {
   annual_rate: number
   inflation_rate: number
@@ -401,6 +429,7 @@ export const api = {
 
   // Budgets
   budgets: (): Promise<Budget[]> => req('/budgets'),
+  budgetDetail: (id: number): Promise<BudgetDetail> => req(`/budgets/${id}/detail`),
   createBudget: (body: BudgetInput): Promise<Budget> =>
     req('/budgets', { method: 'POST', body: JSON.stringify(body) }),
   updateBudget: (id: number, body: BudgetInput): Promise<Budget> =>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { api, Budget, BudgetInput, BudgetPeriodType, BudgetTargetType, Category } from '../api'
-import { Plus, Pencil, Trash2, AlertTriangle, TriangleAlert } from 'lucide-react'
+import { api, Budget, BudgetDetail, BudgetInput, BudgetPeriodType, BudgetTargetType, Category } from '../api'
+import { Plus, Pencil, Trash2, AlertTriangle, TriangleAlert, Repeat, CalendarClock, ChevronRight } from 'lucide-react'
+import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts'
 import clsx from 'clsx'
 
 const fmt = (n: number) => new Intl.NumberFormat('fr-CH', { style: 'currency', currency: 'CHF' }).format(n)
@@ -14,12 +15,16 @@ const PERIOD_LABELS: Record<BudgetPeriodType, string> = {
 }
 
 function dateLabel(d: string) {
-  return new Date(d).toLocaleDateString('fr-CH', { day: '2-digit', month: 'short' })
+  const date = new Date(d)
+  const includeYear = date.getFullYear() !== new Date().getFullYear()
+  return date.toLocaleDateString('fr-CH', { day: '2-digit', month: 'short', ...(includeYear ? { year: 'numeric' } : {}) })
 }
 
 function periodLabel(b: Budget) {
-  if (b.period_type === 'monthly' && b.recurring) {
-    return new Date(b.period_start).toLocaleDateString('fr-CH', { month: 'long', year: 'numeric' })
+  if (b.period_type === 'monthly') {
+    const date = new Date(b.period_start)
+    const includeYear = date.getFullYear() !== new Date().getFullYear()
+    return date.toLocaleDateString('fr-CH', { month: 'long', ...(includeYear ? { year: 'numeric' } : {}) })
   }
   return `${dateLabel(b.period_start)} – ${dateLabel(b.period_end)}`
 }
@@ -63,6 +68,7 @@ export default function Budgets() {
   const [editId, setEditId] = useState<number | null>(null)
   const [form, setForm] = useState<BudgetInput>(emptyForm())
   const [deleteTarget, setDeleteTarget] = useState<Budget | null>(null)
+  const [detailTarget, setDetailTarget] = useState<Budget | null>(null)
   const [toasts, setToasts] = useState<Toast[]>([])
 
   function pushToast(message: string, type: Toast['type'] = 'error') {
@@ -72,15 +78,17 @@ export default function Budgets() {
   }
 
   useEffect(() => {
-    if (!showForm && !deleteTarget) return
+    if (!showForm && editId === null && !deleteTarget && !detailTarget) return
     const handler = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
       setShowForm(false)
+      setEditId(null)
       setDeleteTarget(null)
+      setDetailTarget(null)
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [showForm, deleteTarget])
+  }, [showForm, editId, deleteTarget, detailTarget])
 
   async function load() {
     setLoading(true)
@@ -115,8 +123,8 @@ export default function Budgets() {
       category_ids: b.category_ids,
       merchant_patterns: b.merchant_patterns,
     })
+    setShowForm(false)
     setEditId(b.id)
-    setShowForm(true)
   }
 
   function validateForm(): string | null {
@@ -143,7 +151,7 @@ export default function Budgets() {
       setEditId(null)
       load()
     } catch {
-      pushToast(editId ? "Impossible de modifier ce budget." : 'Impossible de créer ce budget.')
+      pushToast(editId !== null ? "Impossible de modifier ce budget." : 'Impossible de créer ce budget.')
     }
   }
 
@@ -210,26 +218,54 @@ export default function Budgets() {
       ) : (
         <div className="space-y-3">
           {sortedBudgets.map(b => {
+            if (b.id === editId) {
+              return (
+                <BudgetForm
+                  key={b.id}
+                  form={form}
+                  setForm={setForm}
+                  categories={availableCategories}
+                  isEdit
+                  onSave={handleSave}
+                  onCancel={() => setEditId(null)}
+                />
+              )
+            }
             const pct = Math.min(b.percent, 100)
             const color = b.percent < 75 ? 'bg-green-500' : b.percent < 100 ? 'bg-orange-400' : 'bg-red-500'
             const label = b.name || (b.target_type === 'category' ? b.category_labels.join(' + ') : b.merchant_patterns.join(' + '))
             return (
-              <div key={b.id} className="bg-white border border-gray-100 rounded-xl p-4">
+              <div
+                key={b.id}
+                onClick={() => setDetailTarget(b)}
+                title="Voir les détails"
+                className="group bg-white border border-gray-100 rounded-xl p-4 cursor-pointer hover:border-blue-200 hover:shadow-sm hover:bg-blue-50/20 transition-all"
+              >
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-gray-800">{label}</span>
-                    <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{PERIOD_LABELS[b.period_type]}</span>
+                    <span
+                      className="flex items-center gap-1 text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full"
+                      title={b.recurring ? 'Se renouvelle automatiquement' : 'Événement ponctuel'}
+                    >
+                      {b.recurring ? <Repeat size={11} /> : <CalendarClock size={11} />}
+                      {PERIOD_LABELS[b.period_type]}
+                    </span>
                     {b.percent >= 100 && <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">Dépassé</span>}
                     {b.percent < 100 && b.projected_over && (
-                      <span className="flex items-center gap-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
-                        <TriangleAlert size={11} /> Tendance : {fmt(b.projected_total)}
+                      <span
+                        className="flex items-center gap-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full"
+                        title={`Au rythme actuel, vous devriez dépenser environ ${fmt(b.projected_total)} d'ici la fin de la période, soit ${fmt(b.projected_total - b.amount_limit)} de plus que la limite.`}
+                      >
+                        <TriangleAlert size={11} /> Dépassement prévu : +{fmt(b.projected_total - b.amount_limit)}
                       </span>
                     )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-sm text-gray-500">{fmt(b.spent)} / {fmt(b.amount_limit)}</span>
-                    <button onClick={() => openEdit(b)} className="p-1 text-gray-400 hover:bg-gray-100 rounded"><Pencil size={14} /></button>
-                    <button onClick={() => setDeleteTarget(b)} className="p-1 text-red-400 hover:bg-red-50 rounded"><Trash2 size={14} /></button>
+                    <button onClick={e => { e.stopPropagation(); openEdit(b) }} className="p-1 text-gray-400 hover:bg-gray-100 rounded"><Pencil size={14} /></button>
+                    <button onClick={e => { e.stopPropagation(); setDeleteTarget(b) }} className="p-1 text-red-400 hover:bg-red-50 rounded"><Trash2 size={14} /></button>
+                    <ChevronRight size={16} className="text-gray-300 opacity-0 group-hover:opacity-100 -ml-1 transition-opacity" />
                   </div>
                 </div>
                 <p className="text-xs text-gray-400 mb-2">{periodLabel(b)}</p>
@@ -249,9 +285,9 @@ export default function Budgets() {
           form={form}
           setForm={setForm}
           categories={availableCategories}
-          isEdit={editId !== null}
+          isEdit={false}
           onSave={handleSave}
-          onCancel={() => { setShowForm(false); setEditId(null) }}
+          onCancel={() => setShowForm(false)}
         />
       ) : (
         <button
@@ -284,6 +320,10 @@ export default function Budgets() {
             </div>
           </div>
         </div>
+      )}
+
+      {detailTarget && (
+        <BudgetDetailPanel budget={detailTarget} onClose={() => setDetailTarget(null)} />
       )}
 
       <div className="fixed bottom-4 right-4 z-50 space-y-2">
@@ -473,6 +513,187 @@ function BudgetForm({
         <button onClick={onCancel} className="px-4 py-2 bg-gray-100 text-gray-600 text-sm rounded-lg hover:bg-gray-200 transition-colors">
           Annuler
         </button>
+      </div>
+    </div>
+  )
+}
+
+function historyLabel(h: { period_start: string; period_end: string }, periodType: BudgetPeriodType) {
+  if (periodType === 'monthly') {
+    const date = new Date(h.period_start)
+    const includeYear = date.getFullYear() !== new Date().getFullYear()
+    return date.toLocaleDateString('fr-CH', { month: 'short', ...(includeYear ? { year: '2-digit' } : {}) })
+  }
+  return dateLabel(h.period_start)
+}
+
+function statusColor(spent: number, limit: number) {
+  const pct = limit > 0 ? (spent / limit) * 100 : 0
+  if (pct >= 100) return '#ef4444' // red-500
+  if (pct >= 75) return '#fb923c' // orange-400
+  return '#22c55e' // green-500
+}
+
+function BudgetDetailPanel({ budget, onClose }: { budget: Budget; onClose: () => void }) {
+  const [detail, setDetail] = useState<BudgetDetail | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    api.budgetDetail(budget.id)
+      .then(setDetail)
+      .finally(() => setLoading(false))
+  }, [budget.id])
+
+  const label = budget.name || (budget.target_type === 'category' ? budget.category_labels.join(' + ') : budget.merchant_patterns.join(' + '))
+
+  const chartData = useMemo(() => {
+    if (!detail) return []
+    const totalDays = Math.round(
+      (new Date(detail.budget.period_end).getTime() - new Date(detail.budget.period_start).getTime()) / 86400000
+    ) + 1
+    return detail.daily_spend.map((p, i) => ({
+      date: dateLabel(p.date),
+      actual: p.cumulative,
+      pace: Math.round((detail.budget.amount_limit * (i + 1) / totalDays) * 100) / 100,
+    }))
+  }, [detail])
+
+  const historyData = useMemo(() => {
+    if (!detail) return []
+    return detail.history.map(h => ({
+      label: historyLabel(h, detail.budget.period_type),
+      spent: h.spent,
+      color: statusColor(h.spent, detail.budget.amount_limit),
+    }))
+  }, [detail])
+
+  const today = new Date()
+  const periodEnd = detail ? new Date(detail.budget.period_end) : null
+  const daysLeft = periodEnd ? Math.max(0, Math.ceil((periodEnd.getTime() - today.getTime()) / 86400000)) : 0
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/40 backdrop-blur-sm" onClick={onClose}>
+      <div
+        onClick={e => e.stopPropagation()}
+        className="bg-white w-full max-w-xl h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-200"
+      >
+        <div className="p-5 border-b border-gray-200 flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-bold text-gray-900">{label}</h3>
+            <p className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
+              {detail && (detail.budget.recurring ? <Repeat size={11} /> : <CalendarClock size={11} />)}
+              {detail ? periodLabel(detail.budget) : ''}
+              {detail && !detail.budget.recurring && ' (ponctuel)'}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 font-bold"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-6">
+          {loading || !detail ? (
+            <div className="text-center py-12 text-gray-400 text-sm font-medium">Chargement...</div>
+          ) : (
+            <>
+              {/* Stats */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-gray-50 rounded-xl p-3">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Dépensé</p>
+                  <p className="text-lg font-bold text-gray-800 mt-0.5">{fmt(detail.budget.spent)}</p>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-3">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Limite</p>
+                  <p className="text-lg font-bold text-gray-800 mt-0.5">{fmt(detail.budget.amount_limit)}</p>
+                </div>
+                <div className={clsx('rounded-xl p-3', detail.budget.amount_limit - detail.budget.spent >= 0 ? 'bg-green-50' : 'bg-red-50')}>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Restant</p>
+                  <p className={clsx('text-lg font-bold mt-0.5', detail.budget.amount_limit - detail.budget.spent >= 0 ? 'text-green-600' : 'text-red-500')}>
+                    {fmt(detail.budget.amount_limit - detail.budget.spent)}
+                  </p>
+                </div>
+                <div className={clsx('rounded-xl p-3', detail.budget.projected_over ? 'bg-amber-50' : 'bg-gray-50')}>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Projection</p>
+                  <p className={clsx('text-lg font-bold mt-0.5', detail.budget.projected_over ? 'text-amber-700' : 'text-gray-800')}>
+                    {fmt(detail.budget.projected_total)}
+                  </p>
+                </div>
+              </div>
+              <p className="text-xs text-gray-400 -mt-3">
+                {detail.budget.percent.toFixed(0)}% utilisé · {daysLeft > 0 ? `${daysLeft} jour(s) restant(s)` : 'Période terminée'}
+              </p>
+
+              {/* Pace chart */}
+              <div>
+                <p className="text-sm font-medium text-gray-700 mb-2">Rythme de dépense</p>
+                {chartData.length < 2 ? (
+                  <p className="text-xs text-gray-400">Pas assez de données pour cette période.</p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={180}>
+                    <LineChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} minTickGap={20} />
+                      <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} width={40} />
+                      <Tooltip formatter={(v: number) => fmt(v)} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                      <Line type="monotone" dataKey="pace" name="Rythme cible" stroke="#94a3b8" strokeDasharray="4 3" dot={false} strokeWidth={2} />
+                      <Line type="monotone" dataKey="actual" name="Dépensé" stroke="#2563eb" dot={false} strokeWidth={2} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+
+              {/* History chart */}
+              <div>
+                <p className="text-sm font-medium text-gray-700 mb-2">Historique</p>
+                {historyData.length < 2 ? (
+                  <p className="text-xs text-gray-400">Pas encore d'historique (budget récent).</p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={160}>
+                    <BarChart data={historyData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                      <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} width={40} />
+                      <Tooltip formatter={(v: number) => fmt(v)} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                      <ReferenceLine y={detail.budget.amount_limit} stroke="#94a3b8" strokeDasharray="4 3" />
+                      <Bar dataKey="spent" radius={[4, 4, 0, 0]}>
+                        {historyData.map((h, i) => <Cell key={i} fill={h.color} />)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+
+              {/* Transactions */}
+              <div>
+                <p className="text-sm font-medium text-gray-700 mb-2">Transactions de la période</p>
+                {detail.transactions.length === 0 ? (
+                  <p className="text-xs text-gray-400">Aucune transaction sur cette période.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {detail.transactions.map(tx => (
+                      <div key={tx.id} className="p-3 rounded-xl border border-gray-100 bg-gray-50/50 flex items-center justify-between gap-4 hover:bg-gray-100/50 transition-colors">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-gray-900 truncate">
+                            {tx.counterparty || tx.description || 'Transaction anonyme'}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1 text-xs text-gray-400">
+                            <span>{new Date(tx.date).toLocaleDateString('fr-CH')}</span>
+                            {tx.category_name && <span>{tx.category_icon} {tx.category_name}</span>}
+                          </div>
+                        </div>
+                        <p className="text-sm font-extrabold text-gray-900 shrink-0">{fmt(tx.amount)}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   )
