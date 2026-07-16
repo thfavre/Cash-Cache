@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useLayoutEffect, useState, useCallback, useRef } from 'react'
 import { api, Transaction, Category, HistoryEntry, RuleMatchTx } from '../api'
 import { Plus, Pencil, Trash2, X, Check, Tag, Search, ArrowUpDown, Layers, ChevronDown, ChevronUp, History, Undo2, PiggyBank, Ban, MousePointerClick, Sparkles } from 'lucide-react'
 import clsx from 'clsx'
@@ -735,6 +735,8 @@ function RulePromptToast({
 }) {
   const [visible, setVisible] = useState(false)
   const [listExpanded, setListExpanded] = useState(false)
+  const boxRef = useRef<HTMLDivElement>(null)
+  const [anchorTop, setAnchorTop] = useState(0)
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 10)
     return () => clearTimeout(t)
@@ -745,27 +747,47 @@ function RulePromptToast({
     return () => window.removeEventListener('keydown', handler)
   }, [onDismiss])
 
+  // Anchor the dialog vertically centered for its current (collapsed) height
+  // — but if opening the rule-match preview's drawer would push it past the
+  // bottom of the viewport, shift the anchor up just enough to leave room.
+  // Measured once per prompt (before paint, so no visible flash) and then
+  // held fixed: the drawer expanding afterwards must never recompute this,
+  // or it would recenter and visibly jump.
+  useLayoutEffect(() => {
+    if (ruleStatus) return
+    const el = boxRef.current
+    if (!el) return
+    const collapsedHeight = el.offsetHeight
+    const viewportH = window.innerHeight
+    const padding = 32
+    // Rough reserve for the preview drawer at its max size: the toggle line
+    // plus its max-h-40 (160px) scrollable list plus spacing.
+    const maxDrawerExpansion = 200
+    const centeredTop = (viewportH - collapsedHeight) / 2
+    const highestTopThatFitsDrawer = viewportH - collapsedHeight - maxDrawerExpansion - padding
+    setAnchorTop(Math.max(padding, Math.min(centeredTop, highestTopThatFitsDrawer)))
+  }, [rulePrompt.txId, ruleStatus])
+
   return (
     <div
       className={clsx(
         'fixed inset-0 z-50 flex justify-center px-4 bg-black/30 transition-opacity duration-300 ease-out overflow-y-auto py-8',
-        // Vertically centered by default (grows symmetrically around the
-        // center as the rule-match preview expands, instead of jumping to a
-        // new position) — overflow-y-auto is the fallback for when there
-        // isn't enough viewport height to center a fully expanded dialog:
-        // the overlay scrolls instead of clipping or forcing a reposition.
-        ruleStatus ? 'items-end' : 'items-center',
+        // The post-commit status toast still centers itself near the bottom
+        // via flex; the pre-commit form is positioned by the measured
+        // anchorTop above instead, so it doesn't recenter as the drawer opens.
+        ruleStatus ? 'items-end' : 'items-start',
         visible ? 'opacity-100' : 'opacity-0',
       )}
       onClick={onDismiss}
     >
       <div
+        ref={boxRef}
         onClick={e => e.stopPropagation()}
+        style={{ borderColor: rulePrompt.catColor, marginTop: ruleStatus ? undefined : anchorTop }}
         className={clsx(
           'w-full max-w-xl bg-white rounded-2xl shadow-2xl border-2 p-4 transition-all duration-300 ease-out',
           visible ? 'opacity-100 scale-100' : 'opacity-0 scale-95',
         )}
-        style={{ borderColor: rulePrompt.catColor }}
       >
         {ruleStatus ? (
           <div className="flex flex-col gap-2">
