@@ -369,7 +369,7 @@ export default function Budgets() {
             onClick={e => e.stopPropagation()}
             className="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-5 space-y-4"
           >
-            <p className="text-sm font-medium text-gray-800">
+            <p className="text-sm font-medium text-gray-800 break-words">
               Supprimer le budget « {deleteTarget.name || deleteTarget.category_labels.join(' + ') || deleteTarget.merchant_patterns.join(' + ')} » ?
             </p>
             <div className="flex justify-end gap-2">

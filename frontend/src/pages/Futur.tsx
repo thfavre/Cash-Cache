@@ -292,6 +292,18 @@ export default function Futur() {
   const [manualPortfolio, setManualPortfolio] = useState('')  // raw input for portfolio override
   const [contribManuallySet, setContribManuallySet] = useState(false)  // whether monthly_contrib should be persisted as an override
 
+  // Snapshot of "Paramètres de simulation" taken right before a reset, so the
+  // reset can be undone. Cleared as soon as the user touches any of those
+  // params again (the undo would no longer make sense).
+  const [simParamsUndoSnapshot, setSimParamsUndoSnapshot] = useState<null | {
+    annualRate: number
+    inflationRate: number
+    valueMode: 'real' | 'nominal'
+    contribMode: 'manual' | 'auto'
+    contribManuallySet: boolean
+    monthlyContrib: number
+  }>(null)
+
   // Contribution mode: manual (fixed amount) vs auto (sweep excess above a liquid-balance target)
   const [contribMode, setContribMode] = useState<'manual' | 'auto'>('manual')
 
@@ -323,6 +335,9 @@ export default function Futur() {
   // historical median" (the backend's default); set once the user drags the
   // slider, so it starts at the right place instead of some arbitrary default.
   const [fireMonthlyExpensesInput, setFireMonthlyExpensesInput] = useState('')
+  // Snapshot of fireMonthlyExpensesInput taken right before a reset, so the
+  // reset can be undone. Cleared as soon as the slider moves again.
+  const [fireExpensesUndoSnapshot, setFireExpensesUndoSnapshot] = useState<string | null>(null)
 
   // Scenarios (persisted to a cookie so they survive page reloads)
   const [scenarios, setScenarios]   = useState<ScenarioItem[]>(loadScenariosFromCookie)
@@ -457,11 +472,12 @@ export default function Futur() {
         // would make FIRE look unreachable just because the window is short.
         // Skip the extra request when the chart horizon already IS 50 years
         // — it would be an identical call to the main one.
+        const activeScenarios = scenarios.filter(sc => sc.enabled !== false)
         const alreadyMax = baseParams.months === 600
         const [res, baseRes, fireRes] = await Promise.all([
-          api.simulate({ ...baseParams, scenarios }),
-          scenarios.length > 0 ? api.simulate({ ...baseParams, scenarios: [] }) : Promise.resolve(null),
-          alreadyMax ? Promise.resolve(null) : api.simulate({ ...baseParams, months: 600, scenarios }),
+          api.simulate({ ...baseParams, scenarios: activeScenarios }),
+          activeScenarios.length > 0 ? api.simulate({ ...baseParams, scenarios: [] }) : Promise.resolve(null),
+          alreadyMax ? Promise.resolve(null) : api.simulate({ ...baseParams, months: 600, scenarios: activeScenarios }),
         ])
         // Drop stale responses from a superseded request (out-of-order network replies).
         if (requestId === requestIdRef.current) {
@@ -514,13 +530,23 @@ export default function Futur() {
     // otherwise drop it — its ReferenceLine marker below only renders when
     // an exact matching month is present in the (categorical) x-axis data,
     // so whether it survived was previously down to chance based on horizon.
-    const scenarioMonths = new Set(scenarios.map(sc => sc.start_month))
+    const scenarioMonths = new Set(scenarios.filter(sc => sc.enabled !== false).map(sc => sc.start_month))
     return data.filter((_, i) => i % step === 0 || i === data.length - 1 || scenarioMonths.has(i))
   })()
 
   // FIRE target as a single horizontal line only makes sense in real terms
   // (it's defined as 25× today's expenses); in nominal mode, scale it to
   // the horizon's end so it still lines up with where the curves land.
+  // Whether "Paramètres de simulation" already sits at its defaults — mirrors
+  // exactly what resetSimulationParams touches, so the reset link only shows
+  // up when clicking it would actually change something.
+  const isSimParamsDefault =
+    annualRate === 0.07 &&
+    inflationRate === 0.02 &&
+    valueMode === 'real' &&
+    contribMode === 'manual' &&
+    !contribManuallySet
+
   const horizonMonths = HORIZONS[horizonIdx].months
   const fireNumber = result
     ? result.fire_number * (valueMode === 'nominal' ? nominalFactor(horizonMonths) : 1)
@@ -534,10 +560,13 @@ export default function Futur() {
     setPortfolioValue(updated.effective_portfolio)
   }
 
-  // ── Reset "Paramètres de simulation" to their defaults ────────────────────
+  // ── Reset "Paramètres de simulation" to their defaults, with undo ─────────
   // Deliberately leaves "Valeur réelle (saisie manuelle)" (manualPortfolio)
   // untouched — that's a separate override the user asked to keep.
   async function resetSimulationParams() {
+    setSimParamsUndoSnapshot({
+      annualRate, inflationRate, valueMode, contribMode, contribManuallySet, monthlyContrib,
+    })
     setAnnualRate(0.07)
     setInflationRate(0.02)
     setValueMode('real')
@@ -551,6 +580,26 @@ export default function Futur() {
     setSettings(updated)
     setContribManuallySet(false)
     setMonthlyContrib(updated.auto_monthly_contrib)
+  }
+
+  // ── Undo the last reset, restoring the params it captured ─────────────────
+  async function undoResetSimulationParams() {
+    const snap = simParamsUndoSnapshot
+    if (!snap) return
+    setSimParamsUndoSnapshot(null)
+    setAnnualRate(snap.annualRate)
+    setInflationRate(snap.inflationRate)
+    setValueMode(snap.valueMode)
+    setContribMode(snap.contribMode)
+    setContribManuallySet(snap.contribManuallySet)
+    setMonthlyContrib(snap.monthlyContrib)
+    const updated = await api.saveInvestmentSettings({
+      annual_rate:      snap.annualRate,
+      inflation_rate:   snap.inflationRate,
+      contrib_mode:     snap.contribMode,
+      monthly_contrib:  snap.contribManuallySet ? snap.monthlyContrib : -1,
+    })
+    setSettings(updated)
   }
 
   // ── Move the detected leftover into the monthly contribution ─────────────
@@ -590,6 +639,7 @@ export default function Futur() {
 
   // ── Reset monthly contribution back to the auto-computed average ─────────
   async function clearContribOverride() {
+    setSimParamsUndoSnapshot(null)
     const updated = await api.saveInvestmentSettings({ monthly_contrib: -1 })
     setSettings(updated)
     setContribManuallySet(false)
@@ -758,26 +808,35 @@ export default function Futur() {
             <div className="space-y-5">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Paramètres de simulation</h2>
-                <button
-                  onClick={resetSimulationParams}
-                  className="text-xs text-gray-400 hover:text-red-500 underline"
-                >
-                  Réinitialiser
-                </button>
+                {simParamsUndoSnapshot ? (
+                  <button
+                    onClick={undoResetSimulationParams}
+                    className="text-xs text-gray-400 hover:text-blue-500 underline"
+                  >
+                    Annuler
+                  </button>
+                ) : !isSimParamsDefault ? (
+                  <button
+                    onClick={resetSimulationParams}
+                    className="text-xs text-gray-400 hover:text-red-500 underline"
+                  >
+                    Réinitialiser
+                  </button>
+                ) : null}
               </div>
               <Slider
                 label="Rendement annuel"
                 value={annualRate}
                 min={0} max={0.20} step={0.005}
                 format={v => `${(v * 100).toFixed(1)} %`}
-                onChange={setAnnualRate}
+                onChange={v => { setSimParamsUndoSnapshot(null); setAnnualRate(v) }}
               />
               <Slider
                 label="Inflation annuelle"
                 value={inflationRate}
                 min={0} max={0.10} step={0.005}
                 format={v => `${(v * 100).toFixed(1)} %`}
-                onChange={setInflationRate}
+                onChange={v => { setSimParamsUndoSnapshot(null); setInflationRate(v) }}
               />
 
               <div>
@@ -792,7 +851,7 @@ export default function Futur() {
                   ] as const).map(([v, label]) => (
                     <button
                       key={v}
-                      onClick={() => setValueMode(v)}
+                      onClick={() => { setSimParamsUndoSnapshot(null); setValueMode(v) }}
                       className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                         valueMode === v
                           ? 'bg-blue-600 text-white shadow-sm'
@@ -818,6 +877,7 @@ export default function Futur() {
                     <button
                       key={mode}
                       onClick={() => {
+                        setSimParamsUndoSnapshot(null)
                         setContribMode(mode)
                         api.saveInvestmentSettings({ contrib_mode: mode }).then(setSettings)
                       }}
@@ -840,7 +900,7 @@ export default function Futur() {
                     value={monthlyContrib}
                     min={0} max={10000} step={50}
                     format={v => fmt(v)}
-                    onChange={v => { setMonthlyContrib(v); setContribManuallySet(true) }}
+                    onChange={v => { setSimParamsUndoSnapshot(null); setMonthlyContrib(v); setContribManuallySet(true) }}
                   />
                   {contribManuallySet && (
                     <span className="inline-flex items-center gap-1 mt-1">
@@ -1117,7 +1177,7 @@ export default function Futur() {
               )}
 
               {/* Mark where each what-if scenario kicks in */}
-              {scenarios.map((sc, i) => {
+              {scenarios.filter(sc => sc.enabled !== false).map((sc, i) => {
                 const monthLabel = result.monthly[sc.start_month]?.month
                 if (!monthLabel) return null
                 const icon = SCENARIO_TYPES.find(t => t.value === sc.type)?.label.split(' ')[0] ?? '•'
@@ -1238,9 +1298,22 @@ export default function Futur() {
                   <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                     Dépenses visées à la retraite
                   </span>
-                  {fireMonthlyExpensesInput !== '' && (
+                  {fireExpensesUndoSnapshot !== null ? (
                     <button
-                      onClick={() => setFireMonthlyExpensesInput('')}
+                      onClick={() => {
+                        setFireMonthlyExpensesInput(fireExpensesUndoSnapshot)
+                        setFireExpensesUndoSnapshot(null)
+                      }}
+                      className="text-xs text-gray-400 hover:text-blue-500 underline"
+                    >
+                      Annuler
+                    </button>
+                  ) : fireMonthlyExpensesInput !== '' && (
+                    <button
+                      onClick={() => {
+                        setFireExpensesUndoSnapshot(fireMonthlyExpensesInput)
+                        setFireMonthlyExpensesInput('')
+                      }}
                       className="text-xs text-gray-400 hover:text-red-500 underline"
                     >
                       Réinitialiser
@@ -1252,7 +1325,7 @@ export default function Futur() {
                   value={fireMonthlyExpensesValue}
                   min={0} max={20000} step={50}
                   format={v => `${fmt(v)}/mois`}
-                  onChange={v => setFireMonthlyExpensesInput(String(v))}
+                  onChange={v => { setFireExpensesUndoSnapshot(null); setFireMonthlyExpensesInput(String(v)) }}
                 />
               </div>
             </div>
@@ -1263,10 +1336,30 @@ export default function Futur() {
       {/* Scenarios panel */}
       <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-purple-500" />
-            Scénarios What-If
-          </h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-purple-500" />
+              Scénarios What-If
+            </h2>
+            {scenarios.length > 0 && (() => {
+              const anyEnabled = scenarios.some(sc => sc.enabled !== false)
+              return (
+                <button
+                  onClick={() => setScenarios(prev => prev.map(s => ({ ...s, enabled: !anyEnabled })))}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    anyEnabled ? 'bg-blue-600' : 'bg-gray-200'
+                  }`}
+                  title={anyEnabled ? 'Désactiver tous les scénarios' : 'Activer tous les scénarios'}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      anyEnabled ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              )
+            })()}
+          </div>
           <button
             onClick={() => { if (showScForm) closeScForm(); else setShowScForm(true) }}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition-colors"
@@ -1394,10 +1487,12 @@ export default function Futur() {
         {scenarios.length > 0 ? (
           <div className="space-y-2">
             {scenarios.map((sc, i) => {
+              const enabled = sc.enabled !== false
               // contribution_change scenarios have no effect once switched to
               // auto mode (contribution isn't a fixed amount there) — flag
               // them as inactive instead of silently ignoring them.
-              const inactive = sc.type === 'contribution_change' && contribMode === 'auto'
+              const noEffect = sc.type === 'contribution_change' && contribMode === 'auto'
+              const inactive = noEffect || !enabled
               return (
                 <div
                   key={i}
@@ -1407,9 +1502,23 @@ export default function Futur() {
                 >
                   <span className={`text-sm ${inactive ? 'text-gray-400' : 'text-gray-700'}`}>
                     {scenarioLabel(sc)}
-                    {inactive && ' — sans effet en mode Automatique'}
+                    {noEffect && ' — sans effet en mode Automatique'}
+                    {!enabled && ' — désactivé'}
                   </span>
-                  <div className="flex items-center gap-1 ml-3 shrink-0">
+                  <div className="flex items-center gap-2 ml-3 shrink-0">
+                    <button
+                      onClick={() => setScenarios(prev => prev.map((s, j) => j === i ? { ...s, enabled: !enabled } : s))}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        enabled ? 'bg-blue-600' : 'bg-gray-200'
+                      }`}
+                      title={enabled ? 'Désactiver ce scénario' : 'Activer ce scénario'}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          enabled ? 'translate-x-4' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
                     <button
                       onClick={() => startEditScenario(i)}
                       className="text-gray-400 hover:text-blue-600 transition-colors p-1"

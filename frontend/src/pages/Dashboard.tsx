@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Wallet } from 'lucide-react'
 import { api, Overview, Transaction, Account } from '../api'
 import CategoryBadge from '../components/CategoryBadge'
 
@@ -56,14 +57,32 @@ export default function Dashboard() {
       </div>
 
       {/* Accounts */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {accounts.map(a => (
-          <div key={a.id} className="bg-white rounded-xl border border-gray-100 p-4">
-            <p className="text-xs text-gray-400 truncate">{a.name}</p>
-            <p className="text-lg font-bold text-gray-800 mt-1">{fmt(a.closing_balance)}</p>
-            <p className="text-xs text-gray-400 mt-0.5 font-mono">{a.iban.slice(0, 8)}...{a.iban.slice(-4)}</p>
-          </div>
-        ))}
+      <div className="bg-white rounded-xl border border-gray-100 p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+            <Wallet size={16} /> Comptes
+          </h2>
+          <Link to="/import" className="text-xs font-semibold text-blue-600 hover:text-blue-800">
+            Gérer ➔
+          </Link>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          {accounts.map(a => (
+            <div key={a.id} className="border border-gray-100 rounded-lg p-3 min-w-0">
+              <p className="text-sm text-gray-800 truncate">{a.name}</p>
+              <p className="text-base font-semibold text-gray-900 mt-1">
+                {new Intl.NumberFormat('fr-CH', { style: 'currency', currency: a.currency }).format(a.closing_balance)}
+              </p>
+              <p className="text-xs text-gray-400 mt-1 truncate">
+                {a.transaction_count} transaction{a.transaction_count !== 1 ? 's' : ''}
+                {a.last_updated && ` · mis à jour le ${new Date(a.last_updated).toLocaleDateString('fr-CH', { day: '2-digit', month: 'short' })}`}
+              </p>
+            </div>
+          ))}
+          {accounts.length === 0 && (
+            <p className="col-span-full text-center py-6 text-gray-400 text-sm">Aucun compte pour le moment.</p>
+          )}
+        </div>
       </div>
 
       {/* Recent transactions */}

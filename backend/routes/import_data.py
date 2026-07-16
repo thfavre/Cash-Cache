@@ -130,7 +130,7 @@ async def upload(file: UploadFile = File(...), db: Session = Depends(get_db)):
             "decimal_separator": _detect_decimal_separator(sample_rows),
             "headers": headers,
             "sample_rows": sample_rows,
-            "accounts": [_account_out(a) for a in db.query(Account).order_by(Account.name).all()],
+            "accounts": [_account_out(a) for a in db.query(Account).filter(Account.is_active == True).order_by(Account.name).all()],
             "suggested_profile": (
                 {"id": matched.id, "name": matched.name, "mapping": matched.mapping} if matched else None
             ),

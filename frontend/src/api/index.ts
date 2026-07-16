@@ -26,6 +26,12 @@ export interface Account {
   name: string
   currency: string
   closing_balance: number
+  transaction_count: number
+  last_updated: string | null
+}
+
+export interface ManagedAccount extends Account {
+  is_active: boolean
 }
 
 export interface Category {
@@ -232,6 +238,7 @@ export interface ScenarioItem {
   start_month: number
   duration_months?: number
   target?: 'bank' | 'investment'
+  enabled?: boolean
 }
 
 export interface Merchant {
@@ -352,6 +359,11 @@ export interface ImportBatchList {
 export const api = {
   // Accounts
   accounts: (): Promise<Account[]> => req('/stats/accounts'),
+  accountsManage: (): Promise<ManagedAccount[]> => req('/stats/accounts/manage'),
+  updateAccount: (id: number, body: { name?: string; is_active?: boolean }): Promise<{ id: number; name: string; is_active: boolean }> =>
+    req(`/stats/accounts/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  deleteAccount: (id: number): Promise<{ ok: boolean }> =>
+    req(`/stats/accounts/${id}`, { method: 'DELETE' }),
 
   // Transactions
   transactions: (params: Record<string, string | number | boolean | string[] | undefined>): Promise<PaginatedTransactions> => {
@@ -385,7 +397,10 @@ export const api = {
     req(`/categories/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteCategory: (id: number): Promise<{ ok: boolean }> =>
     req(`/categories/${id}`, { method: 'DELETE' }),
-  recategorize: (catId: number): Promise<{ updated: number }> =>
+  recategorize: (catId: number): Promise<{
+    updated: number
+    transactions: { id: number; date: string; description: string | null; counterparty: string | null; amount: number; is_credit: boolean }[]
+  }> =>
     req(`/categories/${catId}/recategorize`, { method: 'POST' }),
 
   // Stats

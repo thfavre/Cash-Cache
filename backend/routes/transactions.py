@@ -63,11 +63,16 @@ def list_transactions(
     merchants: Optional[List[str]] = Query(None),
     is_credit: Optional[bool] = None,
     is_internal: Optional[bool] = None,
+    min_amount: Optional[float] = None,
+    max_amount: Optional[float] = None,
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=2000),
     db: Session = Depends(get_db),
 ):
     q = db.query(Transaction)
+    # Deactivated accounts are hidden everywhere, including here — their
+    # transactions must not leak into the Transactions/Categorize lists.
+    q = q.filter(Transaction.account.has(Account.is_active == True))
 
     if account_id is not None:
         q = q.filter(Transaction.account_id == account_id)
@@ -92,6 +97,10 @@ def list_transactions(
         q = q.filter(Transaction.is_credit == is_credit)
     if is_internal is not None:
         q = q.filter(Transaction.is_internal == is_internal)
+    if min_amount is not None:
+        q = q.filter(Transaction.amount >= min_amount)
+    if max_amount is not None:
+        q = q.filter(Transaction.amount <= max_amount)
     if search:
         term = f"%{search}%"
         q = q.filter(

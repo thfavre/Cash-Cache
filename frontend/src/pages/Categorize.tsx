@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { api, Transaction, Category, HistoryEntry } from '../api'
-import { Plus, Pencil, Trash2, X, Check, Tag, Search, ArrowUpDown, Layers, ChevronDown, ChevronUp, History, Undo2, PiggyBank, Ban } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Check, Tag, Search, ArrowUpDown, Layers, ChevronDown, ChevronUp, History, Undo2, PiggyBank, Ban, MousePointerClick, Sparkles } from 'lucide-react'
 import clsx from 'clsx'
 
 const fmt = (n: number) =>
@@ -38,6 +38,7 @@ function suggestRule(tx: Transaction): string {
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface RulePrompt { txId: number; catId: number; catName: string; catColor: string; suggestion: string; historyId: number | null }
+interface RecategorizedTx { id: number; date: string; description: string | null; counterparty: string | null; amount: number; is_credit: boolean }
 interface CatForm { name: string; color: string; icon: string; rules: string[]; is_savings: boolean; is_ignored: boolean }
 
 const EMPTY_FORM: CatForm = { name: '', color: '#3B82F6', icon: '❓', rules: [], is_savings: false, is_ignored: false }
@@ -57,6 +58,68 @@ interface TxGroup {
   mostRecent: string
 }
 
+// ── First-visit tutorial ─────────────────────────────────────────────────────
+const TUTORIAL_SEEN_KEY = 'categorizeTutorialSeen'
+
+const TUTORIAL_STEPS = [
+  {
+    icon: MousePointerClick,
+    title: 'Assignez une catégorie',
+    text: "Cliquez sur une transaction (ou un groupe) puis sur une catégorie pour l'assigner — ou glissez-déposez directement la transaction sur la catégorie.",
+  },
+  {
+    icon: Sparkles,
+    title: 'Créez une règle',
+    text: "Après une première assignation, une règle vous est proposée pour catégoriser automatiquement les transactions similaires à l'avenir.",
+  },
+  {
+    icon: History,
+    title: 'Rien n\'est définitif',
+    text: "L'historique (en haut à droite) permet d'annuler n'importe quelle assignation à tout moment.",
+  },
+]
+
+function CategorizeTutorial({ onClose }: { onClose: () => void }) {
+  const [step, setStep] = useState(0)
+  const last = step === TUTORIAL_STEPS.length - 1
+  const { icon: Icon, title, text } = TUTORIAL_STEPS[step]
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/30" onClick={onClose}>
+      <div
+        onClick={e => e.stopPropagation()}
+        className="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-6 space-y-4"
+      >
+        <div className="w-11 h-11 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center">
+          <Icon size={20} />
+        </div>
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">{title}</h2>
+          <p className="text-sm text-gray-500 mt-1.5 leading-relaxed">{text}</p>
+        </div>
+        <div className="flex items-center justify-between pt-2">
+          <div className="flex gap-1.5">
+            {TUTORIAL_STEPS.map((_, i) => (
+              <span key={i} className={`w-1.5 h-1.5 rounded-full ${i === step ? 'bg-blue-600' : 'bg-gray-200'}`} />
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={onClose} className="text-sm text-gray-400 hover:text-gray-600 px-2 py-1.5">
+              Passer
+            </button>
+            <button
+              onClick={() => last ? onClose() : setStep(s => s + 1)}
+              className="text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg px-4 py-1.5 transition-colors"
+            >
+              {last ? 'Compris' : 'Suivant'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 export default function Categorize() {
   const [txs, setTxs] = useState<Transaction[]>([])
@@ -66,6 +129,8 @@ export default function Categorize() {
   const [showAll, setShowAll] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [history, setHistory] = useState<HistoryEntry[]>([])
+  const [showTutorial, setShowTutorial] = useState(false)
+  const tutorialCheckedRef = useRef(false)
 
   // interaction state
   const [selectedId, setSelectedId] = useState<number | null>(null)
@@ -76,6 +141,7 @@ export default function Categorize() {
   const [rulePrompt, setRulePrompt] = useState<RulePrompt | null>(null)
   const [ruleInput, setRuleInput] = useState('')
   const [ruleStatus, setRuleStatus] = useState<string | null>(null)
+  const [ruleResultTxs, setRuleResultTxs] = useState<RecategorizedTx[]>([])
 
   // category management
   const [showNewForm, setShowNewForm] = useState(false)
@@ -104,6 +170,25 @@ export default function Categorize() {
   }, [showAll])
 
   useEffect(() => { loadTxs(); api.categories().then(setCategories) }, [loadTxs])
+
+  // Show the first-visit tutorial once loading settles, but only if there's
+  // at least one uncategorized transaction to actually act on — no point
+  // walking someone through categorization when there's nothing to categorize.
+  useEffect(() => {
+    if (tutorialCheckedRef.current || loading) return
+    tutorialCheckedRef.current = true
+    if (txs.length === 0) return
+    try {
+      if (!localStorage.getItem(TUTORIAL_SEEN_KEY)) setShowTutorial(true)
+    } catch {
+      // localStorage unavailable — skip the tutorial rather than crash
+    }
+  }, [loading, txs])
+
+  function dismissTutorial() {
+    setShowTutorial(false)
+    try { localStorage.setItem(TUTORIAL_SEEN_KEY, '1') } catch {}
+  }
 
   function loadHistory() {
     api.history().then(setHistory)
@@ -181,9 +266,14 @@ export default function Categorize() {
         ? `✓ Règle ajoutée — 1 autre transaction recatégorisée`
         : `✓ Règle ajoutée — ${result.updated} autres transactions recatégorisées`
     )
+    setRuleResultTxs(result.transactions)
     api.categories().then(setCategories)
     loadTxs()
-    setTimeout(() => { setRulePrompt(null); setRuleStatus(null) }, 2500)
+    // Only auto-dismiss when there's nothing to review — once there's a list
+    // of affected transactions, closing on a timer would cut off reading it.
+    if (result.transactions.length === 0) {
+      setTimeout(() => { setRulePrompt(null); setRuleStatus(null) }, 2500)
+    }
   }
 
   // ── Category CRUD ─────────────────────────────────────────────────────
@@ -289,6 +379,8 @@ export default function Categorize() {
   // ═══════════════════════════════════════════════════════════════════════
   return (
     <div className="flex flex-col h-full">
+      {showTutorial && <CategorizeTutorial onClose={dismissTutorial} />}
+
       {/* ── Header ────────────────────────────────────────────────────── */}
       <div className="px-6 py-4 border-b border-gray-100 bg-white flex items-center justify-between shrink-0">
         <div>
@@ -497,9 +589,10 @@ export default function Categorize() {
           rulePrompt={rulePrompt}
           ruleInput={ruleInput}
           ruleStatus={ruleStatus}
+          ruleResultTxs={ruleResultTxs}
           onInputChange={setRuleInput}
           onAdd={handleAddRule}
-          onDismiss={() => setRulePrompt(null)}
+          onDismiss={() => { setRulePrompt(null); setRuleStatus(null); setRuleResultTxs([]) }}
           onCancel={handleCancelAssign}
         />
       )}
@@ -517,27 +610,28 @@ export default function Categorize() {
 }
 
 function RulePromptToast({
-  rulePrompt, ruleInput, ruleStatus, onInputChange, onAdd, onDismiss, onCancel,
+  rulePrompt, ruleInput, ruleStatus, ruleResultTxs, onInputChange, onAdd, onDismiss, onCancel,
 }: {
   rulePrompt: RulePrompt
   ruleInput: string
   ruleStatus: string | null
+  ruleResultTxs: RecategorizedTx[]
   onInputChange: (v: string) => void
   onAdd: () => void
   onDismiss: () => void
   onCancel: () => void
 }) {
   const [visible, setVisible] = useState(false)
+  const [listExpanded, setListExpanded] = useState(false)
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 10)
     return () => clearTimeout(t)
   }, [])
   useEffect(() => {
-    if (ruleStatus) return
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onDismiss() }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [ruleStatus, onDismiss])
+  }, [onDismiss])
 
   return (
     <div
@@ -557,7 +651,44 @@ function RulePromptToast({
         style={{ borderColor: rulePrompt.catColor }}
       >
         {ruleStatus ? (
-          <p className="text-sm text-green-600 font-semibold text-center py-1">{ruleStatus}</p>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm text-green-600 font-semibold py-1">{ruleStatus}</p>
+              <button
+                onClick={onDismiss}
+                className="text-gray-400 hover:text-gray-600 p-1 shrink-0"
+                title="Fermer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            {ruleResultTxs.length > 0 && (
+              <div className="border-t border-gray-100 pt-2">
+                <button
+                  onClick={() => setListExpanded(e => !e)}
+                  className="flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-700"
+                >
+                  {listExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  {listExpanded ? 'Masquer' : 'Voir'} les {ruleResultTxs.length} transaction{ruleResultTxs.length > 1 ? 's' : ''}
+                </button>
+                {listExpanded && (
+                  <div className="mt-2 max-h-48 overflow-y-auto space-y-0.5">
+                    {ruleResultTxs.map(tx => (
+                      <div key={tx.id} className="flex items-center gap-2 text-xs text-gray-500 px-1 py-0.5">
+                        <span className="text-gray-400 shrink-0 w-16">
+                          {new Date(tx.date).toLocaleDateString('fr-CH', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                        </span>
+                        <span className="flex-1 truncate text-gray-700">{tx.description ?? tx.counterparty ?? '—'}</span>
+                        <span className={clsx('shrink-0 font-medium', tx.is_credit ? 'text-green-600' : 'text-gray-600')}>
+                          {tx.is_credit ? '+' : '-'}{fmt(tx.amount)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         ) : (
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2">

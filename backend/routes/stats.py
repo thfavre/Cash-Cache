@@ -5,7 +5,7 @@ from typing import Optional
 import datetime
 import re
 from ..database import get_db
-from ..models import Transaction, Account, Category
+from ..models import Transaction, Account, Category, ImportBatch
 
 router = APIRouter(prefix="/stats", tags=["stats"])
 
@@ -95,6 +95,13 @@ def _apply_period_filter(q, period, year, month):
     return q
 
 
+def _exclude_inactive_accounts(q):
+    """Deactivated accounts (Account.is_active = False) are hidden from every
+    display/aggregate endpoint — their transactions must not leak into totals,
+    breakdowns, or trends even though the rows still exist in the DB."""
+    return q.filter(Transaction.account.has(Account.is_active == True))
+
+
 def _expense_filter(q, account_id, year, month, exclude_internal=True, period=None):
     if account_id is not None:
         q = q.filter(Transaction.account_id == account_id)
@@ -102,6 +109,7 @@ def _expense_filter(q, account_id, year, month, exclude_internal=True, period=No
     if exclude_internal:
         q = q.filter(Transaction.is_internal == False)
     q = q.filter(Transaction.is_reversal == False)
+    q = _exclude_inactive_accounts(q)
     return q
 
 
@@ -112,7 +120,7 @@ def overview(
     month: Optional[int] = None,
     db: Session = Depends(get_db),
 ):
-    accounts = db.query(Account).all()
+    accounts = db.query(Account).filter(Account.is_active == True).all()
     total_balance = sum(a.closing_balance for a in accounts)
 
     base = db.query(Transaction)
@@ -156,6 +164,7 @@ def monthly(
         func.sum(case((Transaction.is_credit == False, Transaction.amount), else_=0)).label("expenses"),
     )
     q = q.filter(Transaction.is_internal == False, Transaction.is_reversal == False)
+    q = _exclude_inactive_accounts(q)
     if account_id is not None:
         q = q.filter(Transaction.account_id == account_id)
     if year is not None:
@@ -242,7 +251,7 @@ def balance_history(
     truncated to the requested date range (the running balance itself is
     still computed from the full history so it stays accurate).
     """
-    accounts = db.query(Account).all()
+    accounts = db.query(Account).filter(Account.is_active == True).all()
     if account_id is not None:
         accounts = [a for a in accounts if a.id == account_id]
 
@@ -279,11 +288,59 @@ def balance_history(
     return [{"month": m, "balance": b} for m, b in sorted(result.items())]
 
 
+def _account_tx_counts_and_updates(db: Session):
+    counts = dict(
+        db.query(Transaction.account_id, func.count(Transaction.id))
+        .group_by(Transaction.account_id)
+        .all()
+    )
+    last_updates = dict(
+        db.query(Transaction.account_id, func.max(ImportBatch.created_at))
+        .join(ImportBatch, Transaction.import_batch_id == ImportBatch.id)
+        .group_by(Transaction.account_id)
+        .all()
+    )
+    return counts, last_updates
+
+
 @router.get("/accounts")
 def list_accounts(db: Session = Depends(get_db)):
-    accounts = db.query(Account).all()
+    accounts = db.query(Account).filter(Account.is_active == True).all()
+    counts, last_updates = _account_tx_counts_and_updates(db)
     return [
-        {"id": a.id, "iban": a.iban, "name": a.name, "currency": a.currency, "closing_balance": round(a.closing_balance, 2)}
+        {
+            "id": a.id,
+            "iban": a.iban,
+            "name": a.name,
+            "currency": a.currency,
+            "closing_balance": round(a.closing_balance, 2),
+            "transaction_count": counts.get(a.id, 0),
+            "last_updated": last_updates.get(a.id),
+        }
+        for a in accounts
+    ]
+
+
+@router.get("/accounts/manage")
+def list_accounts_for_management(db: Session = Depends(get_db)):
+    """
+    Unlike GET /accounts, this includes deactivated accounts too — it backs
+    the Comptes management table on the Import page, which is the one place
+    a deactivated account must still be visible so it can be reactivated.
+    """
+    accounts = db.query(Account).order_by(Account.is_active.desc(), Account.name).all()
+    counts, last_updates = _account_tx_counts_and_updates(db)
+    return [
+        {
+            "id": a.id,
+            "iban": a.iban,
+            "name": a.name,
+            "currency": a.currency,
+            "closing_balance": round(a.closing_balance, 2),
+            "is_active": a.is_active,
+            "transaction_count": counts.get(a.id, 0),
+            "last_updated": last_updates.get(a.id),
+        }
         for a in accounts
     ]
 
@@ -296,8 +353,22 @@ def rename_account(account_id: int, body: dict, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Account not found")
     if "name" in body:
         acct.name = body["name"]
+    if "is_active" in body:
+        acct.is_active = bool(body["is_active"])
     db.commit()
-    return {"id": acct.id, "name": acct.name}
+    return {"id": acct.id, "name": acct.name, "is_active": acct.is_active}
+
+
+@router.delete("/accounts/{account_id}")
+def delete_account(account_id: int, db: Session = Depends(get_db)):
+    from fastapi import HTTPException
+    acct = db.query(Account).filter(Account.id == account_id).first()
+    if not acct:
+        raise HTTPException(status_code=404, detail="Account not found")
+    db.query(Transaction).filter(Transaction.account_id == account_id).delete(synchronize_session=False)
+    db.delete(acct)
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/cashflow")
@@ -312,6 +383,7 @@ def get_cashflow(
         Transaction.is_internal == False,
         Transaction.is_reversal == False
     )
+    q = _exclude_inactive_accounts(q)
 
     if account_id is not None:
         q = q.filter(Transaction.account_id == account_id)

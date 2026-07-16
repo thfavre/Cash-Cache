@@ -41,6 +41,12 @@ async def lifespan(app: FastAPI):
             print("Successfully migrated transactions table: added import_batch_id column.")
     except Exception as e:
         pass
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE accounts ADD COLUMN is_active BOOLEAN DEFAULT 1 NOT NULL"))
+            print("Successfully migrated accounts table: added is_active column.")
+    except Exception as e:
+        pass
 
     # Budget table redesign: recurring periods (daily/weekly/monthly/annual/custom)
     # and category-or-merchant targets, replacing the old single category_id+month row.

@@ -16,6 +16,11 @@ class Account(Base):
     currency = Column(String, default="CHF")
     opening_balance = Column(Float, default=0.0)
     closing_balance = Column(Float, default=0.0)
+    # Deactivating an account hides it and all its transactions everywhere in
+    # the app (dashboards, filters, budgets, simulations) without deleting
+    # any data — the account only reappears once reactivated from the
+    # Comptes table on the Import page.
+    is_active = Column(Boolean, default=True, nullable=False)
 
     transactions = relationship("Transaction", back_populates="account")
 

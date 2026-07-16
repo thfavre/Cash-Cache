@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, field_validator
 
 from ..database import get_db
-from ..models import Budget, Category, Transaction
+from ..models import Account, Budget, Category, Transaction
 
 router = APIRouter(prefix="/budgets", tags=["budgets"])
 
@@ -262,6 +262,8 @@ def _period_base_filters(budget: Budget, period_start: date, period_end: date):
         Transaction.is_reversal == False,  # noqa: E712
         Transaction.date >= period_start,
         Transaction.date <= period_end,
+        # Deactivated accounts are hidden everywhere, including budget spend.
+        Transaction.account.has(Account.is_active == True),
         target,
     ]
 

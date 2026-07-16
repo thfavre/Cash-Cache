@@ -147,7 +147,7 @@ def recategorize(cat_id: int, db: Session = Depends(get_db)):
     Apply this category's rules to ALL non-internal, non-reversal transactions.
     Returns how many were newly assigned to this category.
     """
-    from ..models import Transaction
+    from ..models import Account, Transaction
     cat = db.query(Category).filter(Category.id == cat_id).first()
     if not cat:
         raise HTTPException(status_code=404, detail="Category not found")
@@ -157,9 +157,11 @@ def recategorize(cat_id: int, db: Session = Depends(get_db)):
     txs = db.query(Transaction).filter(
         Transaction.is_reversal == False,
         Transaction.is_internal == False,
+        Transaction.account.has(Account.is_active == True),
     ).all()
 
     changes = []
+    changed_txs = []
     for tx in txs:
         search = " | ".join(filter(None, [
             tx.description or "", tx.counterparty or "", tx.remittance_info or ""
@@ -168,6 +170,7 @@ def recategorize(cat_id: int, db: Session = Depends(get_db)):
             if rule.upper() in search:
                 if tx.category_id != cat_id:
                     changes.append({"tx_id": tx.id, "previous_category_id": tx.category_id})
+                    changed_txs.append(tx)
                     tx.category_id = cat_id
                 if cat.is_ignored:
                     tx.is_internal = True
@@ -182,4 +185,17 @@ def recategorize(cat_id: int, db: Session = Depends(get_db)):
             payload={"category_id": cat.id, "changes": changes},
         )
 
-    return {"updated": len(changes)}
+    return {
+        "updated": len(changes),
+        "transactions": [
+            {
+                "id": tx.id,
+                "date": tx.date,
+                "description": tx.description,
+                "counterparty": tx.counterparty,
+                "amount": tx.amount,
+                "is_credit": tx.is_credit,
+            }
+            for tx in changed_txs
+        ],
+    }

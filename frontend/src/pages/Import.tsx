@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { Upload, FileText, Wallet, Trash2, Info, FileQuestion, HelpCircle, Inbox, ChevronDown } from 'lucide-react'
 import {
-  api, Account, ImportAccountOption, ImportAmountMode, ImportBankProfile,
+  api, ManagedAccount, ImportAccountOption, ImportAmountMode, ImportBankProfile,
   ImportBatchList, ImportMapping, ImportUploadResult,
 } from '../api'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 const inputClass = 'w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500'
 
@@ -160,8 +161,11 @@ interface ImportPageProps {
 }
 
 export default function Import({ onContinueWithoutData, onDataChanged }: ImportPageProps = {}) {
-  const [accounts, setAccounts] = useState<Account[]>([])
+  const [accounts, setAccounts] = useState<ManagedAccount[]>([])
   const [batchList, setBatchList] = useState<ImportBatchList | null>(null)
+  const [selectedBatchIds, setSelectedBatchIds] = useState<Set<number>>(new Set())
+  const [deleteConfirm, setDeleteConfirm] = useState<{ ids: number[]; message: string } | null>(null)
+  const [deleteAccountConfirm, setDeleteAccountConfirm] = useState<{ id: number; message: string } | null>(null)
   const [initialLoading, setInitialLoading] = useState(true)
   const [msg, setMsg] = useState('')
   const [error, setError] = useState('')
@@ -189,12 +193,36 @@ export default function Import({ onContinueWithoutData, onDataChanged }: ImportP
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   function load() {
-    Promise.all([api.accounts(), api.importBatches()]).then(([a, b]) => {
+    Promise.all([api.accountsManage(), api.importBatches()]).then(([a, b]) => {
       setAccounts(a)
       setBatchList(b)
       setInitialLoading(false)
       onDataChanged?.()
     })
+  }
+
+  async function toggleAccountActive(acct: ManagedAccount) {
+    const updated = await api.updateAccount(acct.id, { is_active: !acct.is_active })
+    setAccounts(prev => prev.map(a => a.id === acct.id ? { ...a, is_active: updated.is_active } : a))
+  }
+
+  function handleDeleteAccount(acct: ManagedAccount) {
+    setDeleteAccountConfirm({
+      id: acct.id,
+      message: `Supprimer le compte "${acct.name}" et ses ${acct.transaction_count} transaction(s) ? Cette action est irréversible.`,
+    })
+  }
+
+  async function confirmDeleteAccount() {
+    if (!deleteAccountConfirm) return
+    const { id } = deleteAccountConfirm
+    setDeleteAccountConfirm(null)
+    try {
+      await api.deleteAccount(id)
+      load()
+    } catch (e: any) {
+      setError('Erreur: ' + e.message)
+    }
   }
 
   useEffect(() => { load() }, [])
@@ -315,10 +343,39 @@ export default function Import({ onContinueWithoutData, onDataChanged }: ImportP
     }
   }
 
-  async function handleDeleteBatch(id: number, filename: string, count: number) {
-    if (!window.confirm(`Supprimer l'import "${filename}" et ses ${count} transaction(s) ? Cette action est irréversible.`)) return
+  function handleDeleteBatch(id: number, filename: string, count: number) {
+    setDeleteConfirm({
+      ids: [id],
+      message: `Supprimer l'import "${filename}" et ses ${count} transaction(s) ? Cette action est irréversible.`,
+    })
+  }
+
+  function toggleBatchSelected(id: number) {
+    setSelectedBatchIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function handleDeleteSelectedBatches() {
+    const batches = (batchList?.batches ?? []).filter(b => selectedBatchIds.has(b.id))
+    if (batches.length === 0) return
+    const totalTx = batches.reduce((sum, b) => sum + b.transaction_count, 0)
+    setDeleteConfirm({
+      ids: batches.map(b => b.id),
+      message: `Supprimer ${batches.length} import(s) et leurs ${totalTx} transaction(s) ? Cette action est irréversible.`,
+    })
+  }
+
+  async function confirmDeleteBatches() {
+    if (!deleteConfirm) return
+    const { ids } = deleteConfirm
+    setDeleteConfirm(null)
     try {
-      await api.deleteImportBatch(id)
+      await Promise.all(ids.map(id => api.deleteImportBatch(id)))
+      setSelectedBatchIds(prev => { const next = new Set(prev); ids.forEach(id => next.delete(id)); return next })
       load()
     } catch (e: any) {
       setError('Erreur: ' + e.message)
@@ -429,11 +486,15 @@ export default function Import({ onContinueWithoutData, onDataChanged }: ImportP
               <tr className="text-left text-xs text-gray-400 border-b border-gray-100">
                 <th className="px-4 py-2 font-medium whitespace-nowrap">Compte</th>
                 <th className="px-4 py-2 font-medium whitespace-nowrap">Solde</th>
+                <th className="px-4 py-2 font-medium whitespace-nowrap">Transactions</th>
+                <th className="px-4 py-2 font-medium whitespace-nowrap">Dernière mise à jour</th>
+                <th className="px-4 py-2 font-medium whitespace-nowrap">Actif</th>
+                <th className="px-4 py-2 font-medium"></th>
               </tr>
             </thead>
             <tbody>
               {accounts.map(a => (
-                <tr key={a.id} className="border-b border-gray-50 last:border-0">
+                <tr key={a.id} className={`border-b border-gray-50 last:border-0 ${a.is_active ? '' : 'opacity-50'}`}>
                   <td className="px-4 py-2 whitespace-nowrap">
                     <div className="font-medium text-gray-900">{a.name}</div>
                     <div className="text-xs text-gray-400">{a.iban}</div>
@@ -441,10 +502,36 @@ export default function Import({ onContinueWithoutData, onDataChanged }: ImportP
                   <td className="px-4 py-2 text-gray-700 whitespace-nowrap">
                     {new Intl.NumberFormat('fr-CH', { style: 'currency', currency: a.currency }).format(a.closing_balance)}
                   </td>
+                  <td className="px-4 py-2 text-gray-500 whitespace-nowrap">{a.transaction_count}</td>
+                  <td className="px-4 py-2 text-gray-500 whitespace-nowrap">{a.last_updated ? formatDateTime(a.last_updated) : '—'}</td>
+                  <td className="px-4 py-2">
+                    <button
+                      onClick={() => toggleAccountActive(a)}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        a.is_active ? 'bg-blue-600' : 'bg-gray-200'
+                      }`}
+                      title={a.is_active ? 'Désactiver ce compte' : 'Activer ce compte'}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          a.is_active ? 'translate-x-4' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </td>
+                  <td className="px-4 py-2 text-right whitespace-nowrap">
+                    <button
+                      onClick={() => handleDeleteAccount(a)}
+                      title="Supprimer ce compte"
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
                 </tr>
               ))}
               {accounts.length === 0 && (
-                <tr><td colSpan={2} className="px-4 py-6 text-center text-gray-400">Aucun compte pour le moment.</td></tr>
+                <tr><td colSpan={6} className="px-4 py-6 text-center text-gray-400">Aucun compte pour le moment.</td></tr>
               )}
             </tbody>
           </table>
@@ -452,13 +539,33 @@ export default function Import({ onContinueWithoutData, onDataChanged }: ImportP
       </div>
 
       <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2 text-sm font-semibold text-gray-700">
-          <FileText size={16} /> Historique des imports
+        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+            <FileText size={16} /> Historique des imports
+          </div>
+          {selectedBatchIds.size > 0 && (
+            <button
+              onClick={handleDeleteSelectedBatches}
+              className="flex items-center gap-1.5 text-xs font-semibold text-red-600 hover:text-red-700 px-2.5 py-1 rounded-lg hover:bg-red-50 transition-colors"
+            >
+              <Trash2 size={13} /> Supprimer ({selectedBatchIds.size})
+            </button>
+          )}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-gray-400 border-b border-gray-100">
+                <th className="px-4 py-2 font-medium w-8">
+                  {(batchList?.batches.length ?? 0) > 0 && (
+                    <input
+                      type="checkbox"
+                      className="rounded border-gray-300 accent-blue-600"
+                      checked={selectedBatchIds.size === batchList?.batches.length}
+                      onChange={e => setSelectedBatchIds(e.target.checked ? new Set(batchList?.batches.map(b => b.id)) : new Set())}
+                    />
+                  )}
+                </th>
                 <th className="px-4 py-2 font-medium whitespace-nowrap">Fichier</th>
                 <th className="px-4 py-2 font-medium whitespace-nowrap">Type</th>
                 <th className="px-4 py-2 font-medium whitespace-nowrap">Comptes</th>
@@ -470,6 +577,14 @@ export default function Import({ onContinueWithoutData, onDataChanged }: ImportP
             <tbody>
               {batchList?.batches.map(b => (
                 <tr key={b.id} className="border-b border-gray-50 last:border-0">
+                  <td className="px-4 py-2">
+                    <input
+                      type="checkbox"
+                      className="rounded border-gray-300 accent-blue-600"
+                      checked={selectedBatchIds.has(b.id)}
+                      onChange={() => toggleBatchSelected(b.id)}
+                    />
+                  </td>
                   <td className="px-4 py-2 text-gray-900 whitespace-nowrap">{b.filename}</td>
                   <td className="px-4 py-2 text-gray-500 whitespace-nowrap">{KIND_LABEL[b.kind] ?? b.kind}</td>
                   <td className="px-4 py-2 text-gray-500 whitespace-nowrap">{b.accounts.map(a => a.name).join(', ') || '—'}</td>
@@ -487,10 +602,11 @@ export default function Import({ onContinueWithoutData, onDataChanged }: ImportP
                 </tr>
               ))}
               {batchList && batchList.batches.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-6 text-center text-gray-400">Aucun import réalisé via cette page.</td></tr>
+                <tr><td colSpan={7} className="px-4 py-6 text-center text-gray-400">Aucun import réalisé via cette page.</td></tr>
               )}
               {batchList && batchList.legacy_transaction_count > 0 && (
                 <tr className="bg-gray-50">
+                  <td></td>
                   <td colSpan={4} className="px-4 py-2 text-gray-400 italic whitespace-nowrap">Anciennes données (avant le suivi des imports)</td>
                   <td className="px-4 py-2 text-gray-500 whitespace-nowrap">{batchList.legacy_transaction_count} transaction(s)</td>
                   <td></td>
@@ -505,6 +621,24 @@ export default function Import({ onContinueWithoutData, onDataChanged }: ImportP
         {uploadButton}
       </div>
       </>
+      )}
+
+      {deleteConfirm && (
+        <ConfirmDialog
+          message={deleteConfirm.message}
+          confirmLabel="Supprimer"
+          onConfirm={confirmDeleteBatches}
+          onCancel={() => setDeleteConfirm(null)}
+        />
+      )}
+
+      {deleteAccountConfirm && (
+        <ConfirmDialog
+          message={deleteAccountConfirm.message}
+          confirmLabel="Supprimer"
+          onConfirm={confirmDeleteAccount}
+          onCancel={() => setDeleteAccountConfirm(null)}
+        />
       )}
 
       {mappingState && (

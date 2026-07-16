@@ -14,7 +14,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from .models import Transaction, Category, Setting
+from .models import Account, Transaction, Category, Setting
 
 # ── Setting keys ──────────────────────────────────────────────────────────────
 KEY_ANNUAL_RATE      = "invest_annual_rate"        # float  e.g. 0.07
@@ -81,6 +81,7 @@ def compute_auto_portfolio(db: Session, annual_rate: float) -> float:
             Transaction.category_id == cat_id,
             Transaction.is_credit == False,
             Transaction.is_reversal == False,
+            Transaction.account.has(Account.is_active == True),
         )
         .order_by(Transaction.date)
         .all()
@@ -128,6 +129,7 @@ def avg_monthly_contribution(db: Session, n_months: int = 6) -> float:
             Transaction.is_credit == False,
             Transaction.is_reversal == False,
             Transaction.date >= cutoff,
+            Transaction.account.has(Account.is_active == True),
         )
         .all()
     )
