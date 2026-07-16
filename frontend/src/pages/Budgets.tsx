@@ -318,7 +318,7 @@ export default function Budgets() {
       ) : sortedBudgets.length === 0 ? (
         <div className="text-center py-12 text-gray-400">Aucun budget pour le moment.</div>
       ) : (
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
           {sortedBudgets.map(renderBudgetCard)}
         </div>
       )}
@@ -334,7 +334,7 @@ export default function Budgets() {
             {showArchive ? 'Masquer' : 'Voir'} les événements terminés ({finishedBudgets.length})
           </button>
           {showArchive && (
-            <div className="space-y-3 mt-3">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 mt-3">
               {finishedBudgets.map(renderBudgetCard)}
             </div>
           )}
