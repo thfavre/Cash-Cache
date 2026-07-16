@@ -748,13 +748,13 @@ function RulePromptToast({
   return (
     <div
       className={clsx(
-        'fixed inset-0 z-50 flex justify-center px-4 bg-black/30 transition-opacity duration-300 ease-out overflow-y-auto',
-        // Anchored to the top (not vertically centered) while the form is
-        // open, so the dialog growing as the rule-match preview expands
-        // only pushes content downward instead of recentering and visibly
-        // jumping. overflow-y-auto lets the overlay itself scroll on short
-        // viewports rather than clipping when there isn't enough height.
-        ruleStatus ? 'items-end pb-8' : 'items-start pt-20 pb-8',
+        'fixed inset-0 z-50 flex justify-center px-4 bg-black/30 transition-opacity duration-300 ease-out overflow-y-auto py-8',
+        // Vertically centered by default (grows symmetrically around the
+        // center as the rule-match preview expands, instead of jumping to a
+        // new position) — overflow-y-auto is the fallback for when there
+        // isn't enough viewport height to center a fully expanded dialog:
+        // the overlay scrolls instead of clipping or forcing a reposition.
+        ruleStatus ? 'items-end' : 'items-center',
         visible ? 'opacity-100' : 'opacity-0',
       )}
       onClick={onDismiss}
