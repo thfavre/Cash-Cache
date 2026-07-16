@@ -131,7 +131,27 @@ async def lifespan(app: FastAPI):
 
             print(f"Successfully migrated {len(old_rows)} legacy budget row(s) to the new period/target schema.")
     except Exception as e:
-        print(f"Budget table migration skipped: {e}")
+        print(f"Budget table migration failed: {e}")
+
+    # Fail startup loudly if the migration didn't finish cleanly — continuing
+    # silently here previously meant either every /budgets request would 500
+    # for the rest of the process's life, or a "budgets_legacy" table full of
+    # not-yet-recovered data would sit invisible while Base.metadata.create_all
+    # quietly creates a fresh, empty budgets table over it.
+    if _table_exists("budgets_legacy"):
+        raise RuntimeError(
+            "Budget migration did not complete: 'budgets_legacy' still exists alongside "
+            "the new schema. Investigate before retrying — do not let the app start "
+            "against this database, it would silently create a fresh empty budgets "
+            "table and orphan the legacy data."
+        )
+    final_cols = _table_cols("budgets")
+    required_cols = {"id", "amount_limit", "period_type", "start_date", "recurring", "target_type", "category_ids"}
+    if final_cols and not required_cols.issubset(final_cols):
+        raise RuntimeError(
+            f"budgets table is missing required columns after migration: {required_cols - final_cols}. "
+            "The database is in a broken intermediate state — restore from a backup or investigate before retrying."
+        )
 
     Base.metadata.create_all(bind=engine)
     db = next(get_db())

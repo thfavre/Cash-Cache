@@ -169,13 +169,13 @@ export default function Budgets() {
       name: form.name?.trim() || null,
     }
     try {
-      if (editId) await api.updateBudget(editId, body)
+      if (editId !== null) await api.updateBudget(editId, body)
       else await api.createBudget(body)
       setShowForm(false)
       setEditId(null)
       load()
-    } catch {
-      pushToast(editId !== null ? "Impossible de modifier ce budget." : 'Impossible de créer ce budget.')
+    } catch (e) {
+      pushToast(e instanceof Error ? e.message : (editId !== null ? "Impossible de modifier ce budget." : 'Impossible de créer ce budget.'))
     }
   }
 

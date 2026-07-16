@@ -106,6 +106,38 @@ def _validate_targets(body: BudgetCreate):
         raise HTTPException(status_code=400, detail="period_days is required when period_type is 'custom'")
 
 
+def _check_duplicate(db: Session, body: BudgetCreate, exclude_id: Optional[int] = None):
+    """Rejects creating/editing a budget into an exact duplicate of another one —
+    same target, same period shape. Budgets that share a category/merchant but
+    differ in period type, length, or recurrence are legitimate (e.g. a weekly
+    grocery budget alongside a monthly one) and are left alone."""
+    if body.target_type == "category":
+        target_key = sorted(body.category_ids)
+    else:
+        target_key = sorted(p.strip().lower() for p in body.merchant_patterns)
+
+    query = db.query(Budget).filter(
+        Budget.target_type == body.target_type,
+        Budget.period_type == body.period_type,
+        Budget.recurring == body.recurring,
+        Budget.period_days == body.period_days,
+    )
+    if exclude_id is not None:
+        query = query.filter(Budget.id != exclude_id)
+
+    for existing in query.all():
+        existing_key = (
+            sorted(existing.category_ids or [])
+            if body.target_type == "category"
+            else sorted(p.strip().lower() for p in (existing.merchant_patterns or []))
+        )
+        if existing_key == target_key:
+            raise HTTPException(
+                status_code=400,
+                detail="Un budget identique existe déjà pour cette cible et cette période.",
+            )
+
+
 def _period_length_days(budget: Budget) -> int:
     if budget.period_type == "daily":
         return 1
@@ -377,6 +409,7 @@ def budget_detail(
 @router.post("", response_model=BudgetOut)
 def create_budget(body: BudgetCreate, db: Session = Depends(get_db)):
     _validate_targets(body)
+    _check_duplicate(db, body)
     b = Budget(
         name=body.name,
         amount_limit=body.amount_limit,
@@ -400,6 +433,7 @@ def update_budget(budget_id: int, body: BudgetUpdate, db: Session = Depends(get_
     if not b:
         raise HTTPException(status_code=404, detail="Budget not found")
     _validate_targets(body)
+    _check_duplicate(db, body, exclude_id=budget_id)
 
     b.name = body.name
     b.amount_limit = body.amount_limit

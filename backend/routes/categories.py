@@ -121,8 +121,21 @@ def delete_category(cat_id: int, db: Session = Depends(get_db)):
     cat = db.query(Category).filter(Category.id == cat_id).first()
     if not cat:
         raise HTTPException(status_code=404, detail="Category not found")
-    from ..models import Transaction
+    from ..models import Budget, Transaction
     db.query(Transaction).filter(Transaction.category_id == cat_id).update({"category_id": None})
+
+    # Drop the deleted category out of any budget that targets it — otherwise
+    # the budget silently stops matching any transaction (its target becomes
+    # unresolvable) and its card renders with a blank label forever.
+    for budget in db.query(Budget).filter(Budget.target_type == "category").all():
+        if cat_id not in (budget.category_ids or []):
+            continue
+        remaining = [c for c in budget.category_ids if c != cat_id]
+        if remaining:
+            budget.category_ids = remaining
+        else:
+            db.delete(budget)
+
     db.delete(cat)
     db.commit()
     return {"ok": True}

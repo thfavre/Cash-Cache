@@ -7,7 +7,13 @@ async function req<T>(path: string, options?: RequestInit): Promise<T> {
   })
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(`API ${res.status}: ${text}`)
+    let detail: string | undefined
+    try {
+      detail = JSON.parse(text)?.detail
+    } catch {
+      // response body wasn't JSON — fall through to the raw-text error below
+    }
+    throw new Error(typeof detail === 'string' ? detail : `API ${res.status}: ${text}`)
   }
   return res.json()
 }
