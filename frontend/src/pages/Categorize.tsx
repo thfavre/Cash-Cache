@@ -742,10 +742,15 @@ function RulePromptToast({
     return () => clearTimeout(t)
   }, [])
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onDismiss() }
+    // Before the rule is committed, Escape mirrors "Annuler l'assignation"
+    // (undo the category assignment entirely) rather than "Non, juste cette
+    // fois" (keep the assignment, just skip adding a rule) — Escape reads as
+    // "back out of this" to most people, not "confirm without a rule".
+    // Once committed (ruleStatus set), there's nothing left to undo here.
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') (ruleStatus ? onDismiss() : onCancel()) }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [onDismiss])
+  }, [onDismiss, onCancel, ruleStatus])
 
   // Anchor the dialog vertically centered for its current (collapsed) height
   // — but if opening the rule-match preview's drawer would push it past the
