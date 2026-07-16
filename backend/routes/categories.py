@@ -141,6 +141,56 @@ def delete_category(cat_id: int, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
+class RulePreviewIn(BaseModel):
+    rule: str
+
+
+@router.post("/preview-rule")
+def preview_rule(body: RulePreviewIn, db: Session = Depends(get_db)):
+    """
+    Dry-run a single rule (no "re:" prefix required detection is shared with
+    recategorize's matcher) against all active transactions, without saving
+    anything — lets the UI show "N transactions concernées" before the user
+    commits to adding the rule.
+    """
+    from ..models import Account, Transaction
+    from ..categorizer import _normalize, rule_match_len
+    rule = body.rule.strip()
+    if not rule:
+        return {"count": 0, "transactions": []}
+
+    txs = db.query(Transaction).filter(
+        Transaction.is_reversal == False,
+        Transaction.is_internal == False,
+        Transaction.account.has(Account.is_active == True),
+    ).all()
+
+    matched = []
+    for tx in txs:
+        search = _normalize(" | ".join(filter(None, [
+            tx.description or "", tx.counterparty or "", tx.remittance_info or ""
+        ])))
+        if rule_match_len(rule, search) is not None:
+            matched.append(tx)
+
+    return {
+        "count": len(matched),
+        "transactions": [
+            {
+                "id": tx.id,
+                "date": tx.date,
+                "description": tx.description,
+                "counterparty": tx.counterparty,
+                "amount": tx.amount,
+                "is_credit": tx.is_credit,
+            }
+            # Cap the payload — the count above is still the true total,
+            # this is just enough rows for a compact preview list.
+            for tx in matched[:200]
+        ],
+    }
+
+
 @router.post("/{cat_id}/recategorize")
 def recategorize(cat_id: int, db: Session = Depends(get_db)):
     """

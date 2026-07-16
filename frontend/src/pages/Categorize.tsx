@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { api, Transaction, Category, HistoryEntry } from '../api'
+import { api, Transaction, Category, HistoryEntry, RuleMatchTx } from '../api'
 import { Plus, Pencil, Trash2, X, Check, Tag, Search, ArrowUpDown, Layers, ChevronDown, ChevronUp, History, Undo2, PiggyBank, Ban, MousePointerClick, Sparkles } from 'lucide-react'
 import clsx from 'clsx'
 import InfoTip from '../components/InfoTip'
@@ -64,7 +64,6 @@ function suggestRule(tx: Transaction): string {
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface RulePrompt { txId: number; catId: number; catName: string; catColor: string; suggestion: string; historyId: number | null }
-interface RecategorizedTx { id: number; date: string; description: string | null; counterparty: string | null; amount: number; is_credit: boolean }
 interface CatForm { name: string; color: string; icon: string; rules: string[]; is_savings: boolean; is_ignored: boolean }
 
 const EMPTY_FORM: CatForm = { name: '', color: '#3B82F6', icon: '❓', rules: [], is_savings: false, is_ignored: false }
@@ -180,7 +179,7 @@ export default function Categorize() {
   const [ruleInput, setRuleInput] = useState('')
   const [ruleInputIsRegex, setRuleInputIsRegex] = useState(false)
   const [ruleStatus, setRuleStatus] = useState<string | null>(null)
-  const [ruleResultTxs, setRuleResultTxs] = useState<RecategorizedTx[]>([])
+  const [ruleResultTxs, setRuleResultTxs] = useState<RuleMatchTx[]>([])
 
   // category management
   const [showNewForm, setShowNewForm] = useState(false)
@@ -661,6 +660,65 @@ export default function Categorize() {
   )
 }
 
+// ── Live preview of what a not-yet-saved rule would match ───────────────────
+// A compact, foldable "N transactions concernées" section, debounced against
+// the rule text so it doesn't hammer the backend on every keystroke.
+function RuleMatchPreview({ rule }: { rule: string }) {
+  const [expanded, setExpanded] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<{ count: number; transactions: RuleMatchTx[] } | null>(null)
+
+  useEffect(() => {
+    if (!rule.trim()) { setResult(null); setLoading(false); return }
+    let cancelled = false
+    setLoading(true)
+    const t = setTimeout(() => {
+      api.previewRule(rule.trim())
+        .then(r => { if (!cancelled) setResult(r) })
+        .catch(() => { if (!cancelled) setResult(null) })
+        .finally(() => { if (!cancelled) setLoading(false) })
+    }, 400)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [rule])
+
+  if (!rule.trim()) return null
+
+  return (
+    <div className="text-xs w-full">
+      <button
+        onClick={() => setExpanded(e => !e)}
+        disabled={!result || result.count === 0}
+        className="flex items-center gap-1 text-gray-500 hover:text-gray-700 disabled:hover:text-gray-500 disabled:cursor-default"
+      >
+        {result && result.count > 0 && (expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />)}
+        {loading
+          ? 'Recherche des transactions concernées...'
+          : result
+          ? `${result.count} transaction${result.count > 1 ? 's' : ''} concernée${result.count > 1 ? 's' : ''}`
+          : ''}
+      </button>
+      {expanded && result && result.transactions.length > 0 && (
+        <div className="mt-1.5 max-h-40 overflow-y-auto space-y-0.5 border-t border-gray-100 pt-1.5">
+          {result.transactions.map(tx => (
+            <div key={tx.id} className="flex items-center gap-2 text-gray-500 px-1 py-0.5">
+              <span className="text-gray-400 shrink-0 w-16">
+                {new Date(tx.date).toLocaleDateString('fr-CH', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+              </span>
+              <span className="flex-1 truncate text-gray-700">{tx.description ?? tx.counterparty ?? '—'}</span>
+              <span className={clsx('shrink-0 font-medium', tx.is_credit ? 'text-green-600' : 'text-gray-600')}>
+                {tx.is_credit ? '+' : '-'}{fmt(tx.amount)}
+              </span>
+            </div>
+          ))}
+          {result.count > result.transactions.length && (
+            <p className="text-gray-400 px-1 pt-0.5">+ {result.count - result.transactions.length} autre(s)</p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function RulePromptToast({
   rulePrompt, ruleInput, ruleInputIsRegex, ruleStatus, ruleResultTxs, onInputChange, onInputIsRegexChange, onAdd, onDismiss, onCancel,
 }: {
@@ -668,7 +726,7 @@ function RulePromptToast({
   ruleInput: string
   ruleInputIsRegex: boolean
   ruleStatus: string | null
-  ruleResultTxs: RecategorizedTx[]
+  ruleResultTxs: RuleMatchTx[]
   onInputChange: (v: string) => void
   onInputIsRegexChange: (v: boolean) => void
   onAdd: () => void
@@ -802,6 +860,7 @@ function RulePromptToast({
                 Annuler l'assignation
               </button>
             </div>
+            <RuleMatchPreview rule={ruleInputIsRegex ? REGEX_RULE_PREFIX + ruleInput : ruleInput} />
           </div>
         )}
       </div>
@@ -1264,6 +1323,9 @@ function CategoryForm({
           <button onClick={onAddRuleTag} className="p-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg">
             <Plus size={14} />
           </button>
+        </div>
+        <div className="mt-1.5">
+          <RuleMatchPreview rule={ruleTagIsRegex ? REGEX_RULE_PREFIX + ruleTag : ruleTag} />
         </div>
       </div>
 

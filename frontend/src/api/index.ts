@@ -44,6 +44,15 @@ export interface Category {
   is_ignored: boolean
 }
 
+export interface RuleMatchTx {
+  id: number
+  date: string
+  description: string | null
+  counterparty: string | null
+  amount: number
+  is_credit: boolean
+}
+
 export interface Transaction {
   id: number
   account_id: number
@@ -399,9 +408,11 @@ export const api = {
     req(`/categories/${id}`, { method: 'DELETE' }),
   recategorize: (catId: number): Promise<{
     updated: number
-    transactions: { id: number; date: string; description: string | null; counterparty: string | null; amount: number; is_credit: boolean }[]
+    transactions: RuleMatchTx[]
   }> =>
     req(`/categories/${catId}/recategorize`, { method: 'POST' }),
+  previewRule: (rule: string): Promise<{ count: number; transactions: RuleMatchTx[] }> =>
+    req('/categories/preview-rule', { method: 'POST', body: JSON.stringify({ rule }) }),
 
   // Stats
   overview: (params?: { account_id?: number; year?: number; month?: number }): Promise<Overview> => {
