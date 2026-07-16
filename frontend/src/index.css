@@ -3585,6 +3585,34 @@
   --blue-800: #9b9b9b;
 }
 
+/* Manual addition (not from Monkeytype) — same palette as 'rgb'; the color
+ * cycling animation on --gray-800/--gray-900 (the app's near-white text
+ * tokens) is defined further down alongside the other theme-fx-* effects. */
+:root[data-theme='rgb_plus'] {
+  color-scheme: dark;
+  --color-white: #1a1a1a;
+  --color-black: #0b0b0b;
+  --gray-50: #111111;
+  --gray-100: #1e1e1e;
+  --gray-200: #2b2b2b;
+  --gray-300: #373737;
+  --gray-400: #444444;
+  --gray-500: #666666;
+  --gray-600: #888888;
+  --gray-700: #aaaaaa;
+  --gray-800: #cccccc;
+  --gray-900: #eeeeee;
+  --blue-50: #2c2c2c;
+  --blue-100: #3d3d3d;
+  --blue-200: #585858;
+  --blue-300: #f4f4f4;
+  --blue-400: #f1f1f1;
+  --blue-500: #efefef;
+  --blue-600: #eee;
+  --blue-700: #c3c3c3;
+  --blue-800: #9b9b9b;
+}
+
 :root[data-theme='rose_pine'] {
   color-scheme: dark;
   --color-white: #282533;
@@ -4807,6 +4835,39 @@ input[type='range']::-moz-range-thumb {
 }
 [data-theme='rgb'] .theme-fx-logo,
 [data-theme='rgb'] .theme-fx-nav-active {
+  animation: theme-fx-rgb 5s linear infinite;
+}
+
+/*
+ * rgb+ ("rgb plus") — same idea as rgb's logo effect, but the app's
+ * near-white text tokens (--gray-900 main text, --gray-800 secondary text)
+ * cycle everywhere they're used, not just .theme-fx-logo. Registering them
+ * via @property gives smooth color interpolation instead of hard jumps.
+ * Deliberately not tuned for readability — that's the point of this theme.
+ */
+@property --gray-900 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #eeeeee;
+}
+@property --gray-800 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #cccccc;
+}
+@keyframes theme-fx-rgb-plus-text {
+  0%   { --gray-900: hsl(120, 39%, 49%); --gray-800: hsl(120, 39%, 65%); }
+  20%  { --gray-900: hsl(192, 48%, 48%); --gray-800: hsl(192, 48%, 65%); }
+  40%  { --gray-900: hsl(264, 90%, 58%); --gray-800: hsl(264, 90%, 72%); }
+  60%  { --gray-900: hsl(357, 89%, 50%); --gray-800: hsl(357, 89%, 68%); }
+  80%  { --gray-900: hsl(46, 100%, 51%);  --gray-800: hsl(46, 100%, 68%); }
+  100% { --gray-900: hsl(120, 39%, 49%); --gray-800: hsl(120, 39%, 65%); }
+}
+:root[data-theme='rgb_plus'] {
+  animation: theme-fx-rgb-plus-text 5s linear infinite;
+}
+[data-theme='rgb_plus'] .theme-fx-logo,
+[data-theme='rgb_plus'] .theme-fx-nav-active {
   animation: theme-fx-rgb 5s linear infinite;
 }
 

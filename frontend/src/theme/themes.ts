@@ -10,7 +10,7 @@ export interface Theme {
    */
   colors: [string, string, string]
   /** Set for themes with an animated CSS effect (see the theme-fx-* rules in index.css) */
-  effect?: 'rainbow' | 'rgb' | 'trance' | 'phantom' | 'shadow' | 'chaos' | 'matrix' | 'aurora' | 'nebula' | 'vaporwave' | 'fire'
+  effect?: 'rainbow' | 'rgb' | 'rgb_plus' | 'trance' | 'phantom' | 'shadow' | 'chaos' | 'matrix' | 'aurora' | 'nebula' | 'vaporwave' | 'fire'
 }
 
 // The themes below (everything except 'light') are generated from Monkeytype's
@@ -160,6 +160,10 @@ export const THEMES: Theme[] = [
   { id: 'retro', name: 'retro', bg: '#dad3c1', colors: ['#1d1b17', '#1d1b17', '#c8c1b0'] },
   { id: 'retrocast', name: 'retrocast', bg: '#07737a', colors: ['#88dbdf', '#ffffff', '#428e6a'] },
   { id: 'rgb', name: 'rgb', bg: '#111111', colors: ['#eee', '#eeeeee', '#1e1e1e'], effect: 'rgb' },
+  // Manual addition (not from Monkeytype) — same palette as 'rgb', but the
+  // app's main/secondary text color itself cycles everywhere, not just the
+  // logo/active-nav. Deliberately not optimized for readability.
+  { id: 'rgb_plus', name: 'rgb+', bg: '#111111', colors: ['#eee', '#eeeeee', '#1e1e1e'], effect: 'rgb_plus' },
   { id: 'rose_pine', name: 'rose pine', bg: '#1f1d27', colors: ['#9ccfd8', '#e0def4', '#484057'] },
   { id: 'rose_pine_dawn', name: 'rose pine dawn', bg: '#fffaf3', colors: ['#56949f', '#286983', '#f0e5f0'] },
   { id: 'rose_pine_moon', name: 'rose pine moon', bg: '#2a273f', colors: ['#9ccfd8', '#e0def4', '#514769'] },
