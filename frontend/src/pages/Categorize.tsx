@@ -20,20 +20,27 @@ const ICONS = [
 ]
 
 // ── Keyword suggestion from a transaction ──────────────────────────────────
+// The bank sometimes puts a generic label (e.g. "TWINT") in the counterparty
+// field instead of the actual person/merchant name, with the real name only
+// showing up in the description ("Transfert TWINT à Jean Dupont"). Using that
+// generic label as-is would suggest a rule matching every TWINT transaction.
+const GENERIC_COUNTERPARTIES = /^twint$/i
+
 function suggestRule(tx: Transaction): string {
-  if (tx.counterparty && tx.counterparty.length > 2)
-    return tx.counterparty.split(',')[0].split('/')[0].trim().slice(0, 40)
-  if (!tx.description) return ''
+  if (tx.counterparty && tx.counterparty.length > 2 && !GENERIC_COUNTERPARTIES.test(tx.counterparty.trim()))
+    return tx.counterparty.trim()
+  if (!tx.description) return tx.counterparty ?? ''
   return tx.description
-    .replace(/^Achat TWINT,\s*/i, '')
-    .replace(/^Transfert TWINT [àa]\s*/i, '')
-    .replace(/^Crédit TWINT de\s*/i, '')
+    // Strip the leading verb + "TWINT" as one unit — some descriptions have
+    // a stray comma right after TWINT and before the name (e.g.
+    // "Paiement TWINT , NIX"), so this must consume that gap too, otherwise
+    // a plain comma-split below would cut the name off and leave just "TWINT".
+    .replace(/^(Achat|Paiement|Transfert|Crédit)\s+TWINT\s*(à|de)?\s*/i, '')
     .replace(/^E-banking Ordre [àa]\s*/i, '')
     .replace(/^Crédit\s*/i, '')
     .replace(/^Paiement\s*/i, '')
-    .split(',')[0]
-    .split(/\s+\d{2}\.\d{2}\./).shift()
-    ?.trim().slice(0, 40) ?? ''
+    .replace(/^,\s*/, '')
+    .trim() || tx.counterparty || ''
 }
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -71,6 +78,11 @@ const TUTORIAL_STEPS = [
     icon: Sparkles,
     title: 'Créez une règle',
     text: "Après une première assignation, une règle vous est proposée pour catégoriser automatiquement les transactions similaires à l'avenir.",
+  },
+  {
+    icon: Pencil,
+    title: 'Gérez et personnalisez une catégorie',
+    text: "Cliquez sur le crayon d'une catégorie pour voir et modifier tous ses mots-clés de reconnaissance, et pour personnaliser son nom, sa couleur et son icône.",
   },
   {
     icon: History,
