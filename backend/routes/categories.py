@@ -148,6 +148,7 @@ def recategorize(cat_id: int, db: Session = Depends(get_db)):
     Returns how many were newly assigned to this category.
     """
     from ..models import Account, Transaction
+    from ..categorizer import _normalize, rule_match_len
     cat = db.query(Category).filter(Category.id == cat_id).first()
     if not cat:
         raise HTTPException(status_code=404, detail="Category not found")
@@ -163,11 +164,11 @@ def recategorize(cat_id: int, db: Session = Depends(get_db)):
     changes = []
     changed_txs = []
     for tx in txs:
-        search = " | ".join(filter(None, [
+        search = _normalize(" | ".join(filter(None, [
             tx.description or "", tx.counterparty or "", tx.remittance_info or ""
-        ])).upper()
+        ])))
         for rule in cat.rules:
-            if rule.upper() in search:
+            if rule_match_len(rule, search) is not None:
                 if tx.category_id != cat_id:
                     changes.append({"tx_id": tx.id, "previous_category_id": tx.category_id})
                     changed_txs.append(tx)

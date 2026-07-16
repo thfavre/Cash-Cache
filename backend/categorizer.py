@@ -2,12 +2,16 @@
 Rule-based transaction categorizer.
 Each category has a list of keyword strings; matching is case- and
 accent-insensitive and checked against (description, counterparty,
-remittance_info).
+remittance_info). A rule prefixed with "re:" is matched as a regular
+expression instead of a plain substring.
 """
 from __future__ import annotations
+import re
 import unicodedata
 from typing import Optional
 from sqlalchemy.orm import Session
+
+REGEX_RULE_PREFIX = "re:"
 
 
 def _normalize(text: str) -> str:
@@ -16,6 +20,30 @@ def _normalize(text: str) -> str:
     text = unicodedata.normalize("NFKD", text)
     text = "".join(c for c in text if not unicodedata.combining(c))
     return text.upper()
+
+
+def rule_match_len(rule: str, normalized_search_text: str) -> Optional[int]:
+    """
+    Returns the length of what `rule` matched in `normalized_search_text`
+    (already run through _normalize), or None if it doesn't match. A rule
+    prefixed with "re:" is compiled as a case-insensitive regex; an invalid
+    pattern is treated as "never matches" rather than raising. Everything
+    else matches as a plain substring, same as before. The match length lets
+    a more specific rule (e.g. "UBER EATS") win over a broader one ("UBER")
+    regardless of category order.
+    """
+    if rule.startswith(REGEX_RULE_PREFIX):
+        pattern = rule[len(REGEX_RULE_PREFIX):]
+        if not pattern:
+            return None
+        try:
+            m = re.search(pattern, normalized_search_text, re.IGNORECASE)
+        except re.error:
+            return None
+        return len(m.group(0)) if m else None
+
+    norm_rule = _normalize(rule)
+    return len(norm_rule) if norm_rule and norm_rule in normalized_search_text else None
 
 
 DEFAULT_CATEGORIES = [
@@ -279,9 +307,9 @@ def categorize(tx, categories: list) -> Optional[int]:
         if not cat.rules:
             continue
         for rule in cat.rules:
-            norm_rule = _normalize(rule)
-            if len(norm_rule) > best_len and norm_rule in search_text:
-                best_len = len(norm_rule)
+            match_len = rule_match_len(rule, search_text)
+            if match_len is not None and match_len > best_len:
+                best_len = match_len
                 best_cat_id = cat.id
 
     return best_cat_id if best_cat_id is not None else uncategorized_id

@@ -11,6 +11,7 @@ import type { LucideIcon } from 'lucide-react'
 import {
   api, InvestmentSettings, MonthlySimPoint, SimulationResult, ScenarioItem, CashflowSummary, Category,
 } from '../api'
+import InfoTip from '../components/InfoTip'
 
 // ── Scenario persistence (cookie) ─────────────────────────────────────────────
 
@@ -218,39 +219,6 @@ function Slider({
         className="w-full h-1.5 rounded-full accent-blue-600 cursor-pointer"
       />
     </div>
-  )
-}
-
-// ── Info tooltip ("little helper") ────────────────────────────────────────────
-
-function InfoTip({ text }: { text: string }) {
-  const [align, setAlign] = useState<'center' | 'left' | 'right'>('center')
-  const iconRef = useRef<HTMLSpanElement>(null)
-
-  // Measure on hover so the tooltip flips away from whichever edge it's
-  // close to, instead of always centering (which pushes it off-screen
-  // for icons near the left/right edge of the viewport).
-  function handleEnter() {
-    const rect = iconRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const halfWidth = 130 // ~half of the tooltip's w-56 (224px) + a little buffer
-    if (rect.left < halfWidth) setAlign('left')
-    else if (window.innerWidth - rect.right < halfWidth) setAlign('right')
-    else setAlign('center')
-  }
-
-  const posClass =
-    align === 'left'  ? 'left-0' :
-    align === 'right' ? 'right-0' :
-    'left-1/2 -translate-x-1/2'
-
-  return (
-    <span ref={iconRef} className="group relative inline-flex items-center" onMouseEnter={handleEnter}>
-      <HelpCircle className="w-3.5 h-3.5 text-gray-300 hover:text-gray-500 cursor-help" />
-      <span className={`pointer-events-none absolute ${posClass} bottom-full mb-2 w-56 rounded-lg bg-gray-900 text-white text-xs normal-case tracking-normal font-normal leading-snug p-2.5 opacity-0 scale-95 origin-bottom group-hover:opacity-100 group-hover:scale-100 transition-all z-20 shadow-2xl`}>
-        {text}
-      </span>
-    </span>
   )
 }
 

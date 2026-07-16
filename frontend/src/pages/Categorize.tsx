@@ -2,6 +2,25 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { api, Transaction, Category, HistoryEntry } from '../api'
 import { Plus, Pencil, Trash2, X, Check, Tag, Search, ArrowUpDown, Layers, ChevronDown, ChevronUp, History, Undo2, PiggyBank, Ban, MousePointerClick, Sparkles } from 'lucide-react'
 import clsx from 'clsx'
+import InfoTip from '../components/InfoTip'
+
+const REGEX_RULE_HELP =
+  "Expression régulière, insensible à la casse — recherchée dans le texte de la transaction (description, contrepartie).\n\n" +
+  "Symboles utiles :\n" +
+  ".      n'importe quel caractère\n" +
+  "\\d     un chiffre (0-9)\n" +
+  "\\s     un espace\n" +
+  "*      0 ou plusieurs fois ce qui précède\n" +
+  "+      1 ou plusieurs fois ce qui précède\n" +
+  "?      rend optionnel ce qui précède (0 ou 1 fois)\n" +
+  "A|B    « A » OU « B »\n" +
+  "^      seulement en tout début de texte\n" +
+  "[abc]  un caractère parmi a, b ou c\n\n" +
+  "Exemples :\n" +
+  "UBER\\s*EATS   reconnaît « UBER EATS » et « UBEREATS »\n" +
+  "COOP|MIGROS   toute transaction Coop OU Migros\n" +
+  "SBB.*MOBILE   « SBB » suivi n'importe où de « MOBILE »\n" +
+  "^Achat TWINT  seulement si ça commence par « Achat TWINT »"
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('fr-CH', { style: 'currency', currency: 'CHF' }).format(n)
@@ -49,6 +68,13 @@ interface RecategorizedTx { id: number; date: string; description: string | null
 interface CatForm { name: string; color: string; icon: string; rules: string[]; is_savings: boolean; is_ignored: boolean }
 
 const EMPTY_FORM: CatForm = { name: '', color: '#3B82F6', icon: '❓', rules: [], is_savings: false, is_ignored: false }
+
+// A rule prefixed with "re:" is matched as a regular expression by the
+// backend instead of a plain substring — kept in sync with
+// backend/categorizer.py's REGEX_RULE_PREFIX.
+const REGEX_RULE_PREFIX = 're:'
+const isRegexRule = (r: string) => r.startsWith(REGEX_RULE_PREFIX)
+const ruleDisplayText = (r: string) => isRegexRule(r) ? r.slice(REGEX_RULE_PREFIX.length) : r
 
 type CatSort = 'name' | 'tags'
 type TxSort = 'date' | 'amount' | 'frequency'
@@ -152,6 +178,7 @@ export default function Categorize() {
   const [hoveredCat, setHoveredCat] = useState<number | null>(null)
   const [rulePrompt, setRulePrompt] = useState<RulePrompt | null>(null)
   const [ruleInput, setRuleInput] = useState('')
+  const [ruleInputIsRegex, setRuleInputIsRegex] = useState(false)
   const [ruleStatus, setRuleStatus] = useState<string | null>(null)
   const [ruleResultTxs, setRuleResultTxs] = useState<RecategorizedTx[]>([])
 
@@ -160,6 +187,7 @@ export default function Categorize() {
   const [editingCat, setEditingCat] = useState<Category | null>(null)
   const [catForm, setCatForm] = useState<CatForm>(EMPTY_FORM)
   const [ruleTag, setRuleTag] = useState('')
+  const [ruleTagIsRegex, setRuleTagIsRegex] = useState(false)
   const [catSearch, setCatSearch] = useState('')
   const [txSearch, setTxSearch] = useState('')
   const [catSort, setCatSort] = useState<CatSort>('tags')
@@ -223,6 +251,7 @@ export default function Categorize() {
       const suggestion = suggestRule(tx)
       setRulePrompt({ txId: tx.id, catId, catName: cat.name, catColor: cat.color, suggestion, historyId: result.history_id })
       setRuleInput(suggestion)
+      setRuleInputIsRegex(false)
       setRuleStatus(null)
     }
     setSelectedId(null)
@@ -268,7 +297,8 @@ export default function Categorize() {
     if (!rulePrompt || !ruleInput.trim()) return
     const cat = categories.find(c => c.id === rulePrompt.catId)
     if (!cat) return
-    const updatedRules = [...(cat.rules ?? []), ruleInput.trim()]
+    const newRule = ruleInputIsRegex ? REGEX_RULE_PREFIX + ruleInput.trim() : ruleInput.trim()
+    const updatedRules = [...(cat.rules ?? []), newRule]
     await api.updateCategory(rulePrompt.catId, { rules: updatedRules })
     const result = await api.recategorize(rulePrompt.catId)
     setRuleStatus(
@@ -292,6 +322,7 @@ export default function Categorize() {
   function openNewForm() {
     setCatForm(EMPTY_FORM)
     setRuleTag('')
+    setRuleTagIsRegex(false)
     setShowNewForm(true)
     setEditingCat(null)
   }
@@ -299,6 +330,7 @@ export default function Categorize() {
   function openEditForm(cat: Category) {
     setCatForm({ name: cat.name, color: cat.color, icon: cat.icon, rules: [...cat.rules], is_savings: cat.is_savings, is_ignored: cat.is_ignored })
     setRuleTag('')
+    setRuleTagIsRegex(false)
     setEditingCat(cat)
     setShowNewForm(false)
   }
@@ -307,7 +339,8 @@ export default function Categorize() {
     if (!catForm.name.trim()) return
     // Commit whatever keyword is still typed in the "add tag" box so
     // pressing Enregistrer directly doesn't silently drop it.
-    const pending = ruleTag.trim()
+    const pendingText = ruleTag.trim()
+    const pending = pendingText && ruleTagIsRegex ? REGEX_RULE_PREFIX + pendingText : pendingText
     const rules = pending && !catForm.rules.includes(pending) ? [...catForm.rules, pending] : catForm.rules
     const formToSave = { ...catForm, rules }
     if (editingCat) {
@@ -320,6 +353,7 @@ export default function Categorize() {
     setShowNewForm(false)
     setEditingCat(null)
     setRuleTag('')
+    setRuleTagIsRegex(false)
     api.categories().then(setCategories)
   }
 
@@ -331,11 +365,13 @@ export default function Categorize() {
   }
 
   function addRuleTag() {
-    const t = ruleTag.trim()
+    const raw = ruleTag.trim()
+    const t = raw && ruleTagIsRegex ? REGEX_RULE_PREFIX + raw : raw
     if (t && !catForm.rules.includes(t)) {
       setCatForm(f => ({ ...f, rules: [...f.rules, t] }))
     }
     setRuleTag('')
+    setRuleTagIsRegex(false)
   }
 
   const uncatCount = txs.length
@@ -561,8 +597,10 @@ export default function Categorize() {
             <CategoryForm
               form={catForm}
               ruleTag={ruleTag}
+              ruleTagIsRegex={ruleTagIsRegex}
               onChange={setCatForm}
               onRuleTagChange={setRuleTag}
+              onRuleTagIsRegexChange={setRuleTagIsRegex}
               onAddRuleTag={addRuleTag}
               onRemoveRule={(r) => setCatForm(f => ({ ...f, rules: f.rules.filter(x => x !== r) }))}
               onSave={saveCategory}
@@ -600,9 +638,11 @@ export default function Categorize() {
         <RulePromptToast
           rulePrompt={rulePrompt}
           ruleInput={ruleInput}
+          ruleInputIsRegex={ruleInputIsRegex}
           ruleStatus={ruleStatus}
           ruleResultTxs={ruleResultTxs}
           onInputChange={setRuleInput}
+          onInputIsRegexChange={setRuleInputIsRegex}
           onAdd={handleAddRule}
           onDismiss={() => { setRulePrompt(null); setRuleStatus(null); setRuleResultTxs([]) }}
           onCancel={handleCancelAssign}
@@ -622,13 +662,15 @@ export default function Categorize() {
 }
 
 function RulePromptToast({
-  rulePrompt, ruleInput, ruleStatus, ruleResultTxs, onInputChange, onAdd, onDismiss, onCancel,
+  rulePrompt, ruleInput, ruleInputIsRegex, ruleStatus, ruleResultTxs, onInputChange, onInputIsRegexChange, onAdd, onDismiss, onCancel,
 }: {
   rulePrompt: RulePrompt
   ruleInput: string
+  ruleInputIsRegex: boolean
   ruleStatus: string | null
   ruleResultTxs: RecategorizedTx[]
   onInputChange: (v: string) => void
+  onInputIsRegexChange: (v: boolean) => void
   onAdd: () => void
   onDismiss: () => void
   onCancel: () => void
@@ -724,9 +766,22 @@ function RulePromptToast({
                 value={ruleInput}
                 onChange={e => onInputChange(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && onAdd()}
-                placeholder="Mot-clé à reconnaître..."
+                placeholder={ruleInputIsRegex ? 'Motif regex (ex: UBER\\s*EATS)...' : 'Mot-clé à reconnaître...'}
                 autoFocus
               />
+              <button
+                onClick={() => onInputIsRegexChange(!ruleInputIsRegex)}
+                title={ruleInputIsRegex ? 'Traiter cette règle comme une expression régulière' : 'Traiter cette règle comme une expression régulière'}
+                className={clsx(
+                  "shrink-0 text-[10px] font-semibold uppercase px-2 py-1.5 rounded-lg border transition-colors",
+                  ruleInputIsRegex
+                    ? "bg-purple-600 border-purple-600 text-white"
+                    : "bg-white border-gray-200 text-gray-400 hover:text-gray-600"
+                )}
+              >
+                .*
+              </button>
+              {ruleInputIsRegex && <InfoTip text={REGEX_RULE_HELP} wide />}
               <button
                 onClick={onAdd}
                 disabled={!ruleInput.trim()}
@@ -1047,14 +1102,16 @@ function CategoryDropCard({
 
 
 function CategoryForm({
-  form, ruleTag, title,
-  onChange, onRuleTagChange, onAddRuleTag, onRemoveRule, onSave, onCancel,
+  form, ruleTag, ruleTagIsRegex, title,
+  onChange, onRuleTagChange, onRuleTagIsRegexChange, onAddRuleTag, onRemoveRule, onSave, onCancel,
 }: {
   form: CatForm
   ruleTag: string
+  ruleTagIsRegex: boolean
   title: string
   onChange: (f: CatForm) => void
   onRuleTagChange: (v: string) => void
+  onRuleTagIsRegexChange: (v: boolean) => void
   onAddRuleTag: () => void
   onRemoveRule: (r: string) => void
   onSave: () => void
@@ -1168,22 +1225,42 @@ function CategoryForm({
         <p className="text-xs text-gray-400 mb-1.5">Mots-clés de reconnaissance</p>
         <div className="flex flex-wrap gap-1 mb-2">
           {form.rules.map(r => (
-            <span key={r} className="flex items-center gap-1 text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
-              {r}
+            <span
+              key={r}
+              className={clsx(
+                "flex items-center gap-1 text-xs px-2 py-1 rounded-full",
+                isRegexRule(r) ? "bg-purple-50 text-purple-700 font-mono" : "bg-gray-100 text-gray-700"
+              )}
+            >
+              {isRegexRule(r) && <span className="text-[9px] font-sans font-semibold uppercase text-purple-400">regex</span>}
+              {ruleDisplayText(r)}
               <button onClick={() => onRemoveRule(r)} className="text-gray-400 hover:text-red-500">
                 <X size={10} />
               </button>
             </span>
           ))}
         </div>
-        <div className="flex gap-1">
+        <div className="flex items-center gap-1.5">
           <input
             className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            placeholder="Ajouter un mot-clé..."
+            placeholder={ruleTagIsRegex ? 'Motif regex (ex: UBER\\s*EATS)...' : 'Ajouter un mot-clé...'}
             value={ruleTag}
             onChange={e => onRuleTagChange(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), onAddRuleTag())}
           />
+          <button
+            onClick={() => onRuleTagIsRegexChange(!ruleTagIsRegex)}
+            title={ruleTagIsRegex ? 'Le prochain mot-clé sera traité comme une expression régulière' : 'Traiter le prochain mot-clé comme une expression régulière'}
+            className={clsx(
+              "shrink-0 text-[10px] font-semibold uppercase px-2 py-1.5 rounded-lg border transition-colors",
+              ruleTagIsRegex
+                ? "bg-purple-600 border-purple-600 text-white"
+                : "bg-white border-gray-200 text-gray-400 hover:text-gray-600"
+            )}
+          >
+            .*
+          </button>
+          {ruleTagIsRegex && <InfoTip text={REGEX_RULE_HELP} wide />}
           <button onClick={onAddRuleTag} className="p-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg">
             <Plus size={14} />
           </button>
