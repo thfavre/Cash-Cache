@@ -32,6 +32,14 @@ export default function Transactions() {
 
   const sentinelRef = useRef<HTMLDivElement | null>(null)
   const loadingMoreRef = useRef(false)  // synchronous guard against duplicate fetches from a single observer burst
+  // Mirror page/hasMore/initialLoading into refs so loadMore can read the
+  // latest values without depending on them — keeping loadMore's identity
+  // stable across page loads, so the IntersectionObserver below isn't torn
+  // down and recreated on every fetch (which risked firing an immediate
+  // re-trigger and cascading through several pages before the user scrolled).
+  const pageRef = useRef(page)
+  const hasMoreRef = useRef(true)
+  const initialLoadingRef = useRef(initialLoading)
 
   const filterParams = {
     search: search || undefined,
@@ -68,13 +76,16 @@ export default function Transactions() {
   }, [])
 
   const hasMore = items.length < total
+  pageRef.current = page
+  hasMoreRef.current = hasMore
+  initialLoadingRef.current = initialLoading
 
   const loadMore = useCallback(async () => {
-    if (loadingMoreRef.current || !hasMore || initialLoading) return
+    if (loadingMoreRef.current || !hasMoreRef.current || initialLoadingRef.current) return
     loadingMoreRef.current = true
     setLoadingMore(true)
     try {
-      const nextPage = page + 1
+      const nextPage = pageRef.current + 1
       const result = await api.transactions({ ...filterParams, page: nextPage, per_page: PER_PAGE })
       setItems(prev => [...prev, ...result.items])
       setTotal(result.total)
@@ -83,8 +94,11 @@ export default function Transactions() {
       setLoadingMore(false)
       loadingMoreRef.current = false
     }
+    // Deliberately stable across page changes — reads page/hasMore/initialLoading
+    // from refs above instead of depending on them, so the observer effect below
+    // doesn't tear down and recreate the observer on every single page fetch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, hasMore, initialLoading, filterKey])
+  }, [filterKey])
 
   // Prefetch the next page well before the sentinel actually reaches the
   // viewport (rootMargin) so new rows are already appended by the time the

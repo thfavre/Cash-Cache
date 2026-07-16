@@ -172,8 +172,12 @@ export default function Import({ onContinueWithoutData, onDataChanged }: ImportP
   }
 
   async function toggleAccountActive(acct: ManagedAccount) {
-    const updated = await api.updateAccount(acct.id, { is_active: !acct.is_active })
-    setAccounts(prev => prev.map(a => a.id === acct.id ? { ...a, is_active: updated.is_active } : a))
+    try {
+      const updated = await api.updateAccount(acct.id, { is_active: !acct.is_active })
+      setAccounts(prev => prev.map(a => a.id === acct.id ? { ...a, is_active: updated.is_active } : a))
+    } catch (e: any) {
+      setError('Erreur: ' + e.message)
+    }
   }
 
   function handleDeleteAccount(acct: ManagedAccount) {
@@ -343,12 +347,16 @@ export default function Import({ onContinueWithoutData, onDataChanged }: ImportP
     if (!deleteConfirm) return
     const { ids } = deleteConfirm
     setDeleteConfirm(null)
-    try {
-      await Promise.all(ids.map(id => api.deleteImportBatch(id)))
-      setSelectedBatchIds(prev => { const next = new Set(prev); ids.forEach(id => next.delete(id)); return next })
-      load()
-    } catch (e: any) {
-      setError('Erreur: ' + e.message)
+    const results = await Promise.allSettled(ids.map(id => api.deleteImportBatch(id)))
+    const succeededIds = ids.filter((_, i) => results[i].status === 'fulfilled')
+    const failed = results.filter(r => r.status === 'rejected') as PromiseRejectedResult[]
+    // Reconcile selection/list for whatever did succeed, even if some failed —
+    // otherwise a partial failure left stale IDs selected against a list that
+    // no longer matches what's actually still in the database.
+    setSelectedBatchIds(prev => { const next = new Set(prev); succeededIds.forEach(id => next.delete(id)); return next })
+    if (succeededIds.length > 0) load()
+    if (failed.length > 0) {
+      setError(`Erreur: ${failed.length} suppression(s) sur ${ids.length} ont échoué (${failed[0].reason?.message ?? failed[0].reason})`)
     }
   }
 

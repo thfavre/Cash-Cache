@@ -40,7 +40,12 @@ def rule_match_len(rule: str, normalized_search_text: str) -> Optional[int]:
             m = re.search(pattern, normalized_search_text, re.IGNORECASE)
         except re.error:
             return None
-        return len(m.group(0)) if m else None
+        # A zero-width match (e.g. a quantifier-only pattern like "\d*" that
+        # can match an empty string) carries no real signal — treating it as
+        # a match would let it silently win category assignment for every
+        # transaction, since even length 0 beats categorize()'s "nothing
+        # found yet" sentinel of -1.
+        return len(m.group(0)) if m and m.group(0) else None
 
     norm_rule = _normalize(rule)
     return len(norm_rule) if norm_rule and norm_rule in normalized_search_text else None

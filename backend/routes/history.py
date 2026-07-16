@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import Category, HistoryEntry, Transaction
+from ..models import Account, Category, HistoryEntry, Transaction
 
 router = APIRouter(prefix="/history", tags=["history"])
 
@@ -38,7 +38,13 @@ def list_history(db: Session = Depends(get_db)):
     }
     tx_labels = {}
     if tx_ids:
-        for tx in db.query(Transaction).filter(Transaction.id.in_(tx_ids)).all():
+        # Deactivated accounts are hidden everywhere, including here — a
+        # transaction whose account is deactivated is simply omitted from
+        # the summary below rather than resurfacing its description.
+        for tx in db.query(Transaction).filter(
+            Transaction.id.in_(tx_ids),
+            Transaction.account.has(Account.is_active == True),
+        ).all():
             tx_labels[tx.id] = tx.counterparty or tx.description or f"Transaction #{tx.id}"
 
     results = []

@@ -78,6 +78,9 @@ def _monthly_cashflow_series(db: Session) -> tuple[list[float], list[float], lis
         .filter(
             Transaction.is_internal == False,
             Transaction.is_reversal == False,
+            # Deactivated accounts are hidden everywhere, including the
+            # historical cashflow that drives the simulation.
+            Transaction.account.has(Account.is_active == True),
         )
         .group_by("year", "month")
         .order_by("year", "month")
@@ -91,7 +94,7 @@ def _monthly_cashflow_series(db: Session) -> tuple[list[float], list[float], lis
 
 
 def current_liquid_balance(db: Session) -> float:
-    accounts = db.query(Account).all()
+    accounts = db.query(Account).filter(Account.is_active == True).all()
     return round(sum(a.closing_balance for a in accounts), 2)
 
 
