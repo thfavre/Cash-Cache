@@ -59,7 +59,7 @@ DEFAULT_CATEGORIES = [
         "rules": [
             "ETAT DE VAUD", "Working Bicycle", "versement salaire",
             "Crédit salaire", "DPT DES FINANCES",
-            "TRAITEMENT", "PAIE", "VIREMENT SALAIRE", "RÉMUNÉRATION",
+            "TRAITEMENT SALARIAL", "re:\\bPAIE\\b", "VIREMENT SALAIRE", "RÉMUNÉRATION",
             "ALLOCATION FAMILIALE", "ALLOCATION DE MATERNITE",
             "RENTE AVS", "RENTE LPP", "INDEMNITE CHOMAGE",
             "INDEMNITE JOURNALIERE", "TREIZIEME SALAIRE", "BONUS",
@@ -73,7 +73,7 @@ DEFAULT_CATEGORIES = [
         "icon": "🛒",
         "rules": [
             "MIGROS", "COOP", "LIDL", "ALDI", "DENNER", "MANOR",
-            "VOLG", "SPAR", "USEGO", "AVEC", "K-KIOSK",
+            "VOLG", "SPAR", "USEGO", "re:\\bAVEC\\.", "K-KIOSK",
             "MIGROLINO", "OTTO'S", "LANDI", "EPICERIE", "SUPERMARCHE",
             "BOULANGERIE", "BOUCHERIE", "MARCHE", "LEBENSMITTEL", "BÄCKEREI",
         ],
@@ -110,7 +110,7 @@ DEFAULT_CATEGORIES = [
         "rules": [
             "BAR ", " BAR", "PUB ", "LOUNGE", "NIGHTCLUB",
             "DISCOTHEQUE", "BOITE DE NUIT", "CAVE A VIN", "SOIREE",
-            "COCKTAIL BAR", "CLUB", "HAPPY HOUR", "KARAOKE",
+            "COCKTAIL BAR", "CLUB DE NUIT", "HAPPY HOUR", "KARAOKE",
             "CASINO", "ROOFTOP", "KNEIPE", "BIERGARTEN",
         ],
     },
@@ -132,7 +132,7 @@ DEFAULT_CATEGORIES = [
         "icon": "🏥",
         "rules": [
             "PHARMACIE", "MEDECIN", "HOPITAL", "CLINIQUE",
-            "IMAGERIE", "PATHOLOGIE", "DENTISTE", "BLOCH",
+            "IMAGERIE", "PATHOLOGIE", "DENTISTE",
             "CIM CENTRE", "INSTITUT DE PATHOLOGIE",
             "OPTICIEN", "PHYSIOTHERAPEUTE", "OSTEOPATHE", "AMAVITA",
             "SUNSTORE", "SUN STORE", "PHARMACIE POPULAIRE", "COOP VITALITY", "CHUV",
@@ -187,7 +187,7 @@ DEFAULT_CATEGORIES = [
             "ADMINISTRATION CANTONALE", "ADMINISTRATION FEDERALE",
             "ACOMPTE ICC", "Etat de Vaud - Impôts",
             "IMPOT FEDERAL DIRECT", "ACOMPTE D'IMPOT", "IMPOT A LA SOURCE",
-            "TAXE VEHICULE", "REDEVANCE SERAFE", "AMENDE", "TAXE",
+            "TAXE VEHICULE", "REDEVANCE SERAFE", "AMENDE", "re:\\bTAXE\\b",
             "STEUERN", "BUSSE",
         ],
     },
@@ -212,7 +212,7 @@ DEFAULT_CATEGORIES = [
             "LOYER", "CAUTION LOYER", "CHARGES LOCATIVES",
             "REGIE IMMOBILIERE", "NAEF IMMOBILIER", "PRIVERA", "GEROFINANCE",
             "HYPOTHEQUE", "ELECTRICITE", "ROMANDE ENERGIE", "GROUPE E",
-            "GAZ", "CHAUFFAGE", "ENTRETIEN", "SYNDIC",
+            "re:\\bGAZ\\b", "CHAUFFAGE", "ENTRETIEN", "SYNDIC",
             "MIETE", "NEBENKOSTEN", "HYPOTHEK",
         ],
     },
