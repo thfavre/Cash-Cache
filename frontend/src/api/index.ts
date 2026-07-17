@@ -51,6 +51,8 @@ export interface RuleMatchTx {
   counterparty: string | null
   amount: number
   is_credit: boolean
+  current_category?: { id: number; name: string; color: string; icon: string } | null
+  will_change?: boolean
 }
 
 export interface Transaction {
@@ -411,8 +413,8 @@ export const api = {
     transactions: RuleMatchTx[]
   }> =>
     req(`/categories/${catId}/recategorize`, { method: 'POST' }),
-  previewRule: (rule: string): Promise<{ count: number; transactions: RuleMatchTx[] }> =>
-    req('/categories/preview-rule', { method: 'POST', body: JSON.stringify({ rule }) }),
+  previewRule: (rule: string, categoryId?: number): Promise<{ count: number; transactions: RuleMatchTx[] }> =>
+    req('/categories/preview-rule', { method: 'POST', body: JSON.stringify({ rule, category_id: categoryId ?? null }) }),
 
   // Stats
   overview: (params?: { account_id?: number; year?: number; month?: number }): Promise<Overview> => {

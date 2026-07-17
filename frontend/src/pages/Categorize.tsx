@@ -595,6 +595,7 @@ export default function Categorize() {
           {(showNewForm || editingCat) && (
             <CategoryForm
               form={catForm}
+              editingCatId={editingCat?.id}
               ruleTag={ruleTag}
               ruleTagIsRegex={ruleTagIsRegex}
               onChange={setCatForm}
@@ -663,7 +664,12 @@ export default function Categorize() {
 // ── Live preview of what a not-yet-saved rule would match ───────────────────
 // A compact, foldable "N transactions concernées" section, debounced against
 // the rule text so it doesn't hammer the backend on every keystroke.
-function RuleMatchPreview({ rule }: { rule: string }) {
+function RuleMatchPreview({ rule, categoryId, categoryName, categoryColor }: {
+  rule: string
+  categoryId?: number
+  categoryName?: string
+  categoryColor?: string
+}) {
   const [expanded, setExpanded] = useState(false)
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<{ count: number; transactions: RuleMatchTx[] } | null>(null)
@@ -673,13 +679,13 @@ function RuleMatchPreview({ rule }: { rule: string }) {
     let cancelled = false
     setLoading(true)
     const t = setTimeout(() => {
-      api.previewRule(rule.trim())
+      api.previewRule(rule.trim(), categoryId)
         .then(r => { if (!cancelled) setResult(r) })
         .catch(() => { if (!cancelled) setResult(null) })
         .finally(() => { if (!cancelled) setLoading(false) })
     }, 400)
     return () => { cancelled = true; clearTimeout(t) }
-  }, [rule])
+  }, [rule, categoryId])
 
   if (!rule.trim()) return null
 
@@ -705,6 +711,27 @@ function RuleMatchPreview({ rule }: { rule: string }) {
                 {new Date(tx.date).toLocaleDateString('fr-CH', { day: '2-digit', month: '2-digit', year: '2-digit' })}
               </span>
               <span className="flex-1 truncate text-gray-700">{tx.description ?? tx.counterparty ?? '—'}</span>
+              {tx.current_category && (
+                <span
+                  className={clsx(
+                    'shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium',
+                    tx.will_change && 'line-through opacity-50',
+                  )}
+                  style={{ background: tx.current_category.color + '22', color: tx.current_category.color }}
+                  title={tx.will_change ? `Actuellement ${tx.current_category.name}` : `Déjà catégorisé en ${tx.current_category.name}`}
+                >
+                  {tx.current_category.icon} {tx.current_category.name}
+                </span>
+              )}
+              {tx.will_change && categoryName && (
+                <span
+                  className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium"
+                  style={{ background: (categoryColor ?? '#6B7280') + '22', color: categoryColor ?? '#6B7280' }}
+                  title={`Va être recatégorisée en ${categoryName}`}
+                >
+                  → {categoryName}
+                </span>
+              )}
               <span className={clsx('shrink-0 font-medium', tx.is_credit ? 'text-green-600' : 'text-gray-600')}>
                 {tx.is_credit ? '+' : '-'}{fmt(tx.amount)}
               </span>
@@ -891,7 +918,12 @@ function RulePromptToast({
                 Annuler l'assignation
               </button>
             </div>
-            <RuleMatchPreview rule={ruleInputIsRegex ? REGEX_RULE_PREFIX + ruleInput : ruleInput} />
+            <RuleMatchPreview
+              rule={ruleInputIsRegex ? REGEX_RULE_PREFIX + ruleInput : ruleInput}
+              categoryId={rulePrompt.catId}
+              categoryName={rulePrompt.catName}
+              categoryColor={rulePrompt.catColor}
+            />
           </div>
         )}
       </div>
@@ -1194,10 +1226,11 @@ function CategoryDropCard({
 
 
 function CategoryForm({
-  form, ruleTag, ruleTagIsRegex, title,
+  form, editingCatId, ruleTag, ruleTagIsRegex, title,
   onChange, onRuleTagChange, onRuleTagIsRegexChange, onAddRuleTag, onRemoveRule, onSave, onCancel,
 }: {
   form: CatForm
+  editingCatId?: number
   ruleTag: string
   ruleTagIsRegex: boolean
   title: string
@@ -1358,7 +1391,12 @@ function CategoryForm({
           </button>
         </div>
         <div className="mt-1.5">
-          <RuleMatchPreview rule={ruleTagIsRegex ? REGEX_RULE_PREFIX + ruleTag : ruleTag} />
+          <RuleMatchPreview
+            rule={ruleTagIsRegex ? REGEX_RULE_PREFIX + ruleTag : ruleTag}
+            categoryId={editingCatId}
+            categoryName={form.name}
+            categoryColor={form.color}
+          />
         </div>
       </div>
 

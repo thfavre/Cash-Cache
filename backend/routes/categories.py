@@ -143,6 +143,7 @@ def delete_category(cat_id: int, db: Session = Depends(get_db)):
 
 class RulePreviewIn(BaseModel):
     rule: str
+    category_id: Optional[int] = None
 
 
 @router.post("/preview-rule")
@@ -152,9 +153,16 @@ def preview_rule(body: RulePreviewIn, db: Session = Depends(get_db)):
     recategorize's matcher) against all active transactions, without saving
     anything — lets the UI show "N transactions concernées" before the user
     commits to adding the rule.
+
+    When category_id is given (the rule's target category), each matched
+    transaction also reports its current category and whether adding the
+    rule to that category would actually flip it there — per categorize()'s
+    longest-match-wins logic, a transaction already claimed by a longer rule
+    elsewhere won't move even if this new rule also matches it.
     """
-    from ..models import Account, Transaction
-    from ..categorizer import _normalize, rule_match_len
+    from types import SimpleNamespace
+    from ..models import Account, Category, Transaction
+    from ..categorizer import _normalize, rule_match_len, categorize
     rule = body.rule.strip()
     if not rule:
         return {"count": 0, "transactions": []}
@@ -173,17 +181,40 @@ def preview_rule(body: RulePreviewIn, db: Session = Depends(get_db)):
         if rule_match_len(rule, search) is not None:
             matched.append(tx)
 
+    all_categories = db.query(Category).all()
+    cats_by_id = {c.id: c for c in all_categories}
+
+    # A cheap stand-in for the target category with the not-yet-saved rule
+    # appended, so categorize() can be dry-run without touching the DB.
+    sim_categories = [
+        SimpleNamespace(
+            id=c.id, name=c.name,
+            rules=(list(c.rules or []) + [rule]) if c.id == body.category_id else c.rules,
+        )
+        for c in all_categories
+    ]
+
+    def tx_out(tx):
+        current = cats_by_id.get(tx.category_id)
+        out = {
+            "id": tx.id,
+            "date": tx.date,
+            "description": tx.description,
+            "counterparty": tx.counterparty,
+            "amount": tx.amount,
+            "is_credit": tx.is_credit,
+            "current_category": {
+                "id": current.id, "name": current.name, "color": current.color, "icon": current.icon,
+            } if current else None,
+        }
+        if body.category_id is not None:
+            out["will_change"] = categorize(tx, sim_categories) != tx.category_id
+        return out
+
     return {
         "count": len(matched),
         "transactions": [
-            {
-                "id": tx.id,
-                "date": tx.date,
-                "description": tx.description,
-                "counterparty": tx.counterparty,
-                "amount": tx.amount,
-                "is_credit": tx.is_credit,
-            }
+            tx_out(tx)
             # Cap the payload — the count above is still the true total,
             # this is just enough rows for a compact preview list.
             for tx in matched[:200]
