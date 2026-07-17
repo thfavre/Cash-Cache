@@ -194,6 +194,7 @@ export default function Categorize() {
   const [txSearch, setTxSearch] = useState('')
   const [catSort, setCatSort] = useState<CatSort>('tags')
   const [txSort, setTxSort] = useState<TxSort>('date')
+  const [groupByAmount, setGroupByAmount] = useState(false)
 
   // ── Data loading ──────────────────────────────────────────────────────
   const loadedOnceRef = useRef(false)
@@ -407,7 +408,13 @@ export default function Categorize() {
       total: items.reduce((s, t) => s + t.amount, 0),
       mostRecent: items.reduce((d, t) => (t.date > d ? t.date : d), items[0].date),
     }))
-    groups.sort((a, b) => b.items.length - a.items.length || b.total - a.total)
+    // In "Plus cher" + grouping, rank groups by total amount (biggest spend
+    // first) instead of by how many transactions are in them.
+    if (txSort === 'amount' && groupByAmount) {
+      groups.sort((a, b) => b.total - a.total)
+    } else {
+      groups.sort((a, b) => b.items.length - a.items.length || b.total - a.total)
+    }
     return groups
   })()
 
@@ -507,6 +514,17 @@ export default function Categorize() {
                 <option value="frequency">Plus fréquent</option>
               </select>
             </div>
+            {txSort === 'amount' && (
+              <label className="flex items-center gap-1.5 text-sm text-gray-500 shrink-0 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={groupByAmount}
+                  onChange={e => setGroupByAmount(e.target.checked)}
+                  className="rounded border-gray-300 accent-blue-600"
+                />
+                Grouper
+              </label>
+            )}
           </div>
           <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-2">
             {loading ? (
@@ -518,7 +536,7 @@ export default function Categorize() {
               </div>
             ) : filteredTxs.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-20">Aucune transaction ne correspond à "{txSearch}"</p>
-            ) : txSort === 'frequency' ? (
+            ) : txSort === 'frequency' || (txSort === 'amount' && groupByAmount) ? (
               txGroups.map(group => (
                 <TxGroupCard
                   key={group.key}
