@@ -783,11 +783,10 @@ function RulePromptToast({
         ruleStatus ? 'items-end' : 'items-start',
         visible ? 'opacity-100' : 'opacity-0',
       )}
-      onClick={onDismiss}
+      onMouseDown={e => { if (e.target === e.currentTarget) onDismiss() }}
     >
       <div
         ref={boxRef}
-        onClick={e => e.stopPropagation()}
         style={{ borderColor: rulePrompt.catColor, marginTop: ruleStatus ? undefined : anchorTop }}
         className={clsx(
           'w-full max-w-xl bg-white rounded-2xl shadow-2xl border-2 p-4 transition-all duration-300 ease-out',
@@ -920,9 +919,11 @@ function HistoryPanel({
   }, [onClose])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/30 backdrop-blur-sm" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/30 backdrop-blur-sm"
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
+    >
       <div
-        onClick={e => e.stopPropagation()}
         className="w-full max-w-lg max-h-[70vh] bg-white rounded-2xl shadow-2xl flex flex-col"
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 shrink-0">
