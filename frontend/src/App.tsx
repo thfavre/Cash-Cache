@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import Sidebar from './components/Sidebar'
 import Dashboard from './pages/Dashboard'
 import Transactions from './pages/Transactions'
@@ -11,11 +11,20 @@ import Import from './pages/Import'
 import { api } from './api'
 
 export default function App() {
+  return (
+    <BrowserRouter>
+      <AppInner />
+    </BrowserRouter>
+  )
+}
+
+function AppInner() {
   const [dataStatus, setDataStatus] = useState<'loading' | 'empty' | 'has-data'>('loading')
   // Choosing to continue without importing is a per-session decision — it
   // is not persisted, so a page reload always re-checks and shows the
   // landing page again as long as there's still no data.
   const [bypass, setBypass] = useState(false)
+  const navigate = useNavigate()
 
   function refreshDataStatus() {
     api.accounts().then(accts => setDataStatus(accts.length > 0 ? 'has-data' : 'empty'))
@@ -23,13 +32,22 @@ export default function App() {
 
   useEffect(() => { refreshDataStatus() }, [])
 
+  // Whatever URL the app happened to be on while there was no data yet (it's
+  // not necessarily "/" — e.g. a reload after all data got wiped while on
+  // /import), the very first successful import should land the user on the
+  // dashboard rather than leaving them stranded on the import screen.
+  function handleFirstImport() {
+    refreshDataStatus()
+    navigate('/dashboard', { replace: true })
+  }
+
   return (
-    <BrowserRouter>
+    <>
       {dataStatus === 'loading' ? (
         <div className="h-screen bg-gray-50" />
       ) : dataStatus === 'empty' && !bypass ? (
         <div className="h-screen overflow-y-auto bg-gray-50">
-          <Import onContinueWithoutData={() => setBypass(true)} onDataChanged={refreshDataStatus} />
+          <Import onContinueWithoutData={() => setBypass(true)} onDataChanged={handleFirstImport} />
         </div>
       ) : (
         <div className="flex h-screen overflow-hidden bg-gray-50">
@@ -52,6 +70,6 @@ export default function App() {
           </main>
         </div>
       )}
-    </BrowserRouter>
+    </>
   )
 }
