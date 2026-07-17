@@ -265,3 +265,45 @@ def delete_batch(batch_id: int, db: Session = Depends(get_db)):
         stored_full_path.unlink()
 
     return {"status": "deleted"}
+
+
+WIPE_ALL_CONFIRMATION = "TOUT SUPPRIMER"
+
+
+class WipeAllIn(BaseModel):
+    confirm: str
+
+
+@router.delete("/wipe-all")
+def wipe_all(body: WipeAllIn, db: Session = Depends(get_db)):
+    """
+    Full factory reset: every account, transaction, category, budget,
+    history entry, saved CSV mapping, and uploaded bank file — gone. Meant
+    for "start over as a new user" without touching the database file
+    directly. Requires typing an exact confirmation phrase (checked here too,
+    not just client-side) since there is no undo.
+    """
+    if body.confirm != WIPE_ALL_CONFIRMATION:
+        raise HTTPException(400, "Confirmation invalide.")
+
+    from ..models import Budget, Category, HistoryEntry, Setting
+    from ..categorizer import seed_default_categories
+
+    db.query(Transaction).delete(synchronize_session=False)
+    db.query(ImportBatch).delete(synchronize_session=False)
+    db.query(Account).delete(synchronize_session=False)
+    db.query(Budget).delete(synchronize_session=False)
+    db.query(HistoryEntry).delete(synchronize_session=False)
+    db.query(Category).delete(synchronize_session=False)
+    db.query(BankProfile).delete(synchronize_session=False)
+    db.query(Setting).delete(synchronize_session=False)
+    db.commit()
+
+    if UPLOADS_DIR.exists():
+        for f in UPLOADS_DIR.iterdir():
+            if f.is_file():
+                f.unlink()
+
+    seed_default_categories(db)
+
+    return {"status": "wiped"}

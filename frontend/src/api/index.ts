@@ -533,6 +533,8 @@ export const api = {
   importBatches: (): Promise<ImportBatchList> => req('/import/batches'),
   deleteImportBatch: (id: number): Promise<{ status: string }> =>
     req(`/import/batches/${id}`, { method: 'DELETE' }),
+  wipeAllData: (confirm: string): Promise<{ status: string }> =>
+    req('/import/wipe-all', { method: 'DELETE', body: JSON.stringify({ confirm }) }),
 
   // History
   history: (): Promise<HistoryEntry[]> => req('/history'),

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Upload, FileText, Wallet, Trash2, Info, FileQuestion, Inbox, ChevronDown } from 'lucide-react'
+import { Upload, FileText, Wallet, Trash2, Info, FileQuestion, Inbox, ChevronDown, AlertTriangle } from 'lucide-react'
 import {
   api, ManagedAccount, ImportAccountOption, ImportAmountMode, ImportBankProfile,
   ImportBatchList, ImportMapping, ImportUploadResult,
@@ -8,6 +8,67 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import InfoTip from '../components/InfoTip'
 
 const inputClass = 'w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500'
+
+// Must match backend/routes/import_data.py's WIPE_ALL_CONFIRMATION exactly —
+// the server checks it too, this is just the first line of defense.
+const WIPE_ALL_CONFIRMATION = 'TOUT SUPPRIMER'
+
+function WipeAllDialog({ onConfirm, onCancel, busy }: { onConfirm: () => void; onCancel: () => void; busy: boolean }) {
+  const [text, setText] = useState('')
+  const ready = text === WIPE_ALL_CONFIRMATION
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onCancel])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/30"
+      onMouseDown={e => { if (e.target === e.currentTarget) onCancel() }}
+    >
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-5 space-y-4 border-2 border-red-200">
+        <div className="flex items-center gap-2 text-red-600">
+          <AlertTriangle size={20} />
+          <h2 className="text-base font-bold">Tout supprimer</h2>
+        </div>
+        <p className="text-sm text-gray-700">
+          Cette action supprime <span className="font-semibold">définitivement TOUTES les données</span> :
+          comptes, transactions, catégories personnalisées, budgets, historique, mappings CSV enregistrés,
+          et les fichiers bancaires importés. <span className="font-semibold">Il n'y a aucun moyen d'annuler.</span>
+        </p>
+        <p className="text-sm text-gray-500">
+          Pour confirmer, tapez <span className="font-mono font-semibold text-gray-800">{WIPE_ALL_CONFIRMATION}</span> ci-dessous :
+        </p>
+        <input
+          autoFocus
+          value={text}
+          onChange={e => setText(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && ready && !busy) onConfirm() }}
+          className="w-full text-sm border border-red-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 font-mono"
+          placeholder={WIPE_ALL_CONFIRMATION}
+        />
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={onCancel}
+            disabled={busy}
+            className="px-4 py-2 bg-gray-100 text-gray-600 text-sm rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-40"
+          >
+            Annuler
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={!ready || busy}
+            className="px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            {busy ? 'Suppression…' : 'Tout supprimer définitivement'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString('fr-CH')
@@ -136,6 +197,8 @@ export default function Import({ onContinueWithoutData, onDataChanged }: ImportP
   const [selectedBatchIds, setSelectedBatchIds] = useState<Set<number>>(new Set())
   const [deleteConfirm, setDeleteConfirm] = useState<{ ids: number[]; message: string } | null>(null)
   const [deleteAccountConfirm, setDeleteAccountConfirm] = useState<{ id: number; message: string } | null>(null)
+  const [wipeAllOpen, setWipeAllOpen] = useState(false)
+  const [wiping, setWiping] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
   const [msg, setMsg] = useState('')
   const [error, setError] = useState('')
@@ -196,6 +259,28 @@ export default function Import({ onContinueWithoutData, onDataChanged }: ImportP
       load()
     } catch (e: any) {
       setError('Erreur: ' + e.message)
+    }
+  }
+
+  async function confirmWipeAll() {
+    setWiping(true)
+    setError('')
+    try {
+      await api.wipeAllData(WIPE_ALL_CONFIRMATION)
+      // The server side is gone; also clear everything the browser itself
+      // kept (theme choice, "tutorial seen" flag, custom currencies, any
+      // cookie) and reload so the app re-initializes from a truly blank
+      // slate instead of carrying stale client-side state forward.
+      localStorage.clear()
+      sessionStorage.clear()
+      for (const cookie of document.cookie.split(';')) {
+        const name = cookie.split('=')[0].trim()
+        if (name) document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/`
+      }
+      window.location.reload()
+    } catch (e: any) {
+      setError('Erreur: ' + e.message)
+      setWiping(false)
     }
   }
 
@@ -601,6 +686,25 @@ export default function Import({ onContinueWithoutData, onDataChanged }: ImportP
       </>
       )}
 
+      {!isLanding && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
+          <AlertTriangle size={18} className="text-red-500 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-red-700">Zone dangereuse</p>
+            <p className="text-sm text-red-600 mt-0.5">
+              Supprime définitivement toutes les données de l'application (comptes, transactions, catégories,
+              budgets, historique, imports) pour repartir de zéro.
+            </p>
+          </div>
+          <button
+            onClick={() => setWipeAllOpen(true)}
+            className="shrink-0 px-3 py-2 text-sm font-semibold text-red-600 bg-white border border-red-300 rounded-lg hover:bg-red-100 transition-colors"
+          >
+            Tout supprimer
+          </button>
+        </div>
+      )}
+
       {deleteConfirm && (
         <ConfirmDialog
           message={deleteConfirm.message}
@@ -616,6 +720,14 @@ export default function Import({ onContinueWithoutData, onDataChanged }: ImportP
           confirmLabel="Supprimer"
           onConfirm={confirmDeleteAccount}
           onCancel={() => setDeleteAccountConfirm(null)}
+        />
+      )}
+
+      {wipeAllOpen && (
+        <WipeAllDialog
+          onConfirm={confirmWipeAll}
+          onCancel={() => { if (!wiping) setWipeAllOpen(false) }}
+          busy={wiping}
         />
       )}
 
