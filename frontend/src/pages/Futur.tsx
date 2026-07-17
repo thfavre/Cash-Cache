@@ -319,6 +319,12 @@ export default function Futur() {
   const [scCategory, setScCategory] = useState('')
   const [scFrequency, setScFrequency] = useState<NonNullable<ScenarioItem['frequency']>>('monthly')
   const [scTarget, setScTarget]     = useState<NonNullable<ScenarioItem['target']>>('bank')
+  const [scLabel, setScLabel]       = useState('')
+  // Tracks whether the user has typed their own text into the label field —
+  // while they haven't, it keeps auto-filling from the other fields (so
+  // opening the form or tweaking the amount/frequency/etc. always shows a
+  // ready-to-tweak label instead of an empty box).
+  const [scLabelDirty, setScLabelDirty] = useState(false)
   const [categories, setCategories] = useState<Category[]>([])
 
   useEffect(() => {
@@ -327,6 +333,12 @@ export default function Futur() {
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [showScForm])
+
+  useEffect(() => {
+    if (!showScForm || scLabelDirty) return
+    setScLabel(scenarioLabel(buildScenarioFromForm()))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showScForm, scLabelDirty, scType, scAmount, scPct, scMonth, scCategory, scFrequency, scTarget])
 
   // Settings panel open/close
   const [settingsOpen, setSettingsOpen] = useState(true)
@@ -615,7 +627,9 @@ export default function Futur() {
   }
 
   // ── Add / edit scenario ────────────────────────────────────────────────────
-  function addScenario() {
+  // Shared by addScenario (to build the real item) and the form's live
+  // placeholder (to preview what the auto-generated label would say).
+  function buildScenarioFromForm(): ScenarioItem {
     const sc: ScenarioItem = {
       type: scType,
       start_month: Number(scMonth) || 1,
@@ -624,6 +638,16 @@ export default function Futur() {
     if (scType === 'recurring_cashflow')  { sc.amount = Number(scAmount); sc.frequency = scFrequency; sc.target = scTarget }
     if (scType === 'one_time_event')      { sc.amount = Number(scAmount); sc.target = scTarget }
     if (scType === 'contribution_change') sc.amount = Number(scAmount)
+    return sc
+  }
+
+  function addScenario() {
+    const sc = buildScenarioFromForm()
+    // Only persist a custom label when the user actually touched the field —
+    // otherwise leave it unset so display keeps computing it live from the
+    // scenario's own fields (matters if this scenario is ever edited again
+    // through a path that doesn't go through this form).
+    if (scLabelDirty && scLabel.trim()) sc.label = scLabel.trim()
 
     if (editingScIndex !== null) {
       setScenarios(prev => prev.map((s, j) => j === editingScIndex ? sc : s))
@@ -637,6 +661,7 @@ export default function Futur() {
     setShowScForm(false)
     setEditingScIndex(null)
     setScAmount(''); setScPct('-20'); setScMonth('1'); setScCategory(''); setScFrequency('monthly'); setScTarget('bank')
+    setScLabel(''); setScLabelDirty(false)
   }
 
   function startEditScenario(i: number) {
@@ -649,7 +674,145 @@ export default function Futur() {
     setScCategory(sc.category ?? '')
     setScFrequency(sc.frequency ?? 'monthly')
     setScTarget(sc.target ?? 'bank')
+    setScLabel(sc.label ?? '')
+    setScLabelDirty(!!sc.label)
     setShowScForm(true)
+  }
+
+  function renderScenarioForm() {
+    return (
+      <div className="bg-gray-50 rounded-xl p-4 mb-4 border border-gray-200 space-y-3">
+        <div>
+          <label className="text-xs font-medium text-gray-500 block mb-1">Type de scénario</label>
+          <select
+            value={scType}
+            onChange={e => setScType(e.target.value as ScenarioItem['type'])}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+          >
+            {SCENARIO_TYPES
+              .filter(t => contribMode !== 'auto' || t.value !== 'contribution_change')
+              .map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          {scType === 'expense_reduction' && (
+            <>
+              <div>
+                <label className="text-xs font-medium text-gray-500 block mb-1">Variation (%, + ou −)</label>
+                <input
+                  type="number" value={scPct} onChange={e => setScPct(e.target.value)} min={-100}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  placeholder="-20 (baisse) ou 20 (hausse)"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 block mb-1">Catégorie (optionnel)</label>
+                <select
+                  value={scCategory} onChange={e => setScCategory(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+                >
+                  <option value="">Toutes les catégories</option>
+                  {categories.map(c => <option key={c.id} value={c.name}>{c.icon} {c.name}</option>)}
+                </select>
+              </div>
+            </>
+          )}
+
+          {scType === 'recurring_cashflow' && (
+            <>
+              <div>
+                <label className="text-xs font-medium text-gray-500 block mb-1">Montant (+ ou −)</label>
+                <input
+                  type="number" value={scAmount} onChange={e => setScAmount(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  placeholder="500"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 block mb-1">Fréquence</label>
+                <select
+                  value={scFrequency} onChange={e => setScFrequency(e.target.value as ScenarioItem['frequency'] & string)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+                >
+                  {FREQUENCIES.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                </select>
+              </div>
+            </>
+          )}
+
+          {(scType === 'one_time_event' || scType === 'contribution_change') && (
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">
+                {scType === 'one_time_event' ? 'Montant (+ ou −)' : 'Montant (CHF/mois)'}
+              </label>
+              <input
+                type="number" value={scAmount} onChange={e => setScAmount(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                placeholder={scType === 'one_time_event' ? '-5000' : '500'}
+              />
+            </div>
+          )}
+
+          {(scType === 'one_time_event' || scType === 'recurring_cashflow') && (
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Destination</label>
+              <select
+                value={scTarget} onChange={e => setScTarget(e.target.value as NonNullable<ScenarioItem['target']>)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+              >
+                <option value="bank">🏦 Compte bancaire</option>
+                <option value="investment">📈 Investissement</option>
+              </select>
+            </div>
+          )}
+
+          <div>
+            <label className="text-xs font-medium text-gray-500 block mb-1">Débute au mois n°</label>
+            <input
+              type="number" value={scMonth} onChange={e => setScMonth(e.target.value)} min={1}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              placeholder="1"
+            />
+          </div>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-xs font-medium text-gray-500">Nom du scénario</label>
+            {scLabelDirty && (
+              <button
+                type="button"
+                onClick={() => { setScLabel(scenarioLabel(buildScenarioFromForm())); setScLabelDirty(false) }}
+                className="text-xs text-gray-400 hover:text-blue-500 underline"
+              >
+                Réinitialiser
+              </button>
+            )}
+          </div>
+          <input
+            type="text" value={scLabel}
+            onChange={e => { setScLabel(e.target.value); setScLabelDirty(true) }}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+          />
+        </div>
+
+        <div className="flex gap-2 justify-end">
+          <button
+            onClick={closeScForm}
+            className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            Annuler
+          </button>
+          <button
+            onClick={addScenario}
+            className="px-4 py-1.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            {editingScIndex !== null ? 'Enregistrer' : 'Ajouter'}
+          </button>
+        </div>
+      </div>
+    )
   }
 
   // ── FIRE labels ───────────────────────────────────────────────────────────
@@ -1133,8 +1296,12 @@ export default function Futur() {
                 />
               )}
 
-              {/* FIRE line — drawn last so it renders on top of the probability band */}
-              {fireNumber > 0 && (
+              {/* FIRE line — drawn last so it renders on top of the probability band.
+                  Only meaningful against the "Portefeuille" view: the FIRE card counts
+                  the investment portfolio alone (idle liquid cash doesn't sustain the
+                  4% withdrawal rule), so overlaying it on networth/balance would make
+                  a line crossing look like FIRE was reached when it wasn't. */}
+              {fireNumber > 0 && view === 'portfolio' && (
                 <ReferenceLine
                   y={fireNumber}
                   stroke="#f59e0b"
@@ -1162,7 +1329,7 @@ export default function Futur() {
                       return (
                         <text x={vb.x} y={vb.y + vb.height - 5} textAnchor="middle" fontSize={13} style={{ cursor: 'default' }}>
                           {icon}
-                          <title>{scenarioLabel(sc)}</title>
+                          <title>{sc.label || scenarioLabel(sc)}</title>
                         </text>
                       )
                     }}
@@ -1329,127 +1496,24 @@ export default function Futur() {
             })()}
           </div>
           <button
-            onClick={() => { if (showScForm) closeScForm(); else setShowScForm(true) }}
+            onClick={() => {
+              if (!showScForm) { setShowScForm(true); return }
+              // Form already open: save what's there, then immediately reopen
+              // a fresh blank form instead of just closing — lets someone add
+              // several scenarios back-to-back without reopening each time.
+              addScenario()
+              setShowScForm(true)
+            }}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition-colors"
           >
             <Plus className="w-3.5 h-3.5" /> Ajouter
           </button>
         </div>
 
-        {/* Scenario form */}
-        {showScForm && (
-          <div className="bg-gray-50 rounded-xl p-4 mb-4 border border-gray-200 space-y-3">
-            <div>
-              <label className="text-xs font-medium text-gray-500 block mb-1">Type de scénario</label>
-              <select
-                value={scType}
-                onChange={e => setScType(e.target.value as ScenarioItem['type'])}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
-              >
-                {SCENARIO_TYPES
-                  .filter(t => contribMode !== 'auto' || t.value !== 'contribution_change')
-                  .map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              {scType === 'expense_reduction' && (
-                <>
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 block mb-1">Variation (%, + ou −)</label>
-                    <input
-                      type="number" value={scPct} onChange={e => setScPct(e.target.value)} min={-100}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                      placeholder="-20 (baisse) ou 20 (hausse)"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 block mb-1">Catégorie (optionnel)</label>
-                    <select
-                      value={scCategory} onChange={e => setScCategory(e.target.value)}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    >
-                      <option value="">Toutes les catégories</option>
-                      {categories.map(c => <option key={c.id} value={c.name}>{c.icon} {c.name}</option>)}
-                    </select>
-                  </div>
-                </>
-              )}
-
-              {scType === 'recurring_cashflow' && (
-                <>
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 block mb-1">Montant (+ ou −)</label>
-                    <input
-                      type="number" value={scAmount} onChange={e => setScAmount(e.target.value)}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                      placeholder="500"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 block mb-1">Fréquence</label>
-                    <select
-                      value={scFrequency} onChange={e => setScFrequency(e.target.value as ScenarioItem['frequency'] & string)}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    >
-                      {FREQUENCIES.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-                    </select>
-                  </div>
-                </>
-              )}
-
-              {(scType === 'one_time_event' || scType === 'contribution_change') && (
-                <div>
-                  <label className="text-xs font-medium text-gray-500 block mb-1">
-                    {scType === 'one_time_event' ? 'Montant (+ ou −)' : 'Montant (CHF/mois)'}
-                  </label>
-                  <input
-                    type="number" value={scAmount} onChange={e => setScAmount(e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    placeholder={scType === 'one_time_event' ? '-5000' : '500'}
-                  />
-                </div>
-              )}
-
-              {(scType === 'one_time_event' || scType === 'recurring_cashflow') && (
-                <div>
-                  <label className="text-xs font-medium text-gray-500 block mb-1">Destination</label>
-                  <select
-                    value={scTarget} onChange={e => setScTarget(e.target.value as NonNullable<ScenarioItem['target']>)}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
-                  >
-                    <option value="bank">🏦 Compte bancaire</option>
-                    <option value="investment">📈 Investissement</option>
-                  </select>
-                </div>
-              )}
-
-              <div>
-                <label className="text-xs font-medium text-gray-500 block mb-1">Débute au mois n°</label>
-                <input
-                  type="number" value={scMonth} onChange={e => setScMonth(e.target.value)} min={1}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                  placeholder="1"
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={closeScForm}
-                className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={addScenario}
-                className="px-4 py-1.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                {editingScIndex !== null ? 'Enregistrer' : 'Ajouter'}
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Scenario form — shown above the list when adding a new scenario,
+            or inline right under the card being edited (see the map below)
+            so it's clear which scenario the form refers to. */}
+        {showScForm && editingScIndex === null && renderScenarioForm()}
 
         {/* Active scenarios */}
         {scenarios.length > 0 ? (
@@ -1462,46 +1526,50 @@ export default function Futur() {
               const noEffect = sc.type === 'contribution_change' && contribMode === 'auto'
               const inactive = noEffect || !enabled
               return (
-                <div
-                  key={i}
-                  className={`flex items-center justify-between rounded-xl px-4 py-2.5 border ${
-                    inactive ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-100'
-                  }`}
-                >
-                  <span className={`text-sm ${inactive ? 'text-gray-400' : 'text-gray-700'}`}>
-                    {scenarioLabel(sc)}
-                    {noEffect && ' — sans effet en mode Automatique'}
-                    {!enabled && ' — désactivé'}
-                  </span>
-                  <div className="flex items-center gap-2 ml-3 shrink-0">
-                    <button
-                      onClick={() => setScenarios(prev => prev.map((s, j) => j === i ? { ...s, enabled: !enabled } : s))}
-                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        enabled ? 'bg-blue-600' : 'bg-gray-200'
-                      }`}
-                      title={enabled ? 'Désactiver ce scénario' : 'Activer ce scénario'}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                          enabled ? 'translate-x-4' : 'translate-x-0'
+                <div key={i}>
+                  <div
+                    className={`flex items-center justify-between rounded-xl px-4 py-2.5 border ${
+                      inactive ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-100'
+                    }`}
+                  >
+                    <span className={`text-sm ${inactive ? 'text-gray-400' : 'text-gray-700'}`}>
+                      {sc.label || scenarioLabel(sc)}
+                      {noEffect && ' — sans effet en mode Automatique'}
+                      {!enabled && ' — désactivé'}
+                    </span>
+                    <div className="flex items-center gap-2 ml-3 shrink-0">
+                      <button
+                        onClick={() => setScenarios(prev => prev.map((s, j) => j === i ? { ...s, enabled: !enabled } : s))}
+                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          enabled ? 'bg-blue-600' : 'bg-gray-200'
                         }`}
-                      />
-                    </button>
-                    <button
-                      onClick={() => startEditScenario(i)}
-                      className="text-gray-400 hover:text-blue-600 transition-colors p-1"
-                      title="Modifier"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setScenarios(prev => prev.filter((_, j) => j !== i))}
-                      className="text-gray-400 hover:text-red-500 transition-colors p-1"
-                      title="Supprimer"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
+                        title={enabled ? 'Désactiver ce scénario' : 'Activer ce scénario'}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            enabled ? 'translate-x-4' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                      <button
+                        onClick={() => startEditScenario(i)}
+                        className="text-gray-400 hover:text-blue-600 transition-colors p-1"
+                        title="Modifier"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setScenarios(prev => prev.filter((_, j) => j !== i))}
+                        className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                        title="Supprimer"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
+                  {showScForm && editingScIndex === i && (
+                    <div className="mt-2">{renderScenarioForm()}</div>
+                  )}
                 </div>
               )
             })}

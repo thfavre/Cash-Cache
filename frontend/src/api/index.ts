@@ -251,6 +251,7 @@ export interface ScenarioItem {
   duration_months?: number
   target?: 'bank' | 'investment'
   enabled?: boolean
+  label?: string
 }
 
 export interface Merchant {
