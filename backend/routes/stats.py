@@ -300,13 +300,21 @@ def _account_tx_counts_and_updates(db: Session):
         .group_by(Transaction.account_id)
         .all()
     )
-    return counts, last_updates
+    # Distinct from last_updates (when the data was imported): the date of
+    # the most recent transaction actually in the dataset, e.g. to spot an
+    # account nobody has exported fresh data for in a while.
+    last_tx_dates = dict(
+        db.query(Transaction.account_id, func.max(Transaction.date))
+        .group_by(Transaction.account_id)
+        .all()
+    )
+    return counts, last_updates, last_tx_dates
 
 
 @router.get("/accounts")
 def list_accounts(db: Session = Depends(get_db)):
     accounts = db.query(Account).filter(Account.is_active == True).all()
-    counts, last_updates = _account_tx_counts_and_updates(db)
+    counts, last_updates, last_tx_dates = _account_tx_counts_and_updates(db)
     return [
         {
             "id": a.id,
@@ -316,6 +324,7 @@ def list_accounts(db: Session = Depends(get_db)):
             "closing_balance": round(a.closing_balance, 2),
             "transaction_count": counts.get(a.id, 0),
             "last_updated": last_updates.get(a.id),
+            "last_transaction_date": last_tx_dates.get(a.id),
         }
         for a in accounts
     ]
@@ -329,7 +338,7 @@ def list_accounts_for_management(db: Session = Depends(get_db)):
     a deactivated account must still be visible so it can be reactivated.
     """
     accounts = db.query(Account).order_by(Account.is_active.desc(), Account.name).all()
-    counts, last_updates = _account_tx_counts_and_updates(db)
+    counts, last_updates, last_tx_dates = _account_tx_counts_and_updates(db)
     return [
         {
             "id": a.id,
@@ -340,6 +349,7 @@ def list_accounts_for_management(db: Session = Depends(get_db)):
             "is_active": a.is_active,
             "transaction_count": counts.get(a.id, 0),
             "last_updated": last_updates.get(a.id),
+            "last_transaction_date": last_tx_dates.get(a.id),
         }
         for a in accounts
     ]

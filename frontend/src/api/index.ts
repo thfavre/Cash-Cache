@@ -28,6 +28,7 @@ export interface Account {
   closing_balance: number
   transaction_count: number
   last_updated: string | null
+  last_transaction_date: string | null
 }
 
 export interface ManagedAccount extends Account {

@@ -74,6 +74,10 @@ function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString('fr-CH')
 }
 
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('fr-CH')
+}
+
 // A dropdown whose placeholder only ever shows in the closed state — a
 // native <select> would list the placeholder as a selectable row too.
 function CustomSelect({
@@ -550,7 +554,8 @@ export default function Import({ onContinueWithoutData, onDataChanged }: ImportP
                 <th className="px-4 py-2 font-medium whitespace-nowrap">Compte</th>
                 <th className="px-4 py-2 font-medium whitespace-nowrap">Solde</th>
                 <th className="px-4 py-2 font-medium whitespace-nowrap">Transactions</th>
-                <th className="px-4 py-2 font-medium whitespace-nowrap">Dernière mise à jour</th>
+                <th className="px-4 py-2 font-medium whitespace-nowrap">Dernière transaction</th>
+                <th className="px-4 py-2 font-medium whitespace-nowrap">Dernier import</th>
                 <th className="px-4 py-2 font-medium whitespace-nowrap">Actif</th>
                 <th className="px-4 py-2 font-medium"></th>
               </tr>
@@ -566,6 +571,7 @@ export default function Import({ onContinueWithoutData, onDataChanged }: ImportP
                     {new Intl.NumberFormat('fr-CH', { style: 'currency', currency: a.currency }).format(a.closing_balance)}
                   </td>
                   <td className="px-4 py-2 text-gray-500 whitespace-nowrap">{a.transaction_count}</td>
+                  <td className="px-4 py-2 text-gray-500 whitespace-nowrap">{a.last_transaction_date ? formatDate(a.last_transaction_date) : '—'}</td>
                   <td className="px-4 py-2 text-gray-500 whitespace-nowrap">{a.last_updated ? formatDateTime(a.last_updated) : '—'}</td>
                   <td className="px-4 py-2">
                     <button
@@ -594,7 +600,7 @@ export default function Import({ onContinueWithoutData, onDataChanged }: ImportP
                 </tr>
               ))}
               {accounts.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-6 text-center text-gray-400">Aucun compte pour le moment.</td></tr>
+                <tr><td colSpan={7} className="px-4 py-6 text-center text-gray-400">Aucun compte pour le moment.</td></tr>
               )}
             </tbody>
           </table>
