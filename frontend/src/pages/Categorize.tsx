@@ -97,7 +97,7 @@ const TUTORIAL_STEPS = [
   {
     icon: MousePointerClick,
     title: 'Assignez une catégorie',
-    text: "Cliquez sur une transaction (ou un groupe) puis sur une catégorie pour l'assigner — ou glissez-déposez directement la transaction sur la catégorie.",
+    text: "Cliquez sur une transaction puis sur une catégorie pour l'assigner — ou glissez-déposez directement la transaction sur la catégorie.",
   },
   {
     icon: Sparkles,
@@ -118,15 +118,16 @@ const TUTORIAL_STEPS = [
 
 function CategorizeTutorial({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState(0)
+  const first = step === 0
   const last = step === TUTORIAL_STEPS.length - 1
   const { icon: Icon, title, text } = TUTORIAL_STEPS[step]
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/30" onClick={onClose}>
-      <div
-        onClick={e => e.stopPropagation()}
-        className="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-6 space-y-4"
-      >
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/30"
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-6 space-y-4">
         <div className="w-11 h-11 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center">
           <Icon size={20} />
         </div>
@@ -141,9 +142,11 @@ function CategorizeTutorial({ onClose }: { onClose: () => void }) {
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={onClose} className="text-sm text-gray-400 hover:text-gray-600 px-2 py-1.5">
-              Passer
-            </button>
+            {!first && (
+              <button onClick={() => setStep(s => s - 1)} className="text-sm text-gray-400 hover:text-gray-600 px-2 py-1.5">
+                Retour
+              </button>
+            )}
             <button
               onClick={() => last ? onClose() : setStep(s => s + 1)}
               className="text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg px-4 py-1.5 transition-colors"
