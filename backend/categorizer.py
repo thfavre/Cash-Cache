@@ -62,7 +62,7 @@ DEFAULT_CATEGORIES = [
             "TRAITEMENT SALARIAL", "re:\\bPAIE\\b", "VIREMENT SALAIRE", "RÉMUNÉRATION",
             "ALLOCATION FAMILIALE", "ALLOCATION DE MATERNITE",
             "RENTE AVS", "RENTE LPP", "INDEMNITE CHOMAGE",
-            "INDEMNITE JOURNALIERE", "TREIZIEME SALAIRE", "BONUS",
+            "INDEMNITE JOURNALIERE", "TREIZIEME SALAIRE",
             "REMBOURSEMENT DE FRAIS", "ADMINISTRATION CANTONALE DES FINANCES",
             "LOHN", "GEHALT",
         ],
@@ -73,7 +73,7 @@ DEFAULT_CATEGORIES = [
         "icon": "🛒",
         "rules": [
             "MIGROS", "COOP", "LIDL", "ALDI", "DENNER", "MANOR",
-            "VOLG", "SPAR", "USEGO", "re:\\bAVEC\\.", "K-KIOSK",
+            "VOLG", "SPAR", "USEGO", "re:\\bAVEC\\b", "K-KIOSK",
             "MIGROLINO", "OTTO'S", "LANDI", "EPICERIE", "SUPERMARCHE",
             "BOULANGERIE", "BOUCHERIE", "MARCHE", "LEBENSMITTEL", "BÄCKEREI",
         ],
@@ -110,7 +110,7 @@ DEFAULT_CATEGORIES = [
         "rules": [
             "BAR ", " BAR", "PUB ", "LOUNGE", "NIGHTCLUB",
             "DISCOTHEQUE", "BOITE DE NUIT", "CAVE A VIN", "SOIREE",
-            "COCKTAIL BAR", "CLUB DE NUIT", "HAPPY HOUR", "KARAOKE",
+            "COCKTAIL BAR", "CLUB", "HAPPY HOUR", "KARAOKE",
             "CASINO", "ROOFTOP", "KNEIPE", "BIERGARTEN",
         ],
     },
@@ -132,7 +132,7 @@ DEFAULT_CATEGORIES = [
         "icon": "🏥",
         "rules": [
             "PHARMACIE", "MEDECIN", "HOPITAL", "CLINIQUE",
-            "IMAGERIE", "PATHOLOGIE", "DENTISTE",
+            "IMAGERIE", "PATHOLOGIE", "DENTISTE", "BLOCH",
             "CIM CENTRE", "INSTITUT DE PATHOLOGIE",
             "OPTICIEN", "PHYSIOTHERAPEUTE", "OSTEOPATHE", "AMAVITA",
             "SUNSTORE", "SUN STORE", "PHARMACIE POPULAIRE", "COOP VITALITY", "CHUV",
@@ -169,7 +169,7 @@ DEFAULT_CATEGORIES = [
         "color": "#10B981",
         "icon": "📈",
         "rules": [
-            "INTERACTIVE BROKERS", "BROKER",
+            "INTERACTIVE BROKERS",
             "SWISSQUOTE", "POSTFINANCE E-TRADING", "YUH", "NEON INVEST",
             "SELMA FINANCE", "VIAC", "FRANKLY", "FINPENSION", "COINBASE",
             "KRAKEN", "BITPANDA", "INVESTISSEMENT", "COURTIER",
