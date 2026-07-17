@@ -411,6 +411,18 @@ export default function Categorize() {
     return groups
   })()
 
+  // Default the sort dropdown to whichever view is actually useful for this
+  // data: frequency grouping only pays off once some group has enough
+  // transactions to be worth batch-assigning, otherwise most-recent is more
+  // useful. Decided once, right after the first load settles, so it doesn't
+  // fight the user's own choice on every re-render.
+  const sortDefaultSetRef = useRef(false)
+  useEffect(() => {
+    if (sortDefaultSetRef.current || loading) return
+    sortDefaultSetRef.current = true
+    setTxSort(txGroups.some(g => g.items.length >= 3) ? 'frequency' : 'date')
+  }, [loading, txGroups])
+
   const filteredCategories = (() => {
     const q = catSearch.trim().toLowerCase()
     const base = !q ? categories : categories.filter(cat =>
