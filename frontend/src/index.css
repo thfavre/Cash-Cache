@@ -4866,6 +4866,37 @@ input[type='range']::-moz-range-thumb {
 :root[data-theme='rgb_plus'] {
   animation: theme-fx-rgb-plus-text 5s linear infinite;
 }
+/* Re-running the same animation independently at a few common tag types,
+ * each with its own negative delay, offsets their color cycle from the
+ * :root instance (and from each other) instead of everything switching in
+ * perfect lockstep. */
+[data-theme='rgb_plus'] h1,
+[data-theme='rgb_plus'] h2,
+[data-theme='rgb_plus'] h3 {
+  animation: theme-fx-rgb-plus-text 5s linear infinite;
+  animation-delay: -1s;
+}
+[data-theme='rgb_plus'] p,
+[data-theme='rgb_plus'] div {
+  animation: theme-fx-rgb-plus-text 5s linear infinite;
+  animation-delay: -2s;
+}
+[data-theme='rgb_plus'] span,
+[data-theme='rgb_plus'] label {
+  animation: theme-fx-rgb-plus-text 5s linear infinite;
+  animation-delay: -3s;
+}
+[data-theme='rgb_plus'] td,
+[data-theme='rgb_plus'] th,
+[data-theme='rgb_plus'] li {
+  animation: theme-fx-rgb-plus-text 5s linear infinite;
+  animation-delay: -4s;
+}
+[data-theme='rgb_plus'] button,
+[data-theme='rgb_plus'] a {
+  animation: theme-fx-rgb-plus-text 5s linear infinite;
+  animation-delay: -4.4s;
+}
 [data-theme='rgb_plus'] .theme-fx-logo,
 [data-theme='rgb_plus'] .theme-fx-nav-active {
   animation: theme-fx-rgb 5s linear infinite;
