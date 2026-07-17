@@ -87,7 +87,7 @@ DEFAULT_CATEGORIES = [
             "TPF", "TPN", "UNIRESO", "MOBILITY", "TPG", "TRAVYS",
             "LEMAN EXPRESS", "ZVV", "ESSENCE", "CARBURANT",
             "STATION-SERVICE", "PARKING", "PEAGE", "BILLET DE TRAIN",
-            "ABONNEMENT DE TRANSPORT", "TAXI", "SHELL", "BP",
+            "ABONNEMENT DE TRANSPORT", "TAXI", "SHELL",
             "MIGROL", "TANKSTELLE", "FAHRKARTE", "UBER",
         ],
     },
