@@ -217,6 +217,14 @@ DEFAULT_CATEGORIES = [
         ],
     },
     {
+        "name": "Remboursements entre amis",
+        "color": "#0EA5E9",
+        "icon": "🤝",
+        "rules": [
+            "REMBOURSEMENT ENTRE AMIS", "REMBOURSEMENT AMI", "REMBOURSEMENT AMIS",
+        ],
+    },
+    {
         "name": "Virements internes",
         "color": "#9CA3AF",
         "icon": "🔄",
