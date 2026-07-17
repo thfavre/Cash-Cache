@@ -726,7 +726,7 @@ function RuleMatchPreview({ rule, categoryId, categoryName, categoryColor }: {
                 {new Date(tx.date).toLocaleDateString('fr-CH', { day: '2-digit', month: '2-digit', year: '2-digit' })}
               </span>
               <span className="flex-1 truncate text-gray-700">{tx.description ?? tx.counterparty ?? '—'}</span>
-              {tx.current_category && (
+              {tx.current_category && tx.current_category.name !== 'Non catégorisé' && (
                 <span
                   className={clsx(
                     'shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium',
@@ -1075,7 +1075,7 @@ function TxCard({
           <p className={clsx('text-sm font-bold', tx.is_credit ? 'text-green-600' : 'text-gray-800')}>
             {tx.is_credit ? '+' : '-'}{fmt(tx.amount)}
           </p>
-          {tx.category_name && (
+          {tx.category_name && tx.category_name !== 'Non catégorisé' && (
             <span
               className="inline-block text-xs px-1.5 py-0.5 rounded-full mt-1"
               style={{ background: `${tx.category_color}22`, color: tx.category_color ?? '#6B7280' }}
@@ -1106,6 +1106,21 @@ function TxGroupCard({
   const allCredit = group.items.every(t => t.is_credit)
   const sortedItems = [...group.items].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
+  // Summarize the categories already present in this group (relevant with
+  // "Tout afficher" on, since the group can then mix already-categorized and
+  // uncategorized transactions) so it's visible without expanding the card.
+  const catBreakdown = (() => {
+    const map = new Map<number, { name: string; color: string; icon: string; count: number }>()
+    for (const tx of group.items) {
+      if (tx.category_id == null || !tx.category_name || tx.category_name === 'Non catégorisé') continue
+      const existing = map.get(tx.category_id)
+      if (existing) existing.count++
+      else map.set(tx.category_id, { name: tx.category_name, color: tx.category_color ?? '#6B7280', icon: tx.category_icon ?? '', count: 1 })
+    }
+    return Array.from(map.values())
+  })()
+  const uncategorizedCount = group.items.length - catBreakdown.reduce((s, c) => s + c.count, 0)
+
   return (
     <div
       draggable
@@ -1128,6 +1143,25 @@ function TxGroupCard({
           <p className="text-xs text-gray-400 mt-1">
             {group.items.length} transactions · dernière le {group.mostRecent}
           </p>
+          {(catBreakdown.length > 0 || uncategorizedCount > 0) && (
+            <div className="flex items-center gap-1 flex-wrap mt-1">
+              {catBreakdown.map(cat => (
+                <span
+                  key={cat.name}
+                  className="inline-block text-xs px-1.5 py-0.5 rounded-full"
+                  style={{ background: cat.color + '22', color: cat.color }}
+                  title={`${cat.count}/${group.items.length} déjà en ${cat.name}`}
+                >
+                  {cat.icon} {cat.name}{catBreakdown.length > 1 || cat.count < group.items.length ? ` (${cat.count})` : ''}
+                </span>
+              ))}
+              {uncategorizedCount > 0 && catBreakdown.length > 0 && (
+                <span className="inline-block text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400">
+                  {uncategorizedCount} non catégorisée{uncategorizedCount > 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+          )}
         </div>
         <div className="text-right shrink-0 flex items-start gap-2">
           <div>
@@ -1153,6 +1187,14 @@ function TxGroupCard({
             <div key={tx.id} className="flex items-center justify-between gap-2 text-xs">
               <span className="text-gray-500 truncate">{tx.date}</span>
               <span className="text-gray-700 truncate flex-1">{tx.description ?? tx.counterparty ?? '—'}</span>
+              {tx.category_name && tx.category_name !== 'Non catégorisé' && (
+                <span
+                  className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full"
+                  style={{ background: (tx.category_color ?? '#6B7280') + '22', color: tx.category_color ?? '#6B7280' }}
+                >
+                  {tx.category_icon} {tx.category_name}
+                </span>
+              )}
               <span className={clsx('font-medium shrink-0', tx.is_credit ? 'text-green-600' : 'text-gray-700')}>
                 {tx.is_credit ? '+' : '-'}{fmt(tx.amount)}
               </span>
