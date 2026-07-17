@@ -83,7 +83,7 @@ DEFAULT_CATEGORIES = [
         "color": "#3B82F6",
         "icon": "🚆",
         "rules": [
-            "SBB MOBILE", "SBB AG", "CFF", "BLS", "POSTCAR",
+            "SBB MOBILE", "SBB AG", "CFF", "SNCF", "BLS", "POSTCAR",
             "TPF", "TPN", "UNIRESO", "MOBILITY", "TPG", "TRAVYS",
             "LEMAN EXPRESS", "ZVV", "ESSENCE", "CARBURANT",
             "STATION-SERVICE", "PARKING", "PEAGE", "BILLET DE TRAIN",
