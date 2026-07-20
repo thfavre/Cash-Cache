@@ -544,7 +544,10 @@ export default function Analytics() {
 
       {/* Drill-down slide over modal */}
       {selectedCategory && (
-        <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/40 backdrop-blur-sm">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-end bg-black/40 backdrop-blur-sm"
+          onMouseDown={e => { if (e.target === e.currentTarget) setSelectedCategory(null) }}
+        >
           <div className="bg-white w-full max-w-xl h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
             <div className="p-5 border-b border-gray-200 flex items-center justify-between">
               <div>
